@@ -1,0 +1,18 @@
+build/
+*.gba
+*.gb
+*.elf
+*.map
+*.o
+*.sav
+*.ss1
+refs/
+
+# Local debugging and assistant/session artifacts
+debug/
+tmp/
+.claude/
+.agents/
+*conversation*
+*handoff*
+*session*

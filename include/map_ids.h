@@ -1,0 +1,23 @@
+#pragma once
+
+typedef enum {
+    MAP_PALLET_TOWN = 0,
+    MAP_VIRIDIAN_CITY,
+    MAP_PEWTER_CITY,
+    MAP_CERULEAN_CITY,
+    MAP_LAVENDER_TOWN,
+    MAP_VERMILION_CITY,
+    MAP_CELADON_CITY,
+    MAP_FUCHSIA_CITY,
+    MAP_CINNABAR_ISLAND,
+    MAP_SAFFRON_CITY,
+    // routes
+    MAP_ROUTE_1 = 20,
+    MAP_ROUTE_2,
+    // buildings
+    MAP_OAKS_LAB = 40,
+    MAP_PLAYERS_HOUSE_1F,
+    MAP_PLAYERS_HOUSE_2F,
+    MAP_RIVALS_HOUSE,
+    MAP_COUNT,
+} MapId;
