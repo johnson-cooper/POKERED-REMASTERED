@@ -10,6 +10,32 @@
 #include "gfx_npcs.h"
 #include "irq.h"
 
+typedef enum {
+    WORLD_TRANSITION_NONE = 0,
+    WORLD_TRANSITION_OUT,
+    WORLD_TRANSITION_IN,
+} WorldTransitionPhase;
+
+static WorldTransitionPhase s_transition_phase = WORLD_TRANSITION_NONE;
+static u8 s_transition_level;
+static WarpEvent s_pending_warp;
+
+// GBA hardware fade registers. Darken mode applies a black overlay to all
+// visible layers; BLDY ranges from 0 (normal) to 16 (fully black).
+#define WORLD_REG_BLDCNT (*(vu16 *)0x04000050)
+#define WORLD_REG_BLDY   (*(vu16 *)0x04000054)
+
+static void world_transition_apply(void) {
+    if (s_transition_phase == WORLD_TRANSITION_NONE) {
+        WORLD_REG_BLDCNT = 0;
+        WORLD_REG_BLDY = 0;
+        return;
+    }
+
+    WORLD_REG_BLDCNT = 0x00BF; // darken BG0-BG3, OBJ, and backdrop
+    WORLD_REG_BLDY = s_transition_level;
+}
+
 void world_init(const MapHeader *map, u8 start_x, u8 start_y) {
     PlayerState *p = &g_world.player;
 
@@ -140,21 +166,26 @@ static void world_npcs_update(void) {
     }
 }
 
-void world_do_warp(const WarpEvent *w) {
+static void world_finish_warp(void) {
     const MapHeader *dest;
 
-    if (w->dest_map == WARP_LAST_MAP) {
+    if (s_pending_warp.dest_map == WARP_LAST_MAP) {
         dest = g_world.last_map;
     } else {
-        dest = map_get_by_id(w->dest_map);
+        dest = map_get_by_id(s_pending_warp.dest_map);
     }
 
-    if (!dest) return; // destination not yet implemented
+    if (!dest) {
+        s_transition_phase = WORLD_TRANSITION_NONE;
+        world_transition_apply();
+        g_world.player.move_state = MOVE_STATE_IDLE;
+        return; // destination not yet implemented
+    }
 
     // Find the destination spawn point from dest's warp table
     u8 spawn_x = 4, spawn_y = 4; // fallback
-    if (w->dest_warp < dest->warp_count) {
-        const WarpEvent *dw = &dest->warps[w->dest_warp];
+    if (s_pending_warp.dest_warp < dest->warp_count) {
+        const WarpEvent *dw = &dest->warps[s_pending_warp.dest_warp];
         spawn_x = dw->x;
         spawn_y = dw->y;
     }
@@ -163,7 +194,40 @@ void world_do_warp(const WarpEvent *w) {
     world_init(dest, spawn_x, spawn_y);
 }
 
+void world_do_warp(const WarpEvent *w) {
+    if (!w || s_transition_phase != WORLD_TRANSITION_NONE) return;
+
+    s_pending_warp = *w;
+    s_transition_level = 0;
+    s_transition_phase = WORLD_TRANSITION_OUT;
+    g_world.player.move_state = MOVE_STATE_FROZEN;
+    world_transition_apply();
+}
+
 void world_update(void) {
+    if (s_transition_phase == WORLD_TRANSITION_OUT) {
+        if (s_transition_level < 16)
+            s_transition_level = (u8)(s_transition_level + 4);
+        if (s_transition_level >= 16) {
+            world_finish_warp();
+            s_transition_phase = WORLD_TRANSITION_IN;
+        }
+        world_transition_apply();
+        return;
+    }
+
+    if (s_transition_phase == WORLD_TRANSITION_IN) {
+        if (s_transition_level >= 4)
+            s_transition_level = (u8)(s_transition_level - 4);
+        else {
+            s_transition_level = 0;
+            s_transition_phase = WORLD_TRANSITION_NONE;
+            g_world.player.move_state = MOVE_STATE_IDLE;
+        }
+        world_transition_apply();
+        return;
+    }
+
     // Generic NPC dialogs are map-independent. This must run before the map
     // script so maps without a script (for example Rival's House) still
     // advance and close their dialogs correctly.

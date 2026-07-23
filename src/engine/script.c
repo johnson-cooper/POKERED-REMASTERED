@@ -461,6 +461,9 @@ void script_oaks_lab(void) {
             break;
         }
         // First-time entry: freeze player, begin Oak2 walk-in animation
+        // Oak2 is normally hidden; reveal the temporary reference-position
+        // sprite only when the entrance cutscene is actually starting.
+        g_world.npcs[5].flags &= (u8)~NPCF_HIDDEN;
         g_world.player.move_state = MOVE_STATE_FROZEN;
         s_blocks_input = TRUE;
         s_active_script_id = ACTIVE_MAP_SCRIPT;

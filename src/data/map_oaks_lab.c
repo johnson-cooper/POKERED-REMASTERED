@@ -67,8 +67,9 @@ static const NpcDef s_npcs[] = {
     { .x = 7, .y = 4, .sprite_tile = GFX_POKEBALL_TILE_BASE, .facing = DIR_DOWN,  .flags = 0, .script_id = 12 },
     // Squirtle Pokeball — right counter, right side
     { .x = 8, .y = 4, .sprite_tile = GFX_POKEBALL_TILE_BASE, .facing = DIR_DOWN,  .flags = 0, .script_id = 11 },
-    // Oak2 — walk-in sprite; walks UP x3 from (5,10) then is hidden, revealing Oak1
-    { .x = 5, .y = 10, .sprite_tile = GFX_OAK_TILE_BASE, .facing = DIR_UP,   .flags = 0, .script_id = 0 },
+    // Oak2 — temporary walk-in sprite. It only appears during the entrance
+    // cutscene, then is hidden and replaced by Oak1 at (5,2).
+    { .x = 5, .y = 10, .sprite_tile = GFX_OAK_TILE_BASE, .facing = DIR_UP,   .flags = NPCF_HIDDEN, .script_id = 0 },
 };
 
 extern void script_oaks_lab(void);
