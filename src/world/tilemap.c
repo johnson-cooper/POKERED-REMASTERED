@@ -267,6 +267,10 @@ void tilemap_load_player_sprite(void) {
     for (u32 i = 0; i < 24 * 8; i++)
         obj_vram[mom_base + i] = remap_sprite_nibbles(g_mom_tiles[i]);
 
+    u32 scientist_base = mom_base + 24 * 8;
+    for (u32 i = 0; i < 24 * 8; i++)
+        obj_vram[scientist_base + i] = remap_sprite_nibbles(g_scientist_tiles[i]);
+
 
 
 

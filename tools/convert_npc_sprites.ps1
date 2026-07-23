@@ -9,6 +9,7 @@ $sprites = @(
     @{ Symbol = "fisher";  File = (Join-Path $ReferenceDir "fisher.png");  Width = 16; Height = 96; Frames = 6 },
     @{ Symbol = "daisy";   File = (Join-Path $ReferenceDir "daisy.png");   Width = 16; Height = 96; Frames = 6 },
     @{ Symbol = "mom";     File = (Join-Path $ReferenceDir "mom.png");     Width = 16; Height = 96; Frames = 6 },
+    @{ Symbol = "scientist"; File = (Join-Path $ReferenceDir "scientist.png"); Width = 16; Height = 96; Frames = 6 },
     @{ Symbol = "pokedex_overworld"; File = (Join-Path $ReferenceDir "pokedex.png"); Width = 16; Height = 16; Frames = 1 }
 )
 
@@ -64,6 +65,7 @@ $header = @(
     'extern const u32 g_fisher_tiles[];',
     'extern const u32 g_daisy_tiles[];',
     'extern const u32 g_mom_tiles[];',
+    'extern const u32 g_scientist_tiles[];',
     'extern const u32 g_pokedex_overworld_tiles[];',
     ''
 )
