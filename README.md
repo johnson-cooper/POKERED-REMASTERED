@@ -91,7 +91,9 @@ The normal build does not require Node.js, Python, CMake, or a separate package 
 
 ### Optional asset-generation tools
 
-The battle sprite conversion script additionally requires Windows PowerShell 5+ or PowerShell 7+, ffmpeg on PATH, and a local pokered reference checkout containing the expected PNG files.
+The battle and overworld NPC sprite conversion scripts additionally require
+Windows PowerShell 5+ or PowerShell 7+, ffmpeg on PATH, and a local pokered
+reference checkout containing the expected PNG files.
 
 Asset conversion is not part of the normal C build because the generated C array is checked in.
 
@@ -300,9 +302,17 @@ The converter expects:
     refs/pokered/gfx/pokemon/back/charmanderb.png
     refs/pokered/gfx/pokemon/back/squirtleb.png
 
-Run it from PowerShell:
+Run the battle sprite converter from PowerShell:
 
     .\tools\convert_battle_sprites.ps1
+
+The Pallet Town girl, fisherman, and rival-house Daisy sprites are generated
+from the pokered 16×96 NPC sheets with:
+
+    .\tools\convert_npc_sprites.ps1
+
+This writes src/data/gfx_npcs_extra.c and src/data/gfx_npcs_extra.h. Both
+generated files are tracked because they are required by the normal C build.
 
 For another checkout location:
 

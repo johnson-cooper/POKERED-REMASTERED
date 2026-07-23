@@ -4,6 +4,7 @@
 #include "gfx_player.h"
 #include "gfx_pokeball.h"
 #include "gfx_npcs.h"
+#include "gfx_npcs_extra.h"
 
 // VRAM layout:
 // CBB 0 (SBBs 0-7,  0x06000000): map tile graphics
@@ -16,6 +17,8 @@
 #define BG2_SBB         24
 #define BG1_SBB         28
 #define UI_SBB          20
+
+#define DISPCNT_WIN0 0x2000
 
 #define SBB_PTR(n)  ((vu16*)(MEM_VRAM + (n) * 0x800))
 
@@ -244,6 +247,26 @@ void tilemap_load_player_sprite(void) {
     for (u32 i = 0; i < g_oak_tile_count * 8; i++)
         obj_vram[oak_base + i] = remap_sprite_nibbles(g_oak_tiles[i]);
 
+    u32 girl_base = oak_base + g_oak_tile_count * 8;
+    for (u32 i = 0; i < 24 * 8; i++)
+        obj_vram[girl_base + i] = remap_sprite_nibbles(g_girl_tiles[i]);
+
+    u32 fisher_base = girl_base + 24 * 8;
+    for (u32 i = 0; i < 24 * 8; i++)
+        obj_vram[fisher_base + i] = remap_sprite_nibbles(g_fisher_tiles[i]);
+
+    u32 daisy_base = fisher_base + 24 * 8;
+    for (u32 i = 0; i < 24 * 8; i++)
+        obj_vram[daisy_base + i] = remap_sprite_nibbles(g_daisy_tiles[i]);
+
+    u32 pokedex_base = daisy_base + 24 * 8;
+    for (u32 i = 0; i < 4 * 8; i++)
+        obj_vram[pokedex_base + i] = remap_sprite_nibbles(g_pokedex_overworld_tiles[i]);
+
+    u32 mom_base = pokedex_base + 4 * 8;
+    for (u32 i = 0; i < 24 * 8; i++)
+        obj_vram[mom_base + i] = remap_sprite_nibbles(g_mom_tiles[i]);
+
 
 
 
@@ -291,11 +314,34 @@ static s32 s_last_cam_ty = -9999;
 
 void tilemap_update_scroll(void) {
     Camera *cam = &g_world.camera;
+    const MapLayout *layout = g_world.map->layout;
 
     REG_BG2HOFS = (u16)(cam->x & 0x1FF);
     REG_BG2VOFS = (u16)(cam->y & 0x1FF);
     REG_BG1HOFS = (u16)(cam->x & 0x1FF);
     REG_BG1VOFS = (u16)(cam->y & 0x1FF);
+
+    // Hardware windows prevent the 512x512 BG tilemap from wrapping into
+    // the visible area when a small interior is centered with a negative
+    // camera offset. Keep BG1/BG2/OBJ visible only inside the room rectangle;
+    // leave BG0 available outside for the UI.
+    if (layout && layout->width * 32 < 240 && layout->height * 32 < 160) {
+        s32 left = -cam->x;
+        s32 top = -cam->y;
+        s32 right = left + layout->width * 32;
+        s32 bottom = top + layout->height * 32;
+        if (left < 0) left = 0;
+        if (top < 0) top = 0;
+        if (right > 240) right = 240;
+        if (bottom > 160) bottom = 160;
+        REG_WIN0H = (u16)(((left & 0xFF) << 8) | (right & 0xFF));
+        REG_WIN0V = (u16)(((top & 0xFF) << 8) | (bottom & 0xFF));
+        REG_WININ = 0x001F;  // BG0, BG1, BG2, BG3, and OBJ inside
+        REG_WINOUT = 0x0001; // BG0 only outside
+        REG_DISPCNT |= DISPCNT_WIN0;
+    } else {
+        REG_DISPCNT &= (u16)~DISPCNT_WIN0;
+    }
 
     s32 cam_mx = cam->x / 32;
     s32 cam_my = cam->y / 32;

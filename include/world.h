@@ -57,6 +57,7 @@ typedef struct {
     u8  facing;         // Direction
     u8  flags;          // NPCF_* flags
     u16 script_id;
+    u8  movement;       // NpcMovement
 } NpcDef;
 
 // Runtime copy of an NPC definition. Scripted scenes can move and hide these
@@ -69,12 +70,21 @@ typedef struct {
     u16 script_id;
     s16 px, py;
     s8  step_dx, step_dy;
+    u8  step_dir;
     u8  step_frame;
     bool8 walking;
     u8  walk_cycle;
+    u8  movement;       // NpcMovement
+    u16 move_timer;
 } NpcState;
 
 #define NPCF_HIDDEN  0x01  // not rendered or interactive
+
+typedef enum {
+    NPC_MOVE_STAY = 0,
+    NPC_MOVE_WALK_ANY,
+    NPC_MOVE_UP_DOWN,
+} NpcMovement;
 
 // ── Map script ────────────────────────────────────────────────────────────────
 typedef void (*MapScriptFn)(void);
