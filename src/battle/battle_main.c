@@ -213,15 +213,15 @@ static void setup_hp_palettes(void) {
 
     base[HP_GREEN_PAL * 16 + 0] = 0;
     base[HP_GREEN_PAL * 16 + 1] = RGB15(5, 25, 5);
-    base[HP_GREEN_PAL * 16 + 2] = RGB15(31, 31, 31);
+    base[HP_GREEN_PAL * 16 + 2] = RGB15(29, 28, 31);
 
     base[HP_YELLOW_PAL * 16 + 0] = 0;
     base[HP_YELLOW_PAL * 16 + 1] = RGB15(28, 25, 2);
-    base[HP_YELLOW_PAL * 16 + 2] = RGB15(31, 31, 31);
+    base[HP_YELLOW_PAL * 16 + 2] = RGB15(29, 28, 31);
 
     base[HP_RED_PAL * 16 + 0] = 0;
     base[HP_RED_PAL * 16 + 1] = RGB15(28, 4, 4);
-    base[HP_RED_PAL * 16 + 2] = RGB15(31, 31, 31);
+    base[HP_RED_PAL * 16 + 2] = RGB15(29, 28, 31);
 }
 
 static void setup_battle_ui_palette(void) {
@@ -241,14 +241,23 @@ static u8 hp_palette(u16 hp, u16 max_hp) {
 }
 
 static void draw_hp_bar(u8 col, u8 row, u16 hp, u16 max_hp) {
-    u8 filled = 0;
-    if (max_hp > 0)
-        filled = (u8)((u32)hp * HP_BAR_LEN / max_hp);
+    // pokered draws a 48-pixel bar and keeps one pixel visible while HP is
+    // nonzero. Use six 8-pixel tiles plus a partial final tile so the bar does
+    // not appear empty one or two attacks before the Pokémon actually faints.
+    u8 pixels = 0;
+    if (max_hp > 0 && hp > 0) {
+        pixels = (u8)(((u32)hp * (HP_BAR_LEN * 8) + max_hp - 1) / max_hp);
+        if (pixels == 0) pixels = 1;
+    }
     u8 pal = hp_palette(hp, max_hp);
 
     for (u8 i = 0; i < HP_BAR_LEN; i++) {
-        if (i < filled)
+        u8 tile_pixels = pixels > (u8)(i * 8) ? (u8)(pixels - i * 8) : 0;
+        if (tile_pixels >= 8)
             text_draw_tile_pal((u8)(col + i), row, HP_BAR_FILL_TILE, pal);
+        else if (tile_pixels > 0)
+            text_draw_tile_pal((u8)(col + i), row,
+                               (u8)(HP_BAR_PARTIAL_TILE_BASE + tile_pixels - 1), pal);
         else
             text_draw_tile_pal((u8)(col + i), row, HP_BAR_EMPTY_TILE, TEXT_PAL);
     }

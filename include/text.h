@@ -22,6 +22,7 @@
 #define TEXT_BLANK_TILE 137 // transparent tile used only when clearing UI
 #define HP_BAR_FILL_TILE 138
 #define HP_BAR_EMPTY_TILE 139
+#define HP_BAR_PARTIAL_TILE_BASE 140 // seven tiles containing 1-7 filled pixels
 
 void text_init(void);
 void text_clear(void);
