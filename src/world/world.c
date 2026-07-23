@@ -263,9 +263,6 @@ void world_render(void) {
 
             // Pokéballs sit on the rear edge of Oak's Lab's table, one tile
             // above their logical interaction coordinates.
-            if (npc->sprite_tile == GFX_POKEBALL_TILE_BASE)
-                ny -= 16;
-
             // The original Pokéball art is slightly left-biased relative
             // to the table's visual center in this tileset.
             // Only draw if on screen
