@@ -43,6 +43,14 @@ void script_trigger_npc(u16 script_id, u8 npc_index) {
     if (s_blocks_input) return;
     if (dialog_is_open()) return;
 
+    // The starter balls are present in the room from the beginning, but they
+    // are not interactive until Oak finishes the introduction and gives the
+    // player permission to choose. Ignore them before that point so an early
+    // A press cannot leave the player stuck in the ball script state.
+    if (script_id >= 10 && script_id <= 12 &&
+        !flags_get(FLAG_OAK_ASKED_TO_CHOOSE_MON))
+        return;
+
     s_active_script_id = script_id;
     s_active_npc_index  = npc_index;
 
@@ -115,6 +123,8 @@ static u8 s_pallet_player_route_count = 0;
 static bool8 s_pallet_player_pending = FALSE;
 static bool8 s_pallet_lab_flag_set = FALSE;
 static u16 s_pallet_move_watchdog = 0;
+static s16 s_pallet_oak_target_x = 8;
+static s16 s_pallet_oak_target_y = 2;
 
 // This is the movement sequence from pokered's
 // PalletMovementScript_WalkToLab. Oak and the player have separate scripts in
@@ -184,20 +194,29 @@ void script_pallet_town(void) {
 
     switch (s_pallet_state) {
     case PT_IDLE:
-        // pokered's PalletTownDefaultScript fires on the exact north-exit row.
+        // The reference trigger is the grass row immediately above the
+        // playable north-exit row in this port's logical coordinates.
         if (flags_get(FLAG_FOLLOWED_OAK_INTO_LAB)) break;
-        if (p->tile_y != 1) break;
-        if (!flags_get(FLAG_OAK_APPEARED_IN_PALLET)) {
-            flags_set(FLAG_OAK_APPEARED_IN_PALLET);
-            p->move_state = MOVE_STATE_FROZEN;
-            s_blocks_input = TRUE;
-            s_active_script_id = ACTIVE_MAP_SCRIPT;
-            g_world.npcs[0].flags &= (u8)~NPCF_HIDDEN;
-            g_world.npcs[0].facing = DIR_UP;
-            dialog_open();
-            dialog_set_text("OAK: Hey! Wait!          \fDon't go out!");
-            s_pallet_state = PT_OAK_FIRST_TEXT;
-        }
+        // These are the two reference-aligned grass trigger tiles. Do not
+        // accept the surrounding columns; their cutscene geometry differs.
+        // The visual west/east grass tiles do not map one-to-one to the
+        // rendered columns after the camera/tile conversion. Restrict by the
+        // reference grass row only; surrounding tree tiles are impassable.
+        if (p->tile_y != 0) break;
+
+        // Allow an unfinished scene to be retried after a ROM update or a
+        // reset. The completed-follow flag remains the permanent guard.
+        flags_set(FLAG_OAK_APPEARED_IN_PALLET);
+        s_pallet_oak_target_x = p->tile_x <= 8 ? 8 : 10;
+        s_pallet_oak_target_y = 2;
+        p->move_state = MOVE_STATE_FROZEN;
+        s_blocks_input = TRUE;
+        s_active_script_id = ACTIVE_MAP_SCRIPT;
+        g_world.npcs[0].flags &= (u8)~NPCF_HIDDEN;
+        g_world.npcs[0].facing = DIR_UP;
+        dialog_open();
+        dialog_set_text("OAK: Hey! Wait!          \fDon't go out!");
+        s_pallet_state = PT_OAK_FIRST_TEXT;
         break;
 
     case PT_OAK_FIRST_TEXT:
@@ -209,8 +228,8 @@ void script_pallet_town(void) {
     case PT_OAK_WALK_TO_PLAYER: {
         NpcState *oak = &g_world.npcs[0];
         if (++s_pallet_move_watchdog > 300) {
-            oak->x = (u8)p->tile_x;
-            oak->y = (u8)(p->tile_y + 1);
+            oak->x = (u8)s_pallet_oak_target_x;
+            oak->y = (u8)s_pallet_oak_target_y;
             oak->px = (s16)oak->x * 16;
             oak->py = (s16)oak->y * 16;
             oak->walking = FALSE;
@@ -218,11 +237,13 @@ void script_pallet_town(void) {
         }
         if (world_npc_is_moving(0)) break;
 
-        // This project uses the corrected interaction-tile sprite anchor, so
-        // Oak begins the pokered WalkToLab route one logical tile below the
-        // player rather than two tiles below the player.
-        s16 target_x = p->tile_x;
-        s16 target_y = p->tile_y + 1;
+        // Oak's sprite is taller than one logical tile. Use two logical
+        // coordinates so he appears one clear tile below the player.
+        // Confront the player on the aligned tile below their preserved
+        // starting position. The two-tile offset compensates for Oak's
+        // two-tile-tall sprite.
+        s16 target_x = s_pallet_oak_target_x;
+        s16 target_y = s_pallet_oak_target_y;
         if (oak->x != target_x) {
             world_npc_start_step(0, oak->x < target_x ? DIR_RIGHT : DIR_LEFT);
         } else if (oak->y != target_y) {
@@ -245,8 +266,7 @@ void script_pallet_town(void) {
             flags_set(FLAG_FOLLOWED_OAK_INTO_LAB);
             s_pallet_route_step = 0;
             s_pallet_player_route_step = 0;
-            build_pallet_player_fallback_path();
-            s_pallet_player_pending = FALSE;
+            s_pallet_player_pending = TRUE;
             s_pallet_lab_flag_set = FALSE;
             s_pallet_move_watchdog = 0;
             s_pallet_state = PT_OAK_LEADS_PLAYER;
@@ -254,6 +274,21 @@ void script_pallet_town(void) {
         break;
 
     case PT_OAK_LEADS_PLAYER:
+        if (s_pallet_player_pending) {
+            // Oak always gets the first movement step. The player rejoins
+            // only after Oak has started and completed that step.
+            if (world_npc_is_moving(0)) break;
+            if (s_pallet_route_step == 0) {
+                world_npc_start_step(0, s_pallet_oak_route[0]);
+                s_pallet_route_step = 1;
+                break;
+            }
+            if (player_script_start_step_forced(DIR_DOWN)) {
+                s_pallet_player_pending = FALSE;
+                build_pallet_player_fallback_path();
+            }
+            break;
+        }
         if (++s_pallet_move_watchdog > 600) {
             // Never leave the player permanently locked if a scripted step
             // is interrupted by a map edge or an unexpected tile state.
@@ -360,6 +395,8 @@ void script_reset_runtime(void) {
     s_pallet_player_pending = FALSE;
     s_pallet_lab_flag_set = FALSE;
     s_pallet_move_watchdog = 0;
+    s_pallet_oak_target_x = 8;
+    s_pallet_oak_target_y = 2;
     s_oakslab_state = OAKSLAB_IDLE;
     s_chosen_ball = 0;
     s_oakslab_oak_step = 0;
