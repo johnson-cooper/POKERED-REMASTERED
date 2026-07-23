@@ -7,7 +7,13 @@ typedef enum {
     FLAG_FOLLOWED_OAK_INTO_LAB,
     FLAG_OAK_ASKED_TO_CHOOSE_MON,
     FLAG_BATTLED_RIVAL_IN_OAKS_LAB,
+    FLAG_RIVAL_LEFT_OAKS_LAB,
     FLAG_GOT_POKEDEX,
+    // Append persistent lab-object flags so existing save bits retain their
+    // meanings when loading a save created by an earlier build.
+    FLAG_OAKSLAB_CHARMANDER_TAKEN,
+    FLAG_OAKSLAB_SQUIRTLE_TAKEN,
+    FLAG_OAKSLAB_BULBASAUR_TAKEN,
     FLAG_COUNT,
 } GameFlag;
 

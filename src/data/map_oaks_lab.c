@@ -70,6 +70,12 @@ static const NpcDef s_npcs[] = {
     // Oak2 — temporary walk-in sprite. It only appears during the entrance
     // cutscene, then is hidden and replaced by Oak1 at (5,2).
     { .x = 5, .y = 10, .sprite_tile = GFX_OAK_TILE_BASE, .facing = DIR_UP,   .flags = NPCF_HIDDEN, .script_id = 0 },
+    { .x = 1, .y = 9, .sprite_tile = GFX_GIRL_TILE_BASE, .facing = DIR_UP,
+      .flags = 0, .script_id = 9, .movement = NPC_MOVE_UP_DOWN },
+    { .x = 2, .y = 10, .sprite_tile = GFX_SCIENTIST_TILE_BASE, .facing = DIR_DOWN,
+      .flags = 0, .script_id = 13, .movement = NPC_MOVE_STAY },
+    { .x = 8, .y = 10, .sprite_tile = GFX_SCIENTIST_TILE_BASE, .facing = DIR_DOWN,
+      .flags = 0, .script_id = 14, .movement = NPC_MOVE_STAY },
 };
 
 extern void script_oaks_lab(void);
@@ -81,7 +87,7 @@ const MapHeader g_map_oaks_lab = {
     .warps      = s_warps,
     .warp_count = 2,
     .npcs       = s_npcs,
-    .npc_count  = 6,
+    .npc_count  = ARRAY_COUNT(s_npcs),
     .script     = script_oaks_lab,
     .music_id   = 0,
 };

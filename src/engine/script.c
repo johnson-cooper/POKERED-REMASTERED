@@ -37,6 +37,12 @@ static const char *const s_npc_texts[] = {
     /* 6  */ "POKeMON are living things!\fIf they get tired, give\nthem a rest!",
     /* 7  */ "It's a big map!\fThis is useful!",
     /* 8  */ "MOM: Right.\nAll boys leave\nhome some day.\nIt said so on TV.\fPROF.OAK, next\ndoor, is looking\nfor you.",
+    /* 9  */ "PROF.OAK is the\nauthority on\nPOKeMON!\fMany POKeMON\ntrainers hold him\nin high regard!",
+    /* 10 */ "",
+    /* 11 */ "",
+    /* 12 */ "",
+    /* 13 */ "I study POKeMON as\nPROF.OAK's AIDE.",
+    /* 14 */ "I study POKeMON as\nPROF.OAK's AIDE.",
 };
 
 void script_trigger_npc(u16 script_id, u8 npc_index) {
@@ -50,6 +56,47 @@ void script_trigger_npc(u16 script_id, u8 npc_index) {
     if (script_id >= 10 && script_id <= 12 &&
         !flags_get(FLAG_OAK_ASKED_TO_CHOOSE_MON))
         return;
+
+    // Once the player has chosen a starter, pokered no longer opens the
+    // selection flow for another ball. The one remaining ball instead gives
+    // Oak's "last POKeMON" message; taken balls are hidden on map load and
+    // therefore never reach this path.
+    if (script_id >= 10 && script_id <= 12 &&
+        flags_get(FLAG_GOT_STARTER)) {
+        bool8 taken = FALSE;
+        if (script_id == 10)
+            taken = flags_get(FLAG_OAKSLAB_CHARMANDER_TAKEN);
+        else if (script_id == 11)
+            taken = flags_get(FLAG_OAKSLAB_SQUIRTLE_TAKEN);
+        else
+            taken = flags_get(FLAG_OAKSLAB_BULBASAUR_TAKEN);
+        if (!taken) {
+            // Use the normal NPC-dialog channel, not the Poké Ball script
+            // channel, so OAKSLAB_DONE cannot mistake this for a battle.
+            s_active_script_id = 0;
+            s_active_npc_index = npc_index;
+            dialog_open();
+            dialog_set_text("That's PROF.OAK's last\nPOKeMON!");
+            s_npc_script_state = 1;
+            s_blocks_input = TRUE;
+        }
+        return;
+    }
+
+    // Match pokered's post-selection Oak speech after the Rival has left.
+    if (g_world.map && g_world.map->map_id == MAP_OAKS_LAB &&
+        npc_index == 1 && flags_get(FLAG_RIVAL_LEFT_OAKS_LAB)) {
+        // This is a normal NPC conversation. Clear any stale Poké Ball
+        // script id left by the starter sequence so npc_script_tick() can
+        // advance the dialog and release player input when it closes.
+        s_active_script_id = script_id;
+        s_active_npc_index = npc_index;
+        dialog_open();
+        dialog_set_text("OAK: [NAME], raise your young\nPOKeMON by making it fight!");
+        s_npc_script_state = 1;
+        s_blocks_input = TRUE;
+        return;
+    }
 
     s_active_script_id = script_id;
     s_active_npc_index  = npc_index;
@@ -101,7 +148,11 @@ void script_update(void) {
     // Map-owned cutscenes use ids >= ACTIVE_MAP_SCRIPT and are advanced by
     // their map script. Generic NPC dialogs must be serviced globally so
     // indoor maps without a map script work the same way as Pallet Town.
-    if (s_blocks_input && s_active_script_id < 10)
+    // Oak's Lab has its own map-script tick, so let that handler service
+    // normal NPC dialogs there. Otherwise the same A press can close a box
+    // and immediately trigger Oak again through player interaction.
+    if (s_blocks_input && s_active_script_id < 10 &&
+        (!g_world.map || g_world.map->map_id != MAP_OAKS_LAB))
         npc_script_tick();
 }
 
@@ -366,6 +417,9 @@ typedef enum {
     OAKSLAB_WAIT_BATTLE_TRIGGER, // player walks to the battle position
     OAKSLAB_RIVAL_APPROACH,   // rival walks next to the player
     OAKSLAB_RIVAL_CHALLENGE,  // rival fights player
+    OAKSLAB_POST_BATTLE_WAIT, // pause before Rival's exit line
+    OAKSLAB_POST_BATTLE_TEXT, // Rival delivers his complete exit dialogue
+    OAKSLAB_POST_BATTLE_EXIT, // Rival walks out of the lab
     OAKSLAB_DONE,
 } OaksLabScriptState;
 
@@ -376,6 +430,8 @@ static u8 s_oakslab_player_step = 0;
 static char s_starter_nickname[8];
 static u8 s_rival_target_npc = 0;
 static bool8 s_oakslab_battle_row_armed = FALSE;
+static u8 s_oakslab_post_battle_step = 0;
+static bool8 s_oakslab_post_battle_started = FALSE;
 
 static const char *s_ball_names[] = {
     /* 10 */ "CHARMANDER",
@@ -404,6 +460,8 @@ void script_reset_runtime(void) {
     s_starter_nickname[0] = '\0';
     s_rival_target_npc = 0;
     s_oakslab_battle_row_armed = FALSE;
+    s_oakslab_post_battle_step = 0;
+    s_oakslab_post_battle_started = FALSE;
 }
 
 static void oaks_lab_start_rival_choice(void) {
@@ -412,6 +470,9 @@ static void oaks_lab_start_rival_choice(void) {
     if (s_chosen_ball == 10) s_rival_target_npc = 4;      // right ball
     else if (s_chosen_ball == 11) s_rival_target_npc = 3; // middle ball
     else s_rival_target_npc = 2;                          // left ball
+    if (s_rival_target_npc == 2) flags_set(FLAG_OAKSLAB_CHARMANDER_TAKEN);
+    else if (s_rival_target_npc == 3) flags_set(FLAG_OAKSLAB_BULBASAUR_TAKEN);
+    else flags_set(FLAG_OAKSLAB_SQUIRTLE_TAKEN);
     s_oakslab_state = OAKSLAB_RIVAL_MOVE;
 }
 
@@ -481,8 +542,13 @@ static bool8 oaks_lab_find_rival_step(s16 start_x, s16 start_y,
 }
 
 void script_oaks_lab(void) {
-    // NPC dialog ticking (non-pokeball NPCs)
-    if (s_blocks_input && s_active_script_id < 10) {
+    // NPC dialog ticking. Poké Ball ids 10-12 belong to the starter state
+    // machine; every other active NPC id is a normal conversation and must
+    // be serviced here, including the lab scientists (13 and 14).
+    bool8 is_pokeball_script =
+        (s_active_script_id >= 10 && s_active_script_id <= 12);
+    if (s_blocks_input && !is_pokeball_script &&
+        s_active_script_id != ACTIVE_MAP_SCRIPT) {
         npc_script_tick();
         return;
     }
@@ -618,6 +684,9 @@ void script_oaks_lab(void) {
     }
 
     case OAKSLAB_CHOSE_STARTER:
+        if (s_chosen_ball == 10) flags_set(FLAG_OAKSLAB_CHARMANDER_TAKEN);
+        else if (s_chosen_ball == 11) flags_set(FLAG_OAKSLAB_SQUIRTLE_TAKEN);
+        else flags_set(FLAG_OAKSLAB_BULBASAUR_TAKEN);
         flags_set(FLAG_GOT_STARTER);
         g_world.npcs[s_active_npc_index].flags |= NPCF_HIDDEN;
         s_blocks_input = TRUE;
@@ -760,12 +829,21 @@ void script_oaks_lab(void) {
     }
 
     case OAKSLAB_DONE:
-        // battle_end() sets this flag before returning to the lab. Keep the
-        // completed scene idle instead of starting the rival battle again.
-        if (flags_get(FLAG_BATTLED_RIVAL_IN_OAKS_LAB)) {
-            s_blocks_input = FALSE;
+        // battle_end() sets this flag before returning to the lab. Run the
+        // reference's post-battle Rival exit before restoring player control.
+        if (flags_get(FLAG_BATTLED_RIVAL_IN_OAKS_LAB) &&
+            !flags_get(FLAG_RIVAL_LEFT_OAKS_LAB) &&
+            !s_oakslab_post_battle_started) {
+            s_oakslab_post_battle_started = TRUE;
+            s_oakslab_post_battle_step = 0;
+            s_blocks_input = TRUE;
+            s_active_script_id = ACTIVE_MAP_SCRIPT;
+            g_world.player.move_state = MOVE_STATE_FROZEN;
+            s_oakslab_state = OAKSLAB_POST_BATTLE_WAIT;
             break;
         }
+        if (flags_get(FLAG_BATTLED_RIVAL_IN_OAKS_LAB))
+            break;
         if (!dialog_is_open()) {
             s_blocks_input = FALSE;
             g_world.player.move_state = MOVE_STATE_IDLE;
@@ -775,5 +853,43 @@ void script_oaks_lab(void) {
             dialog_update();
         }
         break;
+
+    case OAKSLAB_POST_BATTLE_WAIT:
+        if (s_oakslab_post_battle_step < 20) {
+            s_oakslab_post_battle_step++;
+            break;
+        }
+        dialog_open();
+        // Matches pokered's OaksLabRivalSmellYouLaterText, including the
+        // first page that explains Rival will toughen up his POKeMON and the
+        // closing page addressed to the player and Oak.
+        dialog_set_text("RIVAL: Okay!\nI'll make my\nPOKeMON fight to\ntoughen it up!\f[NAME]! Gramps!\nSmell you later!");
+        s_oakslab_state = OAKSLAB_POST_BATTLE_TEXT;
+        break;
+
+    case OAKSLAB_POST_BATTLE_TEXT:
+        if (dialog_update()) {
+            s_oakslab_post_battle_step = 0;
+            s_oakslab_state = OAKSLAB_POST_BATTLE_EXIT;
+        }
+        break;
+
+    case OAKSLAB_POST_BATTLE_EXIT: {
+        NpcState *rival = &g_world.npcs[0];
+        if (world_npc_is_moving(0)) break;
+        if (s_oakslab_post_battle_step < 5) {
+            world_npc_start_step(0, DIR_DOWN);
+            s_oakslab_post_battle_step++;
+            break;
+        }
+        rival->flags |= NPCF_HIDDEN;
+        rival->walking = FALSE;
+        flags_set(FLAG_RIVAL_LEFT_OAKS_LAB);
+        s_blocks_input = FALSE;
+        g_world.player.move_state = MOVE_STATE_IDLE;
+        s_oakslab_post_battle_step = 0;
+        s_oakslab_state = OAKSLAB_DONE;
+        break;
+    }
     }
 }

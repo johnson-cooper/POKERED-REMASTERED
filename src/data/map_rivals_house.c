@@ -39,9 +39,6 @@ static const NpcDef s_npcs[] = {
     { .x = 2, .y = 3, .sprite_tile = GFX_DAISY_TILE_BASE,
       .facing = DIR_RIGHT, .flags = 0, .script_id = 5,
       .movement = NPC_MOVE_STAY },
-    { .x = 6, .y = 4, .sprite_tile = GFX_DAISY_TILE_BASE,
-      .facing = DIR_UP, .flags = 0, .script_id = 6,
-      .movement = NPC_MOVE_UP_DOWN },
     // Pokered's BLUESHOUSE_TOWN_MAP background object.
     { .x = 3, .y = 3, .sprite_tile = GFX_POKEDEX_TILE_BASE,
       .facing = DIR_DOWN, .flags = 0, .script_id = 7,

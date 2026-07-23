@@ -10,6 +10,7 @@
 #define GFX_DAISY_TILE_BASE 124
 #define GFX_POKEDEX_TILE_BASE 148
 #define GFX_MOM_TILE_BASE 152
+#define GFX_SCIENTIST_TILE_BASE 176
 
 extern const u32 g_blue_tiles[];
 extern const u32 g_blue_tile_count;

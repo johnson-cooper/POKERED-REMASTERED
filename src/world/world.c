@@ -9,6 +9,7 @@
 #include "gfx_pokeball.h"
 #include "gfx_npcs.h"
 #include "irq.h"
+#include "flags.h"
 
 typedef enum {
     WORLD_TRANSITION_NONE = 0,
@@ -73,6 +74,20 @@ void world_init(const MapHeader *map, u8 start_x, u8 start_y) {
         dst->walk_cycle = 0;
         dst->movement = src->movement;
         dst->move_timer = (u16)(i * 23);
+    }
+
+    // Map loads rebuild NPC state from the static map definition. Reapply
+    // Oak's Lab's persistent object state so taken balls and the departed
+    // Rival do not reappear after leaving and re-entering the room.
+    if (map->map_id == MAP_OAKS_LAB) {
+        if (flags_get(FLAG_RIVAL_LEFT_OAKS_LAB))
+            g_world.npcs[0].flags |= NPCF_HIDDEN;
+        if (flags_get(FLAG_OAKSLAB_CHARMANDER_TAKEN))
+            g_world.npcs[2].flags |= NPCF_HIDDEN;
+        if (flags_get(FLAG_OAKSLAB_BULBASAUR_TAKEN))
+            g_world.npcs[3].flags |= NPCF_HIDDEN;
+        if (flags_get(FLAG_OAKSLAB_SQUIRTLE_TAKEN))
+            g_world.npcs[4].flags |= NPCF_HIDDEN;
     }
 
     tilemap_init();
@@ -273,6 +288,7 @@ void world_render(void) {
             if (npc->sprite_tile == GFX_BLUE_TILE_BASE ||
                 npc->sprite_tile == GFX_OAK_TILE_BASE ||
                 npc->sprite_tile == GFX_GIRL_TILE_BASE ||
+                npc->sprite_tile == GFX_SCIENTIST_TILE_BASE ||
                 npc->sprite_tile == GFX_FISHER_TILE_BASE ||
                 npc->sprite_tile == GFX_DAISY_TILE_BASE ||
                 npc->sprite_tile == GFX_MOM_TILE_BASE) {
