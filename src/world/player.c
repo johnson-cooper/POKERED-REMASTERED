@@ -65,7 +65,7 @@ static void player_check_npc_interact(void) {
         // sides, even though the generic NPC test supports all directions.
         bool8 is_pokeball = (npc->script_id >= 10 && npc->script_id <= 12);
         if (is_pokeball) {
-            if (p->facing == DIR_LEFT || p->facing == DIR_RIGHT)
+            if (p->facing != DIR_UP)
                 continue;
 
             // The balls are drawn on the rear edge of the table, while the
@@ -74,7 +74,7 @@ static void player_check_npc_interact(void) {
             // exactly one logical tile away.
             s16 dx = (s16)npc->x - p->tile_x;
             s16 dy = (s16)npc->y - p->tile_y;
-            if (dx != 0 || dy < -2 || dy > 2)
+            if (dx != 0 || dy != -1)
                 continue;
             script_trigger_npc(npc->script_id, i);
             return;

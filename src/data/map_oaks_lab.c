@@ -62,11 +62,11 @@ static const NpcDef s_npcs[] = {
     // Oak1 — final position (5,2), hidden until Oak2 walk-in finishes
     { .x = 5, .y = 2, .sprite_tile = GFX_OAK_TILE_BASE, .facing = DIR_DOWN,  .flags = NPCF_HIDDEN, .script_id = 2 },
     // Charmander Pokeball — right counter, left side
-    { .x = 6, .y = 4, .sprite_tile = GFX_POKEBALL_TILE_BASE, .facing = DIR_DOWN,  .flags = 0, .script_id = 10 },
+    { .x = 6, .y = 3, .sprite_tile = GFX_POKEBALL_TILE_BASE, .facing = DIR_DOWN,  .flags = 0, .script_id = 10 },
     // Bulbasaur Pokeball — right counter, center
-    { .x = 7, .y = 4, .sprite_tile = GFX_POKEBALL_TILE_BASE, .facing = DIR_DOWN,  .flags = 0, .script_id = 12 },
+    { .x = 7, .y = 3, .sprite_tile = GFX_POKEBALL_TILE_BASE, .facing = DIR_DOWN,  .flags = 0, .script_id = 12 },
     // Squirtle Pokeball — right counter, right side
-    { .x = 8, .y = 4, .sprite_tile = GFX_POKEBALL_TILE_BASE, .facing = DIR_DOWN,  .flags = 0, .script_id = 11 },
+    { .x = 8, .y = 3, .sprite_tile = GFX_POKEBALL_TILE_BASE, .facing = DIR_DOWN,  .flags = 0, .script_id = 11 },
     // Oak2 — temporary walk-in sprite. It only appears during the entrance
     // cutscene, then is hidden and replaced by Oak1 at (5,2).
     { .x = 5, .y = 10, .sprite_tile = GFX_OAK_TILE_BASE, .facing = DIR_UP,   .flags = NPCF_HIDDEN, .script_id = 0 },
