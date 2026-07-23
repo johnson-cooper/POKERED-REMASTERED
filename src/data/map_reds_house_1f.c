@@ -3,6 +3,7 @@
 // Warps: front door → Pallet Town, stairs → 2F.
 #include "world.h"
 #include "map_ids.h"
+#include "gfx_npcs.h"
 
 extern const Tileset g_tileset_house;
 
@@ -53,8 +54,12 @@ const MapHeader g_map_reds_house_1f = {
     .layout     = &s_layout,
     .warps      = s_warps,
     .warp_count = 3,
-    .npcs       = NULL,  // Mom added once NPC sprites are available
-    .npc_count  = 0,
+    .npcs       = (const NpcDef[]) {
+        { .x = 5, .y = 4, .sprite_tile = GFX_MOM_TILE_BASE,
+          .facing = DIR_LEFT, .flags = 0, .script_id = 8,
+          .movement = NPC_MOVE_STAY },
+    },
+    .npc_count  = 1,
     .script     = NULL,
     .music_id   = 0,
 };

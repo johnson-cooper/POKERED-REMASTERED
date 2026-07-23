@@ -133,12 +133,14 @@ extern const MapHeader g_map_pallet_town;
 extern const MapHeader g_map_route_1;
 extern const MapHeader g_map_reds_house_2f;
 extern const MapHeader g_map_reds_house_1f;
+extern const MapHeader g_map_rivals_house;
 extern const MapHeader g_map_oaks_lab;
 
 static const MapHeader * const s_map_table[MAP_COUNT] = {
     [MAP_PALLET_TOWN]        = &g_map_pallet_town,
     [MAP_ROUTE_1]            = &g_map_route_1,
     [MAP_PLAYERS_HOUSE_1F]   = &g_map_reds_house_1f,
+    [MAP_RIVALS_HOUSE]       = &g_map_rivals_house,
     [MAP_PLAYERS_HOUSE_2F]   = &g_map_reds_house_2f,
     [MAP_OAKS_LAB]           = &g_map_oaks_lab,
 };

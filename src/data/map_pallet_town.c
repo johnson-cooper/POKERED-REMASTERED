@@ -54,8 +54,8 @@ static const WarpEvent s_warps[] = {
     // Oak is followed; afterward it behaves as the normal town exit.
     // [0] Red's House 1F entrance — collision warp at base of wall (x=5, y=5 = wall block bottom)
     { .x =  5, .y =  5, .dest_map = MAP_PLAYERS_HOUSE_1F, .dest_warp = 0 },
-    // [1] Blue's House (rival's) — not yet implemented; dest MAP_COUNT = stub
-    { .x = 13, .y =  5, .dest_map = MAP_COUNT,             .dest_warp = 0 },
+    // [1] Rival's house entrance.
+    { .x = 13, .y =  5, .dest_map = MAP_RIVALS_HOUSE,      .dest_warp = 0 },
     // [2] Oak's Lab entrance — left door subtile
     { .x = 12, .y = 11, .dest_map = MAP_OAKS_LAB,          .dest_warp = 1 },
     // [3] Return point used by Route 1's south connection (dest_warp=3 must stay here).
@@ -69,12 +69,12 @@ extern void script_pallet_town(void);
 // Oak begins just south of the north exit and is revealed by the opening
 // Pallet Town script. The other two NPCs match the original map placement.
 static const NpcDef s_npcs[] = {
-    { .x = 9,  .y = 5,  .sprite_tile = GFX_OAK_TILE_BASE, .facing = DIR_UP,
+    { .x = 8,  .y = 5,  .sprite_tile = GFX_OAK_TILE_BASE, .facing = DIR_UP,
       .flags = NPCF_HIDDEN, .script_id = 0 },
-    { .x = 3,  .y = 8,  .sprite_tile = 8,  .facing = DIR_DOWN,
-      .flags = 0, .script_id = 0 },
-    { .x = 11, .y = 14, .sprite_tile = 12, .facing = DIR_DOWN,
-      .flags = 0, .script_id = 0 },
+    { .x = 3,  .y = 8,  .sprite_tile = GFX_GIRL_TILE_BASE, .facing = DIR_DOWN,
+      .flags = 0, .script_id = 3, .movement = NPC_MOVE_WALK_ANY },
+    { .x = 11, .y = 14, .sprite_tile = GFX_FISHER_TILE_BASE, .facing = DIR_DOWN,
+      .flags = 0, .script_id = 4, .movement = NPC_MOVE_WALK_ANY },
 };
 
 const MapHeader g_map_pallet_town = {

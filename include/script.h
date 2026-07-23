@@ -11,6 +11,10 @@
 // facing an NPC at the adjacent subtile.
 void script_trigger_npc(u16 script_id, u8 npc_index);
 
+// Advances generic NPC dialogs on every map, including maps without a
+// dedicated map-script callback.
+void script_update(void);
+
 // Called from world_update before player input, to let active scripts
 // block input (e.g. scripted walks, dialog).
 bool8 script_blocks_input(void);
