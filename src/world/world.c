@@ -3,10 +3,38 @@
 #include "render.h"
 #include "gba.h"
 #include "script.h"
+#include "dialog.h"
 #include "text.h"
 #include "map_ids.h"
 #include "gfx_pokeball.h"
 #include "gfx_npcs.h"
+#include "irq.h"
+
+typedef enum {
+    WORLD_TRANSITION_NONE = 0,
+    WORLD_TRANSITION_OUT,
+    WORLD_TRANSITION_IN,
+} WorldTransitionPhase;
+
+static WorldTransitionPhase s_transition_phase = WORLD_TRANSITION_NONE;
+static u8 s_transition_level;
+static WarpEvent s_pending_warp;
+
+// GBA hardware fade registers. Darken mode applies a black overlay to all
+// visible layers; BLDY ranges from 0 (normal) to 16 (fully black).
+#define WORLD_REG_BLDCNT (*(vu16 *)0x04000050)
+#define WORLD_REG_BLDY   (*(vu16 *)0x04000054)
+
+static void world_transition_apply(void) {
+    if (s_transition_phase == WORLD_TRANSITION_NONE) {
+        WORLD_REG_BLDCNT = 0;
+        WORLD_REG_BLDY = 0;
+        return;
+    }
+
+    WORLD_REG_BLDCNT = 0x00BF; // darken BG0-BG3, OBJ, and backdrop
+    WORLD_REG_BLDY = s_transition_level;
+}
 
 void world_init(const MapHeader *map, u8 start_x, u8 start_y) {
     PlayerState *p = &g_world.player;
@@ -39,9 +67,12 @@ void world_init(const MapHeader *map, u8 start_x, u8 start_y) {
         dst->py = (s16)src->y * 16;
         dst->step_dx = 0;
         dst->step_dy = 0;
+        dst->step_dir = dst->facing;
         dst->step_frame = 0;
         dst->walking = FALSE;
         dst->walk_cycle = 0;
+        dst->movement = src->movement;
+        dst->move_timer = (u16)(i * 23);
     }
 
     tilemap_init();
@@ -68,6 +99,7 @@ void world_npc_start_step(u8 index, Direction dir) {
     // intentionally treats conservatively. Player movement still uses the
     // normal collision path in player.c.
     npc->facing = (u8)dir;
+    npc->step_dir = (u8)dir;
     npc->x = (u8)nx;
     npc->y = (u8)ny;
     npc->step_dx = dx[dir];
@@ -83,7 +115,44 @@ bool8 world_npc_is_moving(u8 index) {
 static void world_npcs_update(void) {
     for (u8 i = 0; i < g_world.npc_count; i++) {
         NpcState *npc = &g_world.npcs[i];
-        if (!npc->walking) continue;
+        if (!npc->walking) {
+            if (npc->flags & NPCF_HIDDEN || npc->movement == NPC_MOVE_STAY ||
+                script_blocks_input() || dialog_is_open())
+                continue;
+
+            // Pokered's WALK/ANY_DIR and WALK/UP_DOWN objects pause between
+            // steps. Pick a deterministic direction from the VBlank counter,
+            // then reject fence, building, player, and NPC collisions.
+            if (++npc->move_timer < (u16)(45 + i * 18)) continue;
+            npc->move_timer = 0;
+            u8 start = (u8)((g_vblank_count + i * 3) & 3);
+            for (u8 attempt = 0; attempt < 4; attempt++) {
+                Direction dir = (Direction)((start + attempt) & 3);
+                if (npc->movement == NPC_MOVE_UP_DOWN &&
+                    (dir == DIR_LEFT || dir == DIR_RIGHT))
+                    continue;
+                s16 nx = (s16)npc->x +
+                    (dir == DIR_RIGHT ? 1 : dir == DIR_LEFT ? -1 : 0);
+                s16 ny = (s16)npc->y +
+                    (dir == DIR_DOWN ? 1 : dir == DIR_UP ? -1 : 0);
+                if (!map_is_subtile_passable(nx, ny)) continue;
+                if (g_world.player.tile_x == nx && g_world.player.tile_y == ny)
+                    continue;
+                bool8 occupied = FALSE;
+                for (u8 j = 0; j < g_world.npc_count; j++) {
+                    if (j != i && !(g_world.npcs[j].flags & NPCF_HIDDEN) &&
+                        g_world.npcs[j].x == nx && g_world.npcs[j].y == ny) {
+                        occupied = TRUE;
+                        break;
+                    }
+                }
+                if (!occupied) {
+                    world_npc_start_step(i, dir);
+                    break;
+                }
+            }
+            continue;
+        }
         if (npc->step_frame > 0) {
             npc->step_frame--;
             npc->px += npc->step_dx;
@@ -92,25 +161,31 @@ static void world_npcs_update(void) {
         if (npc->step_frame == 0) {
             npc->walking = FALSE;
             npc->walk_cycle ^= 1;
+            npc->move_timer = 0;
         }
     }
 }
 
-void world_do_warp(const WarpEvent *w) {
+static void world_finish_warp(void) {
     const MapHeader *dest;
 
-    if (w->dest_map == WARP_LAST_MAP) {
+    if (s_pending_warp.dest_map == WARP_LAST_MAP) {
         dest = g_world.last_map;
     } else {
-        dest = map_get_by_id(w->dest_map);
+        dest = map_get_by_id(s_pending_warp.dest_map);
     }
 
-    if (!dest) return; // destination not yet implemented
+    if (!dest) {
+        s_transition_phase = WORLD_TRANSITION_NONE;
+        world_transition_apply();
+        g_world.player.move_state = MOVE_STATE_IDLE;
+        return; // destination not yet implemented
+    }
 
     // Find the destination spawn point from dest's warp table
     u8 spawn_x = 4, spawn_y = 4; // fallback
-    if (w->dest_warp < dest->warp_count) {
-        const WarpEvent *dw = &dest->warps[w->dest_warp];
+    if (s_pending_warp.dest_warp < dest->warp_count) {
+        const WarpEvent *dw = &dest->warps[s_pending_warp.dest_warp];
         spawn_x = dw->x;
         spawn_y = dw->y;
     }
@@ -119,7 +194,45 @@ void world_do_warp(const WarpEvent *w) {
     world_init(dest, spawn_x, spawn_y);
 }
 
+void world_do_warp(const WarpEvent *w) {
+    if (!w || s_transition_phase != WORLD_TRANSITION_NONE) return;
+
+    s_pending_warp = *w;
+    s_transition_level = 0;
+    s_transition_phase = WORLD_TRANSITION_OUT;
+    g_world.player.move_state = MOVE_STATE_FROZEN;
+    world_transition_apply();
+}
+
 void world_update(void) {
+    if (s_transition_phase == WORLD_TRANSITION_OUT) {
+        if (s_transition_level < 16)
+            s_transition_level = (u8)(s_transition_level + 4);
+        if (s_transition_level >= 16) {
+            world_finish_warp();
+            s_transition_phase = WORLD_TRANSITION_IN;
+        }
+        world_transition_apply();
+        return;
+    }
+
+    if (s_transition_phase == WORLD_TRANSITION_IN) {
+        if (s_transition_level >= 4)
+            s_transition_level = (u8)(s_transition_level - 4);
+        else {
+            s_transition_level = 0;
+            s_transition_phase = WORLD_TRANSITION_NONE;
+            g_world.player.move_state = MOVE_STATE_IDLE;
+        }
+        world_transition_apply();
+        return;
+    }
+
+    // Generic NPC dialogs are map-independent. This must run before the map
+    // script so maps without a script (for example Rival's House) still
+    // advance and close their dialogs correctly.
+    script_update();
+
     // Per-frame map script (may block input, show dialog, etc.)
     if (g_world.map->script)
         g_world.map->script();
@@ -142,54 +255,50 @@ void world_render(void) {
             const NpcState *npc = &g_world.npcs[i];
             if (npc->flags & NPCF_HIDDEN) continue;
 
-            s16 nx = (s16)(npc->px - cam->x - 8);
-            s16 ny = (s16)(npc->py - cam->y - 16);
+            // Align the sprite with the logical tile used for interaction.
+            // The former anchor placed NPC graphics left and nearly a tile
+            // above the position where their dialogue triggered.
+            s16 nx = (s16)(npc->px - cam->x);
+            s16 ny = (s16)(npc->py - cam->y - 4);
+
+            // Pokéballs sit on the rear edge of Oak's Lab's table, one tile
+            // above their logical interaction coordinates.
+            if (npc->sprite_tile == GFX_POKEBALL_TILE_BASE)
+                ny -= 16;
 
             // The original Pokéball art is slightly left-biased relative
             // to the table's visual center in this tileset.
-            if (g_world.map->map_id == MAP_OAKS_LAB &&
-                npc->sprite_tile == GFX_POKEBALL_TILE_BASE)
-                nx += 8;
-
             // Only draw if on screen
             if (nx < -16 || nx > 240 || ny < -16 || ny > 160) continue;
 
             u16 sprite_id = npc->sprite_tile;
             u8 sprite_param = 0;
             if (npc->sprite_tile == GFX_BLUE_TILE_BASE ||
-                npc->sprite_tile == GFX_OAK_TILE_BASE) {
-                /* While stepping, use the step vector rather than a facing
-                 * value that another cutscene command may update mid-step.
-                 * This keeps a downward walk on Oak's down frames. */
-                Direction pose_dir = (Direction)npc->facing;
-                if (npc->step_dy > 0) pose_dir = DIR_DOWN;
-                else if (npc->step_dy < 0) pose_dir = DIR_UP;
-                else if (npc->step_dx < 0) pose_dir = DIR_LEFT;
-                else if (npc->step_dx > 0) pose_dir = DIR_RIGHT;
+                npc->sprite_tile == GFX_OAK_TILE_BASE ||
+                npc->sprite_tile == GFX_GIRL_TILE_BASE ||
+                npc->sprite_tile == GFX_FISHER_TILE_BASE ||
+                npc->sprite_tile == GFX_DAISY_TILE_BASE ||
+                npc->sprite_tile == GFX_MOM_TILE_BASE) {
+                // Use the direction captured when the step began. Deriving
+                // the pose from pixel deltas allowed a scripted Oak step to
+                // reuse the previous left-facing animation during DOWN.
+                Direction pose_dir = npc->walking
+                    ? (Direction)npc->step_dir
+                    : (Direction)npc->facing;
+                if (npc->sprite_tile == GFX_OAK_TILE_BASE && npc->walking &&
+                    npc->step_dir == DIR_DOWN)
+                    pose_dir = DIR_DOWN;
                 u8 frame = (pose_dir == DIR_DOWN) ? 0 :
                            (pose_dir == DIR_UP)   ? 1 : 2;
-                /* Select walking art from the actual movement vector. This
-                 * keeps a vertical cutscene step on its matching vertical
-                 * walking frame even if the scripted facing value changes. */
-                if (npc->walking) {
-                    if (npc->step_dy > 0) {
-                        /* The converted Oak walking slot is side-facing in
-                         * this asset build. Keep the valid front-facing pose
-                         * during downward movement until that asset is
-                         * re-converted from the reference sheet. */
-                        frame = 0;
-                    } else if (npc->step_dy < 0 && (npc->step_frame & 8)) {
-                        frame = 4;
-                    } else if (npc->step_dx != 0 && (npc->step_frame & 8)) {
-                        frame = 5;
-                    }
-                }
-                if (pose_dir == DIR_RIGHT)
-                    sprite_param ^= 1;
-                if (sprite_id == npc->sprite_tile)
-                    sprite_id = (u16)(npc->sprite_tile + frame * 4);
-            } else if (npc->walking && (npc->step_frame & 8)) {
-                sprite_id = (u16)(npc->sprite_tile + 4);
+                // Keep Oak visibly facing down throughout DOWN steps. The
+                // source walking frame reads as a left/down pose in this
+                // converted sheet, so use the clean down-facing frame.
+                if (npc->walking && (npc->step_frame & 8) &&
+                    !(npc->sprite_tile == GFX_OAK_TILE_BASE &&
+                      npc->step_dir == DIR_DOWN))
+                    frame += 3;
+                if (pose_dir == DIR_RIGHT) sprite_param ^= 1;
+                sprite_id = (u16)(npc->sprite_tile + frame * 4);
             }
 
             RenderCmd cmd = {

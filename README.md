@@ -27,7 +27,8 @@ Known limitations:
 - There is no inventory or item database yet. The Item screen currently reports "No items!" and returns to the battle menu.
 - Run is rejected during the Oak's Lab rival trainer battle, matching trainer-battle rules. Wild battles and escape calculations are not implemented.
 - Only the opening species, moves, maps, and scripted battle are represented.
-- There is no complete save/load system. Local .sav files are ignored.
+- Save/load is implemented for the current player/map/flag/options state. It uses
+  32 KiB GBA SRAM and writes a small checksummed record at the start of SRAM.
 - There is no automated unit-test suite or emulator-driven integration test.
 
 ## Repository layout
@@ -91,7 +92,9 @@ The normal build does not require Node.js, Python, CMake, or a separate package 
 
 ### Optional asset-generation tools
 
-The battle sprite conversion script additionally requires Windows PowerShell 5+ or PowerShell 7+, ffmpeg on PATH, and a local pokered reference checkout containing the expected PNG files.
+The battle and overworld NPC sprite conversion scripts additionally require
+Windows PowerShell 5+ or PowerShell 7+, ffmpeg on PATH, and a local pokered
+reference checkout containing the expected PNG files.
 
 Asset conversion is not part of the normal C build because the generated C array is checked in.
 
@@ -300,9 +303,17 @@ The converter expects:
     refs/pokered/gfx/pokemon/back/charmanderb.png
     refs/pokered/gfx/pokemon/back/squirtleb.png
 
-Run it from PowerShell:
+Run the battle sprite converter from PowerShell:
 
     .\tools\convert_battle_sprites.ps1
+
+The Pallet Town girl, fisherman, and rival-house Daisy sprites are generated
+from the pokered 16×96 NPC sheets with:
+
+    .\tools\convert_npc_sprites.ps1
+
+This writes src/data/gfx_npcs_extra.c and src/data/gfx_npcs_extra.h. Both
+generated files are tracked because they are required by the normal C build.
 
 For another checkout location:
 
@@ -316,6 +327,26 @@ After regeneration, perform a clean build and inspect all six sprites in an emul
 - A: interact, confirm, select a move, and advance prompts.
 - B: cancel/back out of move, PKMN, and Item screens.
 - Start/Select: reserved or context-dependent in the current slice.
+
+## Save data and emulator detection
+
+The ROM identifies its backup hardware with the standard `SRAM_V113` marker and
+uses the GBA's byte-addressable SRAM region at `0x0E000000`. This is the normal
+combination for automatic SRAM detection in mGBA, VBA-M, and compatible GBA
+emulators. The expected emulator backup size is 32 KiB.
+
+The in-game pause menu's `SAVE` entry verifies the SRAM read-back and checksum
+before displaying success. If an emulator has a manually forced backup type,
+select `SRAM` or `SRAM 32K`, remove the old `.sav` for a clean test, and reopen
+the newly built ROM. Do not use EEPROM or Flash for this project.
+
+After building, confirm the marker is present with:
+
+    rg -a -o "SRAM_V113" pokered_remaster.gba
+
+Some emulator frontends cache backup settings per ROM filename. If automatic
+detection does not occur, use a new ROM filename or clear that frontend's
+cartridge configuration once; the ROM itself already declares SRAM.
 
 The key constants are defined in include/gba.h and consumed through include/input.h. Use input_pressed() for one-frame actions and input_held() only when a held button is intentional.
 

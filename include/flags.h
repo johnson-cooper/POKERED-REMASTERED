@@ -7,6 +7,7 @@ typedef enum {
     FLAG_FOLLOWED_OAK_INTO_LAB,
     FLAG_OAK_ASKED_TO_CHOOSE_MON,
     FLAG_BATTLED_RIVAL_IN_OAKS_LAB,
+    FLAG_GOT_POKEDEX,
     FLAG_COUNT,
 } GameFlag;
 
@@ -14,3 +15,5 @@ void  flags_clear_all(void);
 void  flags_set(GameFlag f);
 void  flags_clear(GameFlag f);
 bool8 flags_get(GameFlag f);
+void  flags_export(u32 out[4]);
+void  flags_import(const u32 in[4]);

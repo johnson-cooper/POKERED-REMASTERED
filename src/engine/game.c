@@ -8,6 +8,9 @@
 #include "map_ids.h"
 #include "title.h"
 #include "battle.h"
+#include "pokedex.h"
+#include "save.h"
+#include "script.h"
 
 GameContext g_game = {
     .state      = GAME_STATE_BOOT,
@@ -23,6 +26,13 @@ static void state_intro_update(void);
 static void state_overworld_update(void);
 static void state_battle_update(void);
 static void state_menu_update(void);
+static void title_menu_draw(void);
+static void title_menu_update(void);
+static void title_options_draw(void);
+static void title_options_update(void);
+static void title_draw_menu_box(u8 left, u8 top, u8 right, u8 bottom);
+static void pause_menu_draw(void);
+static void pause_menu_update(void);
 
 typedef enum {
     INTRO_OAK_DIALOG = 0,
@@ -47,6 +57,78 @@ static bool8 s_nickname_active;
 static char s_nickname[8];
 static u8 s_nickname_row;
 static u8 s_nickname_col;
+
+typedef enum {
+    TITLE_MODE_PRESS_START = 0,
+    TITLE_MODE_MAIN_MENU,
+    TITLE_MODE_OPTIONS,
+} TitleMode;
+
+static TitleMode s_title_mode = TITLE_MODE_PRESS_START;
+static u8 s_title_menu_cursor;
+static u8 s_title_option_cursor;
+static bool8 s_title_has_save;
+static bool8 s_option_fast_text;
+static bool8 s_option_battle_animation = TRUE;
+static bool8 s_option_battle_style;
+static bool8 s_options_from_pause;
+static u8 s_pause_menu_cursor;
+static bool8 s_pause_pokedex_active;
+static bool8 s_continue_load;
+
+static bool8 title_save_available(void) {
+    return save_exists();
+}
+
+static void copy_name(char dst[SAVE_NAME_LENGTH], const char *src) {
+    for (u8 i = 0; i < SAVE_NAME_LENGTH; i++) {
+        dst[i] = src[i];
+        if (!src[i]) break;
+    }
+    dst[SAVE_NAME_LENGTH - 1] = '\0';
+}
+
+static void save_capture(SaveData *data) {
+    for (u32 i = 0; i < sizeof(SaveData); i++) ((u8 *)data)[i] = 0;
+    data->map_id = g_world.map ? g_world.map->map_id : MAP_PLAYERS_HOUSE_2F;
+    data->last_map_id = g_world.last_map ? g_world.last_map->map_id : data->map_id;
+    data->player_x = (u8)g_world.player.tile_x;
+    data->player_y = (u8)g_world.player.tile_y;
+    data->player_facing = (u8)g_world.player.facing;
+    copy_name((char *)data->player_name, s_player_name);
+    copy_name((char *)data->rival_name, s_rival_name);
+    flags_export(data->flags);
+    data->option_fast_text = s_option_fast_text;
+    data->option_battle_animation = s_option_battle_animation;
+    data->option_battle_style = s_option_battle_style;
+}
+
+static bool8 game_load_saved(void) {
+    SaveData data;
+    const MapHeader *map;
+    const MapHeader *last_map;
+
+    if (!save_read(&data)) return FALSE;
+    map = map_get_by_id(data.map_id);
+    last_map = map_get_by_id(data.last_map_id);
+    if (!map) return FALSE;
+
+    for (u8 i = 0; i < SAVE_NAME_LENGTH; i++) {
+        s_player_name[i] = (char)data.player_name[i];
+        s_rival_name[i] = (char)data.rival_name[i];
+    }
+    s_player_name[SAVE_NAME_LENGTH - 1] = '\0';
+    s_rival_name[SAVE_NAME_LENGTH - 1] = '\0';
+    s_option_fast_text = data.option_fast_text;
+    s_option_battle_animation = data.option_battle_animation;
+    s_option_battle_style = data.option_battle_style;
+
+    world_init(map, data.player_x, data.player_y);
+    g_world.player.facing = (Direction)data.player_facing;
+    g_world.last_map = last_map;
+    flags_import(data.flags);
+    return TRUE;
+}
 
 const char *game_get_player_name(void) {
     return s_player_name;
@@ -102,6 +184,10 @@ void game_update(void) {
             text_clear();
             text_draw_str_pal(8, 9, "RED REMASTERED", 13);
             text_draw_str(9, 18, "PRESS START");
+            s_title_mode = TITLE_MODE_PRESS_START;
+            s_title_menu_cursor = 0;
+            s_title_option_cursor = 0;
+            s_title_has_save = title_save_available();
         } else if (entering == GAME_STATE_INTRO) {
             intro_graphics_show(INTRO_GFX_OAK);
             text_clear();
@@ -117,15 +203,25 @@ void game_update(void) {
                 "Welcome to the world of\nPOK~MON!\f"
                 "My name is OAK! People call\nme the POK~MON PROF!");
         } else if (entering == GAME_STATE_OVERWORLD) {
-            // A fresh game uses the temporary Red's House 2F spawn.  Returning
-            // from battle must keep the current map (Oak's Lab) intact.
-            if (previous_state != GAME_STATE_BATTLE) {
+            // A fresh game uses the temporary Red's House 2F spawn. Returning
+            // from battle or the pause menu must keep the current map intact.
+            if (s_continue_load) {
+                s_continue_load = FALSE;
+                if (!game_load_saved())
+                    world_init(&g_map_reds_house_2f, 3, 3);
+            } else if (previous_state != GAME_STATE_BATTLE &&
+                       previous_state != GAME_STATE_MENU) {
                 flags_clear_all();
                 // Spawn in Red's House 2F, center of room.
                 world_init(&g_map_reds_house_2f, 3, 3);
             }
         } else if (entering == GAME_STATE_BATTLE) {
             battle_init();
+        } else if (entering == GAME_STATE_MENU) {
+            s_pause_menu_cursor = 0;
+            s_pause_pokedex_active = FALSE;
+            s_options_from_pause = FALSE;
+            pause_menu_draw();
         }
     }
 
@@ -146,14 +242,27 @@ static void state_boot_update(void) {
 }
 
 static void state_title_update(void) {
+    if (s_title_mode == TITLE_MODE_MAIN_MENU) {
+        title_menu_update();
+        return;
+    }
+    if (s_title_mode == TITLE_MODE_OPTIONS) {
+        title_options_update();
+        return;
+    }
+
     // Blink "Press START"
     if ((g_game.frame & 30) < 20) {
         text_draw_str(9, 18, "PRESS START");
     } else {
         text_draw_str(9, 18, "           ");
     }
-    if (input_pressed(KEY_START))
-        game_change_state(GAME_STATE_INTRO);
+    if (input_pressed(KEY_START) || input_pressed(KEY_A)) {
+        s_title_mode = TITLE_MODE_MAIN_MENU;
+        s_title_has_save = title_save_available();
+        s_title_menu_cursor = 0;
+        title_menu_draw();
+    }
 }
 
 static void state_intro_update(void) {
@@ -466,6 +575,12 @@ static void state_overworld_update(void) {
         }
         return;
     }
+    if (input_pressed(KEY_START) && !dialog_is_open() &&
+        !script_blocks_input() &&
+        g_world.player.move_state == MOVE_STATE_IDLE) {
+        game_change_state(GAME_STATE_MENU);
+        return;
+    }
     world_update();
     world_render();
 }
@@ -475,5 +590,262 @@ static void state_battle_update(void) {
 }
 
 static void state_menu_update(void) {
-    // Phase 5 — not yet implemented
+    if (s_pause_pokedex_active) {
+        if (pokedex_update()) {
+            pokedex_close();
+            s_pause_pokedex_active = FALSE;
+            pause_menu_draw();
+        }
+        return;
+    }
+    if (s_options_from_pause)
+        title_options_update();
+    else
+        pause_menu_update();
+}
+
+static u8 pause_menu_count(void) {
+    return flags_get(FLAG_GOT_POKEDEX) ? 7 : 6;
+}
+
+static void pause_menu_draw(void) {
+    text_clear();
+    title_draw_menu_box(14, 0, 29, 18);
+
+    u8 row = 1;
+    if (flags_get(FLAG_GOT_POKEDEX)) {
+        text_draw_str(16, row, "POKeDEX");
+        row = (u8)(row + 2);
+    }
+    text_draw_str(16, row, "POKeMON"); row = (u8)(row + 2);
+    text_draw_str(16, row, "ITEM");    row = (u8)(row + 2);
+    text_draw_str(16, row, s_player_name); row = (u8)(row + 2);
+    text_draw_str(16, row, "SAVE");    row = (u8)(row + 2);
+    text_draw_str(16, row, "OPTION");  row = (u8)(row + 2);
+    text_draw_str(16, row, "EXIT");
+
+    text_draw_char(15, (u8)(1 + s_pause_menu_cursor * 2), '>');
+}
+
+static void pause_menu_message(const char *message) {
+    dialog_open();
+    dialog_set_text(message);
+}
+
+static void pause_menu_select(void) {
+    u8 selected = s_pause_menu_cursor;
+    if (flags_get(FLAG_GOT_POKEDEX)) {
+        if (selected == 0) {
+            // The current Pokédex module displays a species page. Until the
+            // full owned/seen database exists, use Bulbasaur as the first
+            // registered entry, matching pokered's initial ordering.
+            pokedex_open(POKEDEX_BULBASAUR);
+            s_pause_pokedex_active = TRUE;
+            return;
+        }
+        selected--;
+    }
+
+    switch (selected) {
+    case 0:
+        pause_menu_message("No other POKeMON!");
+        break;
+    case 1:
+        pause_menu_message("No items!");
+        break;
+    case 2:
+        pause_menu_message("ASH: [NAME]");
+        break;
+    case 3: {
+        SaveData data;
+        save_capture(&data);
+        pause_menu_message(save_write(&data) ? "Game saved!" : "Save failed!");
+        break;
+    }
+    case 4:
+        s_options_from_pause = TRUE;
+        s_title_option_cursor = 0;
+        title_options_draw();
+        break;
+    default:
+        text_clear();
+        game_change_state(GAME_STATE_OVERWORLD);
+        break;
+    }
+}
+
+static void pause_menu_update(void) {
+    if (dialog_is_open()) {
+        if (dialog_update()) pause_menu_draw();
+        return;
+    }
+
+    u8 last = (u8)(pause_menu_count() - 1);
+    if (input_pressed(KEY_UP)) {
+        s_pause_menu_cursor = s_pause_menu_cursor == 0
+            ? last : (u8)(s_pause_menu_cursor - 1);
+        pause_menu_draw();
+        return;
+    }
+    if (input_pressed(KEY_DOWN)) {
+        s_pause_menu_cursor = s_pause_menu_cursor >= last
+            ? 0 : (u8)(s_pause_menu_cursor + 1);
+        pause_menu_draw();
+        return;
+    }
+    if (input_pressed(KEY_B)) {
+        text_clear();
+        game_change_state(GAME_STATE_OVERWORLD);
+        return;
+    }
+    if (input_pressed(KEY_A)) pause_menu_select();
+}
+
+static void title_draw_menu_box(u8 left, u8 top, u8 right, u8 bottom) {
+    for (u8 y = top; y <= bottom; y++) {
+        for (u8 x = left; x <= right; x++) {
+            u8 tile = BOX_FILL;
+            if (x == left && y == top) tile = BOX_TL;
+            else if (x == right && y == top) tile = BOX_TR;
+            else if (x == left && y == bottom) tile = BOX_BL;
+            else if (x == right && y == bottom) tile = BOX_BR;
+            else if (y == top) tile = BOX_TE;
+            else if (y == bottom) tile = BOX_BE;
+            else if (x == left || x == right) tile = BOX_LE;
+            if (x == right && y != top && y != bottom) tile = BOX_RE;
+            text_draw_tile(x, y, tile);
+        }
+    }
+}
+
+static void title_menu_draw(void) {
+    title_hide();
+    text_fill_opaque();
+    title_draw_menu_box(5, 2, 24, 16);
+    text_draw_str(10, 4, "MAIN MENU");
+
+    u8 row = s_title_has_save ? (u8)(5 + s_title_menu_cursor * 2)
+                              : (u8)(5 + s_title_menu_cursor * 2);
+    if (s_title_has_save) {
+        text_draw_str(10, 7, "CONTINUE");
+        text_draw_str(10, 9, "NEW GAME");
+        text_draw_str(10, 11, "OPTION");
+    } else {
+        text_draw_str(10, 7, "NEW GAME");
+        text_draw_str(10, 9, "OPTION");
+    }
+    text_draw_char(8, row + 2, '>');
+    text_draw_str(8, 14, "A:SELECT B:BACK");
+}
+
+static void title_menu_return_to_title(void) {
+    s_title_mode = TITLE_MODE_PRESS_START;
+    title_draw();
+    text_clear();
+    text_draw_str_pal(8, 9, "RED REMASTERED", 13);
+    text_draw_str(9, 18, "PRESS START");
+}
+
+static void title_menu_update(void) {
+    u8 max_cursor = s_title_has_save ? 2 : 1;
+
+    if (input_pressed(KEY_UP)) {
+        s_title_menu_cursor = s_title_menu_cursor == 0
+            ? max_cursor : (u8)(s_title_menu_cursor - 1);
+        title_menu_draw();
+        return;
+    }
+    if (input_pressed(KEY_DOWN)) {
+        s_title_menu_cursor = s_title_menu_cursor >= max_cursor
+            ? 0 : (u8)(s_title_menu_cursor + 1);
+        title_menu_draw();
+        return;
+    }
+    if (input_pressed(KEY_B)) {
+        title_menu_return_to_title();
+        return;
+    }
+    if (!input_pressed(KEY_A) && !input_pressed(KEY_START)) return;
+
+    if (s_title_has_save && s_title_menu_cursor == 0) {
+        if (save_exists()) {
+            s_continue_load = TRUE;
+            game_change_state(GAME_STATE_OVERWORLD);
+        }
+        return;
+    }
+
+    u8 selected = s_title_has_save ? (u8)(s_title_menu_cursor - 1)
+                                   : s_title_menu_cursor;
+    if (selected == 0) {
+        // GAME_STATE_INTRO resets the opening sequence and naming state when
+        // it is entered, matching pokered's StartNewGame path.
+        game_change_state(GAME_STATE_INTRO);
+    } else {
+        s_title_mode = TITLE_MODE_OPTIONS;
+        s_title_option_cursor = 0;
+        title_options_draw();
+    }
+}
+
+static void title_options_draw(void) {
+    text_fill_opaque();
+    title_draw_menu_box(4, 1, 25, 18);
+    text_draw_str(10, 2, "OPTIONS");
+    text_draw_str(7, 5, "TEXT SPEED");
+    text_draw_str(18, 5, s_option_fast_text ? "FAST" : "MEDIUM");
+    text_draw_str(7, 8, "BATTLE ANIM");
+    text_draw_str(18, 8, s_option_battle_animation ? "ON" : "OFF");
+    text_draw_str(7, 11, "BATTLE STYLE");
+    text_draw_str(18, 11, s_option_battle_style ? "SET" : "SHIFT");
+    text_draw_str(7, 14, "CANCEL");
+
+    static const u8 rows[] = { 5, 8, 11, 14 };
+    text_draw_char(5, rows[s_title_option_cursor], '>');
+    text_draw_str(7, 16, "A:SELECT B:BACK");
+}
+
+static void title_options_update(void) {
+    if (input_pressed(KEY_UP)) {
+        s_title_option_cursor = s_title_option_cursor == 0
+            ? 3 : (u8)(s_title_option_cursor - 1);
+        title_options_draw();
+        return;
+    }
+    if (input_pressed(KEY_DOWN)) {
+        s_title_option_cursor = s_title_option_cursor >= 3
+            ? 0 : (u8)(s_title_option_cursor + 1);
+        title_options_draw();
+        return;
+    }
+    if (input_pressed(KEY_B)) {
+        if (s_options_from_pause) {
+            s_options_from_pause = FALSE;
+            pause_menu_draw();
+        } else {
+            s_title_mode = TITLE_MODE_MAIN_MENU;
+            title_menu_draw();
+        }
+        return;
+    }
+    if (s_title_option_cursor == 3) {
+        if (input_pressed(KEY_A)) {
+            if (s_options_from_pause) {
+                s_options_from_pause = FALSE;
+                pause_menu_draw();
+            } else {
+                s_title_mode = TITLE_MODE_MAIN_MENU;
+                title_menu_draw();
+            }
+        }
+        return;
+    }
+
+    if (input_pressed(KEY_LEFT) || input_pressed(KEY_RIGHT) ||
+        input_pressed(KEY_A)) {
+        if (s_title_option_cursor == 0) s_option_fast_text ^= 1;
+        else if (s_title_option_cursor == 1) s_option_battle_animation ^= 1;
+        else if (s_title_option_cursor == 2) s_option_battle_style ^= 1;
+        title_options_draw();
+    }
 }

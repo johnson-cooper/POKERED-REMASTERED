@@ -31,6 +31,12 @@ static const char *const s_npc_texts[] = {
     /* 0  */ "",
     /* 1  */ "...                                     \fI've been waiting for you, [NAME]!",
     /* 2  */ "Choose a POKeMON!                       \fWhich will it be?",
+    /* 3  */ "I'm raising POKeMON too!\fWhen they get\nstrong, they can\nprotect me!",
+    /* 4  */ "Technology is incredible!\fYou can now store\nand recall items\nand POKeMON as\ndata via PC!",
+    /* 5  */ "Hi [NAME]!\n[RIVAL] is out at\nGrandpa's lab.",
+    /* 6  */ "POKeMON are living things!\fIf they get tired, give\nthem a rest!",
+    /* 7  */ "It's a big map!\fThis is useful!",
+    /* 8  */ "MOM: Right.\nAll boys leave\nhome some day.\nIt said so on TV.\fPROF.OAK, next\ndoor, is looking\nfor you.",
 };
 
 void script_trigger_npc(u16 script_id, u8 npc_index) {
@@ -47,7 +53,7 @@ void script_trigger_npc(u16 script_id, u8 npc_index) {
         return;
     }
 
-    if (script_id < 3) {
+    if (script_id < ARRAY_COUNT(s_npc_texts)) {
         const char *text = s_npc_texts[script_id];
         if (text[0]) {
             dialog_open();
@@ -81,6 +87,14 @@ static bool8 npc_script_tick(void) {
         return TRUE;
     }
     return FALSE;
+}
+
+void script_update(void) {
+    // Map-owned cutscenes use ids >= ACTIVE_MAP_SCRIPT and are advanced by
+    // their map script. Generic NPC dialogs must be serviced globally so
+    // indoor maps without a map script work the same way as Pallet Town.
+    if (s_blocks_input && s_active_script_id < 10)
+        npc_script_tick();
 }
 
 // ─── Pallet Town script ─────────────────────────────────────────────────────
@@ -166,12 +180,6 @@ static void build_pallet_player_fallback_path(void) {
 }
 
 void script_pallet_town(void) {
-    // Handle active NPC dialog first
-    if (s_blocks_input && s_active_script_id < 10) {
-        npc_script_tick();
-        return;
-    }
-
     PlayerState *p = &g_world.player;
 
     switch (s_pallet_state) {
@@ -202,7 +210,7 @@ void script_pallet_town(void) {
         NpcState *oak = &g_world.npcs[0];
         if (++s_pallet_move_watchdog > 300) {
             oak->x = (u8)p->tile_x;
-            oak->y = (u8)(p->tile_y + 2);
+            oak->y = (u8)(p->tile_y + 1);
             oak->px = (s16)oak->x * 16;
             oak->py = (s16)oak->y * 16;
             oak->walking = FALSE;
@@ -210,10 +218,11 @@ void script_pallet_town(void) {
         }
         if (world_npc_is_moving(0)) break;
 
-        // NPC sprites use a one-tile-up render anchor, so two logical tiles
-        // below the player is the visually adjacent position.
+        // This project uses the corrected interaction-tile sprite anchor, so
+        // Oak begins the pokered WalkToLab route one logical tile below the
+        // player rather than two tiles below the player.
         s16 target_x = p->tile_x;
-        s16 target_y = p->tile_y + 2;
+        s16 target_y = p->tile_y + 1;
         if (oak->x != target_x) {
             world_npc_start_step(0, oak->x < target_x ? DIR_RIGHT : DIR_LEFT);
         } else if (oak->y != target_y) {
@@ -452,6 +461,9 @@ void script_oaks_lab(void) {
             break;
         }
         // First-time entry: freeze player, begin Oak2 walk-in animation
+        // Oak2 is normally hidden; reveal the temporary reference-position
+        // sprite only when the entrance cutscene is actually starting.
+        g_world.npcs[5].flags &= (u8)~NPCF_HIDDEN;
         g_world.player.move_state = MOVE_STATE_FROZEN;
         s_blocks_input = TRUE;
         s_active_script_id = ACTIVE_MAP_SCRIPT;
