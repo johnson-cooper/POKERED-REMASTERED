@@ -425,6 +425,7 @@ typedef enum {
     OAKSLAB_DONT_GO_AWAY,
     OAKSLAB_POKEDEX_WAIT,     // Pokédex entry shown before the choice prompt
     OAKSLAB_YESNO_WAIT,       // YES/NO menu for chosen pokemon
+    OAKSLAB_RECEIVED_STARTER,  // received message and energetic message
     OAKSLAB_NICKNAME_YESNO,   // ask whether to nickname the starter
     OAKSLAB_NICKNAME_SCREEN,  // pokered-style naming screen
     OAKSLAB_RIVAL_MOVE,       // rival walks to the opposite starter ball
@@ -483,6 +484,12 @@ static const char *s_ball_names[] = {
     /* 10 */ "CHARMANDER",
     /* 11 */ "SQUIRTLE",
     /* 12 */ "BULBASAUR",
+};
+
+static const char *s_received_starter_text[] = {
+    "[NAME] received a\nCHARMANDER!\fThis POKeMON is\nreally energetic!",
+    "[NAME] received a\nSQUIRTLE!\fThis POKeMON is\nreally energetic!",
+    "[NAME] received a\nBULBASAUR!\fThis POKeMON is\nreally energetic!",
 };
 
 void script_reset_runtime(void) {
@@ -749,9 +756,17 @@ void script_oaks_lab(void) {
         g_world.npcs[s_active_npc_index].flags |= NPCF_HIDDEN;
         s_blocks_input = TRUE;
         dialog_open();
-        dialog_yesno_open();
-        dialog_set_text("Do you want to give a\nnickname to this POKeMON?");
-        s_oakslab_state = OAKSLAB_NICKNAME_YESNO;
+        dialog_set_text(s_received_starter_text[s_chosen_ball - 10]);
+        s_oakslab_state = OAKSLAB_RECEIVED_STARTER;
+        break;
+
+    case OAKSLAB_RECEIVED_STARTER:
+        if (dialog_update()) {
+            dialog_open();
+            dialog_yesno_open();
+            dialog_set_text("Do you want to give a\nnickname to this POKeMON?");
+            s_oakslab_state = OAKSLAB_NICKNAME_YESNO;
+        }
         break;
 
     case OAKSLAB_NICKNAME_YESNO: {
