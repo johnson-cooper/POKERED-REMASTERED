@@ -70,6 +70,7 @@ typedef struct {
     PokemonId enemy_species;
     u8 enemy_level;
     bool8 is_wild;
+    bool8 run_ends_battle;
     const char *player_nickname;
 } BattleCtx;
 
@@ -178,6 +179,8 @@ static const char *species_name(PokemonId id) {
     case MON_BULBASAUR:  return "BULBASAUR";
     case MON_CHARMANDER: return "CHARMANDER";
     case MON_SQUIRTLE:   return "SQUIRTLE";
+    case MON_PIDGEY:     return "PIDGEY";
+    case MON_RATTATA:    return "RATTATA";
     default:             return "POKeMON";
     }
 }
@@ -647,6 +650,7 @@ void battle_init(void) {
     s_battle.anim_timer = 0;
     s_battle.exp_gained = 0;
     s_battle.crit_flag = FALSE;
+    s_battle.run_ends_battle = FALSE;
     s_battle.last_damage = 0;
     s_battle.last_effectiveness = TYPE_MUL_NEUTRAL;
     s_battle.last_hit = FALSE;
@@ -819,7 +823,17 @@ void battle_update(void) {
                 draw_item_menu();
             } else {
                 clear_lower_ui();
-                battle_msg("Can't escape!");
+                if (!s_battle.is_wild) {
+                    battle_msg("Can't escape!");
+                } else if ((battle_random() & 0xFF) < 192) {
+                    // Wild encounters use a deliberately generous escape
+                    // chance, matching the reference's run mechanic while
+                    // keeping early-route battles forgiving.
+                    s_battle.run_ends_battle = TRUE;
+                    battle_msg("Got away safely!");
+                } else {
+                    battle_msg("Can't escape!");
+                }
                 s_battle.state = BS_ACTION_MSG_WAIT;
             }
         }
@@ -857,9 +871,14 @@ void battle_update(void) {
     case BS_ACTION_MSG_WAIT:
         if (dialog_update()) {
             clear_lower_ui();
-            s_battle.state = BS_PLAYER_MENU;
-            draw_action_menu();
-            draw_turn_prompt();
+            if (s_battle.run_ends_battle) {
+                s_battle.run_ends_battle = FALSE;
+                s_battle.state = BS_END;
+            } else {
+                s_battle.state = BS_PLAYER_MENU;
+                draw_action_menu();
+                draw_turn_prompt();
+            }
         }
         break;
 
