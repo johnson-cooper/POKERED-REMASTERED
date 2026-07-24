@@ -3,4 +3,5 @@
 
 void battle_setup_rival(u16 chosen_ball, const char *player_nickname);
 void battle_init(void);
+void battle_transition_start(void);
 void battle_update(void);

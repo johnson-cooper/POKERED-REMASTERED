@@ -11,6 +11,7 @@
 #include "pokedex.h"
 #include "save.h"
 #include "script.h"
+#include "audio.h"
 
 GameContext g_game = {
     .state      = GAME_STATE_BOOT,
@@ -188,7 +189,11 @@ void game_update(void) {
             s_title_menu_cursor = 0;
             s_title_option_cursor = 0;
             s_title_has_save = title_save_available();
+            audio_music_play(AUDIO_MUSIC_TITLE_SCREEN);
         } else if (entering == GAME_STATE_INTRO) {
+            // The opening monologue uses the lab cue. The separate Oak
+            // encounter cue starts later when Oak stops the player in Pallet.
+            audio_music_play(AUDIO_MUSIC_OAKS_LAB);
             intro_graphics_show(INTRO_GFX_OAK);
             text_clear();
             s_intro_state = INTRO_OAK_DIALOG;
@@ -214,9 +219,17 @@ void game_update(void) {
                 flags_clear_all();
                 // Spawn in Red's House 2F, center of room.
                 world_init(&g_map_reds_house_2f, 3, 3);
+            } else if (previous_state == GAME_STATE_BATTLE) {
+                // Resume map music after battle (world_init not called here).
+                if (g_world.map && g_world.map->music_id)
+                    audio_music_play((AudioMusicId)g_world.map->music_id);
+                else
+                    audio_music_stop();
             }
         } else if (entering == GAME_STATE_BATTLE) {
-            battle_init();
+            battle_transition_start();
+            audio_music_play(AUDIO_MUSIC_TRAINER_BATTLE);
+            audio_sfx_set_battle_intro(TRUE);
         } else if (entering == GAME_STATE_MENU) {
             s_pause_menu_cursor = 0;
             s_pause_pokedex_active = FALSE;
@@ -258,6 +271,7 @@ static void state_title_update(void) {
         text_draw_str(9, 18, "           ");
     }
     if (input_pressed(KEY_START) || input_pressed(KEY_A)) {
+        audio_sfx_play(AUDIO_SFX_START);
         s_title_mode = TITLE_MODE_MAIN_MENU;
         s_title_has_save = title_save_available();
         s_title_menu_cursor = 0;
@@ -394,6 +408,7 @@ static void intro_name_screen_update(void) {
     }
 
     if (input_pressed(KEY_A)) {
+        audio_sfx_play(AUDIO_SFX_CONFIRM);
         if (s_name_row < 6) {
             u8 len = 0;
             while (name[len] != '\0' && len < 7) len++;
@@ -421,6 +436,7 @@ static void intro_name_screen_update(void) {
     }
 
     if (input_pressed(KEY_B)) {
+        audio_sfx_play(AUDIO_SFX_CANCEL);
         u8 len = 0;
         while (name[len] != '\0' && len < 7) len++;
         if (len > 0) name[len - 1] = '\0';
@@ -440,8 +456,10 @@ static void intro_name_screen_update(void) {
         return;
     }
 
-    if (moved)
+    if (moved) {
+        audio_sfx_play(AUDIO_SFX_SELECT);
         intro_name_screen_draw();
+    }
 }
 
 void game_nickname_open(const char *default_name) {
@@ -578,6 +596,7 @@ static void state_overworld_update(void) {
     if (input_pressed(KEY_START) && !dialog_is_open() &&
         !script_blocks_input() &&
         g_world.player.move_state == MOVE_STATE_IDLE) {
+        audio_sfx_play(AUDIO_SFX_PAUSE_OPEN);
         game_change_state(GAME_STATE_MENU);
         return;
     }
@@ -685,20 +704,26 @@ static void pause_menu_update(void) {
         s_pause_menu_cursor = s_pause_menu_cursor == 0
             ? last : (u8)(s_pause_menu_cursor - 1);
         pause_menu_draw();
+        audio_sfx_play(AUDIO_SFX_SELECT);
         return;
     }
     if (input_pressed(KEY_DOWN)) {
         s_pause_menu_cursor = s_pause_menu_cursor >= last
             ? 0 : (u8)(s_pause_menu_cursor + 1);
         pause_menu_draw();
+        audio_sfx_play(AUDIO_SFX_SELECT);
         return;
     }
     if (input_pressed(KEY_B)) {
+        audio_sfx_play(AUDIO_SFX_PAUSE_CLOSE);
         text_clear();
         game_change_state(GAME_STATE_OVERWORLD);
         return;
     }
-    if (input_pressed(KEY_A)) pause_menu_select();
+    if (input_pressed(KEY_A)) {
+        audio_sfx_play(AUDIO_SFX_CONFIRM);
+        pause_menu_select();
+    }
 }
 
 static void title_draw_menu_box(u8 left, u8 top, u8 right, u8 bottom) {
@@ -753,19 +778,23 @@ static void title_menu_update(void) {
         s_title_menu_cursor = s_title_menu_cursor == 0
             ? max_cursor : (u8)(s_title_menu_cursor - 1);
         title_menu_draw();
+        audio_sfx_play(AUDIO_SFX_SELECT);
         return;
     }
     if (input_pressed(KEY_DOWN)) {
         s_title_menu_cursor = s_title_menu_cursor >= max_cursor
             ? 0 : (u8)(s_title_menu_cursor + 1);
         title_menu_draw();
+        audio_sfx_play(AUDIO_SFX_SELECT);
         return;
     }
     if (input_pressed(KEY_B)) {
+        audio_sfx_play(AUDIO_SFX_CANCEL);
         title_menu_return_to_title();
         return;
     }
     if (!input_pressed(KEY_A) && !input_pressed(KEY_START)) return;
+    audio_sfx_play(AUDIO_SFX_CONFIRM);
 
     if (s_title_has_save && s_title_menu_cursor == 0) {
         if (save_exists()) {
@@ -810,15 +839,18 @@ static void title_options_update(void) {
         s_title_option_cursor = s_title_option_cursor == 0
             ? 3 : (u8)(s_title_option_cursor - 1);
         title_options_draw();
+        audio_sfx_play(AUDIO_SFX_SELECT);
         return;
     }
     if (input_pressed(KEY_DOWN)) {
         s_title_option_cursor = s_title_option_cursor >= 3
             ? 0 : (u8)(s_title_option_cursor + 1);
         title_options_draw();
+        audio_sfx_play(AUDIO_SFX_SELECT);
         return;
     }
     if (input_pressed(KEY_B)) {
+        audio_sfx_play(AUDIO_SFX_CANCEL);
         if (s_options_from_pause) {
             s_options_from_pause = FALSE;
             pause_menu_draw();
@@ -830,6 +862,7 @@ static void title_options_update(void) {
     }
     if (s_title_option_cursor == 3) {
         if (input_pressed(KEY_A)) {
+            audio_sfx_play(AUDIO_SFX_CONFIRM);
             if (s_options_from_pause) {
                 s_options_from_pause = FALSE;
                 pause_menu_draw();

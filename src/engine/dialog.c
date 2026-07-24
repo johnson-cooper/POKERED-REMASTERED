@@ -2,6 +2,7 @@
 #include "game.h"
 #include "text.h"
 #include "input.h"
+#include "audio.h"
 #include "gba.h"
 
 // Dialog box layout on BG0:
@@ -214,6 +215,7 @@ bool8 dialog_update(void) {
             text_draw_tile(TEXT_START_COL + TEXT_WIDTH - 1, TEXT_LINE2, BOX_FILL);
 
         if (input_pressed(KEY_A) || input_pressed(KEY_B)) {
+            audio_sfx_play(input_pressed(KEY_A) ? AUDIO_SFX_TEXT : AUDIO_SFX_CANCEL);
             // A final page must remain visible after it is drawn. Only close
             // when the player presses A again while that final page is shown.
             if (!s_page_more) {
@@ -275,17 +277,20 @@ u8 dialog_yesno_update(void) {
     if (input_pressed(KEY_UP)   && s_cursor > 0) s_cursor--;
 
     if (s_cursor != old) {
+        audio_sfx_play(AUDIO_SFX_SELECT);
         text_draw_char(YESNO_COL + 1, YESNO_ROW + 1 + old,    ' ');
         text_draw_char(YESNO_COL + 1, YESNO_ROW + 1 + s_cursor, '>');
     }
 
     if (input_pressed(KEY_A)) {
+        audio_sfx_play(AUDIO_SFX_CONFIRM);
         u8 result = (s_cursor == 0) ? 1 : 0;
         clear_box(YESNO_ROW, YESNO_COL, YESNO_H, YESNO_W);
         s_yesno = YESNO_NONE;
         return result;
     }
     if (input_pressed(KEY_B)) {
+        audio_sfx_play(AUDIO_SFX_CANCEL);
         clear_box(YESNO_ROW, YESNO_COL, YESNO_H, YESNO_W);
         s_yesno = YESNO_NONE;
         return 0; // B = NO

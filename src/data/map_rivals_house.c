@@ -2,6 +2,7 @@
 #include "world.h"
 #include "map_ids.h"
 #include "gfx_npcs.h"
+#include "audio.h"
 
 extern const Tileset g_tileset_house_general;
 
@@ -54,5 +55,5 @@ const MapHeader g_map_rivals_house = {
     .npcs = s_npcs,
     .npc_count = ARRAY_COUNT(s_npcs),
     .script = NULL,
-    .music_id = 0,
+    .music_id = AUDIO_MUSIC_PALLET_TOWN,
 };

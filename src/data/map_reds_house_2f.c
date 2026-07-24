@@ -2,6 +2,7 @@
 // Layout from refs/pokered/maps/RedsHouse2F.blk.
 // Warp at (7,1) → RedsHouse1F warp index 2 (the upstairs warp on 1F).
 #include "world.h"
+#include "audio.h"
 #include "map_ids.h"
 
 extern const Tileset g_tileset_house;
@@ -45,5 +46,5 @@ const MapHeader g_map_reds_house_2f = {
     .npcs       = NULL,
     .npc_count  = 0,
     .script     = NULL,
-    .music_id   = 0,
+    .music_id   = AUDIO_MUSIC_PALLET_TOWN,
 };

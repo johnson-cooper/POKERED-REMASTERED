@@ -1,4 +1,5 @@
 #include "world.h"
+#include "audio.h"
 #include "map_ids.h"
 #include "metatile_ids.h"
 
@@ -35,7 +36,7 @@ const MapHeader g_map_route_1 = {
     .npcs = NULL,
     .npc_count = 0,
     .script = NULL,
-    .music_id = 0,
+    .music_id = AUDIO_MUSIC_ROUTES_1,
 };
 
 #undef P

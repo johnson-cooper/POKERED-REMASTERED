@@ -2,6 +2,7 @@
 // Block IDs and layout match the original game exactly.
 #include "world.h"
 #include "gfx_npcs.h"
+#include "audio.h"
 #include "map_ids.h"
 #include "metatile_ids.h"
 
@@ -86,5 +87,5 @@ const MapHeader g_map_pallet_town = {
     .npcs       = s_npcs,
     .npc_count  = ARRAY_COUNT(s_npcs),
     .script     = script_pallet_town,
-    .music_id   = 0,
+    .music_id   = AUDIO_MUSIC_PALLET_TOWN,
 };

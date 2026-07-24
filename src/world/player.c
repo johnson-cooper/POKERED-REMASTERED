@@ -2,6 +2,7 @@
 #include "input.h"
 #include "dialog.h"
 #include "script.h"
+#include "audio.h"
 
 #define STEP_PIXELS  16
 #define STEP_FRAMES  16
@@ -125,6 +126,14 @@ bool8 player_script_start_step(Direction dir) {
 
     p->facing = dir;
 
+    if (script_oaks_lab_blocks_exit((u8)dir)) {
+        p->move_state = MOVE_STATE_TURNING;
+        p->step_frame = 4;
+        p->step_dx = 0;
+        p->step_dy = 0;
+        return FALSE;
+    }
+
     if (!map_is_subtile_passable(nx, ny)) {
         // Check for collision warp before turning (pokered: CheckWarpsCollision)
         const MapHeader *old_map = g_world.map;
@@ -135,6 +144,7 @@ bool8 player_script_start_step(Direction dir) {
         p->step_frame = 4;
         p->step_dx = 0;
         p->step_dy = 0;
+        audio_sfx_play(AUDIO_SFX_DENIED);
         return FALSE;
     }
 
@@ -208,6 +218,7 @@ void player_update(void) {
 
     // A button: NPC interaction
     if (input_pressed(KEY_A)) {
+        audio_sfx_play(AUDIO_SFX_CONFIRM);
         player_check_npc_interact();
         return;
     }
