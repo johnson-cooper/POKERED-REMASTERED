@@ -5,6 +5,7 @@
 #include "input.h"
 #include "text.h"
 #include "world.h"
+#include "audio.h"
 
 #define POKEDEX_SPRITE_TILE 140
 #define POKEDEX_PAL 14
@@ -147,6 +148,12 @@ void pokedex_open(PokedexSpecies species) {
     const PokedexEntry *entry = &s_entries[species];
     s_entry = entry;
     s_page = 0;
+    if (species == POKEDEX_BULBASAUR)
+        audio_sfx_play(AUDIO_SFX_CRY_BULBASAUR);
+    else if (species == POKEDEX_CHARMANDER)
+        audio_sfx_play(AUDIO_SFX_CRY_CHARMANDER);
+    else if (species == POKEDEX_SQUIRTLE)
+        audio_sfx_play(AUDIO_SFX_CRY_SQUIRTLE);
 
     text_clear();
     prepare_pokedex_palettes();

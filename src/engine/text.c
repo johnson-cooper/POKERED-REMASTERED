@@ -111,6 +111,11 @@ void text_init(void) {
         for (u32 w = 0; w < 8; w++)
             box_dst[t * 8 + w] = s_box_tiles[t][w];
 
+    // Full-black tile used by the battle-entry spiral. It lives after the
+    // normal UI/HP tiles and uses palette index 1 (black).
+    for (u8 w = 0; w < 8; w++)
+        box_dst[19 * 8 + w] = 0x11111111;
+
 
     // Load UI palette into bank TEXT_PAL.
     vu16 *pal = UI_PAL_BASE + TEXT_PAL * 16;

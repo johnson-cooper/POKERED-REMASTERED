@@ -4,10 +4,12 @@
 #include "game.h"
 #include "text.h"
 #include "title.h"
+#include "audio.h"
 #include <gba_interrupt.h>
 #include <gba_systemcalls.h>
 
 static void on_vblank(void) {
+    audio_update();
     render_flush();
     g_vblank_count++;
 }
@@ -18,6 +20,7 @@ int main(void) {
     irqEnable(IRQ_VBLANK);
 
     render_init();
+    audio_init();
     // Load the font and its palette before the title state starts drawing.
     text_init();
     title_init();

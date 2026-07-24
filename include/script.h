@@ -18,6 +18,7 @@ void script_update(void);
 // Called from world_update before player input, to let active scripts
 // block input (e.g. scripted walks, dialog).
 bool8 script_blocks_input(void);
+bool8 script_oaks_lab_blocks_exit(u8 dir);
 void script_reset_runtime(void);
 
 // Pallet Town and Oak's Lab script functions (referenced by MapHeader.script)

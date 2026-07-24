@@ -10,6 +10,8 @@
 #include "gfx_npcs.h"
 #include "irq.h"
 #include "flags.h"
+#include "audio.h"
+#include "audio.h"
 
 typedef enum {
     WORLD_TRANSITION_NONE = 0,
@@ -98,6 +100,11 @@ void world_init(const MapHeader *map, u8 start_x, u8 start_y) {
 
     // Clear the UI layer (BG0) when loading a new map
     text_clear();
+
+    if (map->music_id)
+        audio_music_play((AudioMusicId)map->music_id);
+    else
+        audio_music_stop();
 }
 
 void world_npc_start_step(u8 index, Direction dir) {
@@ -207,12 +214,14 @@ static void world_finish_warp(void) {
 
     g_world.last_map = g_world.map;
     world_init(dest, spawn_x, spawn_y);
+    audio_sfx_play(AUDIO_SFX_WARP_IN);
 }
 
 void world_do_warp(const WarpEvent *w) {
     if (!w || s_transition_phase != WORLD_TRANSITION_NONE) return;
 
     s_pending_warp = *w;
+    audio_sfx_play(AUDIO_SFX_WARP_OUT);
     s_transition_level = 0;
     s_transition_phase = WORLD_TRANSITION_OUT;
     g_world.player.move_state = MOVE_STATE_FROZEN;

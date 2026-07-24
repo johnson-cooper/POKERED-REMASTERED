@@ -10,6 +10,7 @@
 #include "text.h"
 #include "dialog.h"
 #include "input.h"
+#include "audio.h"
 #include "game.h"
 #include "world.h"
 #include "irq.h"
@@ -70,10 +71,81 @@ typedef struct {
 
 static BattleCtx s_battle;
 
+#define TRANSITION_SCREEN_W 30
+#define TRANSITION_SCREEN_H 20
+#define TRANSITION_TILE    147
+#define TRANSITION_SBB     20
+#define TRANSITION_TILES   (TRANSITION_SCREEN_W * TRANSITION_SCREEN_H)
+
+static u16 s_transition_order[TRANSITION_TILES];
+static u16 s_transition_count;
+static u16 s_transition_cursor;
+static bool8 s_transition_active;
+
 static u32 s_player_sprite_buf[BATTLE_SPRITE_WORDS];
 static u32 s_enemy_sprite_buf[BATTLE_SPRITE_WORDS];
 
 static char s_msg_buf[128];
+
+static void battle_transition_build_order(void) {
+    s_transition_count = 0;
+    s_transition_cursor = 0;
+
+    bool8 used[TRANSITION_TILES] = { FALSE };
+    s16 x = 15;
+    s16 y = 10;
+    s16 step = 1;
+    const s8 dx[] = { 1, 0, -1, 0 };
+    const s8 dy[] = { 0, 1, 0, -1 };
+
+    while (s_transition_count < TRANSITION_TILES) {
+        if (x >= 0 && x < TRANSITION_SCREEN_W &&
+            y >= 0 && y < TRANSITION_SCREEN_H) {
+            u16 index = (u16)(y * TRANSITION_SCREEN_W + x);
+            if (!used[index]) {
+                used[index] = TRUE;
+                s_transition_order[s_transition_count++] = index;
+            }
+        }
+
+        for (u8 direction = 0; direction < 4; direction++) {
+            for (s16 i = 0; i < step; i++) {
+                x += dx[direction];
+                y += dy[direction];
+                if (x >= 0 && x < TRANSITION_SCREEN_W &&
+                    y >= 0 && y < TRANSITION_SCREEN_H) {
+                    u16 index = (u16)(y * TRANSITION_SCREEN_W + x);
+                    if (!used[index]) {
+                        used[index] = TRUE;
+                        s_transition_order[s_transition_count++] = index;
+                    }
+                }
+                if (s_transition_count >= TRANSITION_TILES) return;
+            }
+            if ((direction & 1) != 0) step++;
+        }
+    }
+}
+
+void battle_transition_start(void) {
+    battle_transition_build_order();
+    s_transition_active = TRUE;
+
+    // BG0 is the transparent UI layer over the overworld. Clearing it leaves
+    // the map visible until the spiral places opaque black tiles over it.
+    text_clear();
+}
+
+static bool8 battle_transition_update(void) {
+    vu16 *screen = (vu16 *)(MEM_VRAM + TRANSITION_SBB * 0x800);
+    // 600 tiles / 4 tiles per frame = 150 frames: the reference-like spiral
+    // with an extra half-second for the trainer theme to establish itself.
+    for (u8 i = 0; i < 4 && s_transition_cursor < s_transition_count; i++) {
+        u16 index = s_transition_order[s_transition_cursor++];
+        screen[index] = (u16)(TRANSITION_TILE | (0 << 12));
+    }
+    return s_transition_cursor >= s_transition_count;
+}
 
 static const MoveId s_starter_moves[][2] = {
     [MON_BULBASAUR]  = { MOVE_TACKLE, MOVE_GROWL },
@@ -550,6 +622,14 @@ void battle_init(void) {
 }
 
 void battle_update(void) {
+    if (s_transition_active) {
+        if (battle_transition_update()) {
+            s_transition_active = FALSE;
+            battle_init();
+        }
+        return;
+    }
+
     draw_sprites();
 
     switch (s_battle.state) {
@@ -558,6 +638,12 @@ void battle_update(void) {
 
     case BS_INTRO:
         if (dialog_update()) {
+            if (s_battle.enemy_species == MON_BULBASAUR)
+                audio_sfx_play(AUDIO_SFX_CRY_BULBASAUR);
+            else if (s_battle.enemy_species == MON_CHARMANDER)
+                audio_sfx_play(AUDIO_SFX_CRY_CHARMANDER);
+            else
+                audio_sfx_play(AUDIO_SFX_CRY_SQUIRTLE);
             s_battle.state = BS_SEND_OUT_ENEMY;
             char *p = str_append(s_msg_buf, "[RIVAL] sent out\n");
             p = str_append(p, species_name(s_battle.enemy_species));
@@ -569,6 +655,12 @@ void battle_update(void) {
 
     case BS_SEND_OUT_ENEMY:
         if (dialog_update()) {
+            if (s_battle.player_species == MON_BULBASAUR)
+                audio_sfx_play(AUDIO_SFX_CRY_BULBASAUR);
+            else if (s_battle.player_species == MON_CHARMANDER)
+                audio_sfx_play(AUDIO_SFX_CRY_CHARMANDER);
+            else
+                audio_sfx_play(AUDIO_SFX_CRY_SQUIRTLE);
             redraw_huds();
             s_battle.state = BS_SEND_OUT_PLAYER;
             char *p = str_append(s_msg_buf, "Go! ");
@@ -586,6 +678,7 @@ void battle_update(void) {
         break;
 
     case BS_TURN_START:
+        audio_sfx_set_battle_intro(FALSE);
         redraw_huds();
         clear_lower_ui();
         s_battle.state = BS_PLAYER_MENU;
@@ -599,20 +692,25 @@ void battle_update(void) {
         if (input_pressed(KEY_LEFT)) {
             if ((s_battle.menu_cursor & 1) != 0) s_battle.menu_cursor--;
             draw_action_menu();
+            audio_sfx_play(AUDIO_SFX_BATTLE_SELECT);
         }
         if (input_pressed(KEY_RIGHT)) {
             if ((s_battle.menu_cursor & 1) == 0) s_battle.menu_cursor++;
             draw_action_menu();
+            audio_sfx_play(AUDIO_SFX_BATTLE_SELECT);
         }
         if (input_pressed(KEY_UP)) {
             if (s_battle.menu_cursor >= 2) s_battle.menu_cursor -= 2;
             draw_action_menu();
+            audio_sfx_play(AUDIO_SFX_BATTLE_SELECT);
         }
         if (input_pressed(KEY_DOWN)) {
             if (s_battle.menu_cursor < 2) s_battle.menu_cursor += 2;
             draw_action_menu();
+            audio_sfx_play(AUDIO_SFX_BATTLE_SELECT);
         }
         if (input_pressed(KEY_A)) {
+            audio_sfx_play(AUDIO_SFX_BATTLE_CONFIRM);
             if (s_battle.menu_cursor == 0) {
                 s_battle.move_cursor = 0;
                 s_battle.state = BS_MOVE_SELECT;
@@ -636,11 +734,13 @@ void battle_update(void) {
 
     case BS_PARTY_MENU:
         if (input_pressed(KEY_B)) {
+            audio_sfx_play(AUDIO_SFX_CANCEL);
             clear_lower_ui();
             s_battle.state = BS_PLAYER_MENU;
             draw_action_menu();
             draw_turn_prompt();
         } else if (input_pressed(KEY_A)) {
+            audio_sfx_play(AUDIO_SFX_BATTLE_CONFIRM);
             clear_lower_ui();
             battle_msg("No other POKeMON!");
             s_battle.state = BS_ACTION_MSG_WAIT;
@@ -654,6 +754,7 @@ void battle_update(void) {
             draw_action_menu();
             draw_turn_prompt();
         } else if (input_pressed(KEY_A)) {
+            audio_sfx_play(AUDIO_SFX_BATTLE_CONFIRM);
             clear_lower_ui();
             battle_msg("No items!");
             s_battle.state = BS_ACTION_MSG_WAIT;
@@ -677,12 +778,15 @@ void battle_update(void) {
         if (input_pressed(KEY_UP) && s_battle.move_cursor > 0) {
             s_battle.move_cursor--;
             draw_move_menu();
+            audio_sfx_play(AUDIO_SFX_BATTLE_SELECT);
         }
         if (input_pressed(KEY_DOWN) && s_battle.move_cursor < move_count - 1) {
             s_battle.move_cursor++;
             draw_move_menu();
+            audio_sfx_play(AUDIO_SFX_BATTLE_SELECT);
         }
         if (input_pressed(KEY_A)) {
+            audio_sfx_play(AUDIO_SFX_BATTLE_CONFIRM);
             if (s_battle.player_mon.pp[s_battle.move_cursor] == 0) {
                 break;
             }
@@ -691,6 +795,7 @@ void battle_update(void) {
             s_battle.state = BS_TURN_RESOLVE;
         }
         if (input_pressed(KEY_B)) {
+            audio_sfx_play(AUDIO_SFX_CANCEL);
             clear_lower_ui();
             s_battle.menu_cursor = 0;
             s_battle.state = BS_PLAYER_MENU;
@@ -870,6 +975,7 @@ void battle_update(void) {
     case BS_FAINT_MSG:
         if (dialog_update()) {
             s_battle.state = BS_VICTORY;
+            audio_music_play(AUDIO_MUSIC_DEFEATED_TRAINER);
             clear_lower_ui();
             char *p = str_append(s_msg_buf, "[NAME] defeated\n[RIVAL]!");
             *p = '\0';

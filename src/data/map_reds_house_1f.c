@@ -4,6 +4,7 @@
 #include "world.h"
 #include "map_ids.h"
 #include "gfx_npcs.h"
+#include "audio.h"
 
 extern const Tileset g_tileset_house;
 
@@ -61,5 +62,5 @@ const MapHeader g_map_reds_house_1f = {
     },
     .npc_count  = 1,
     .script     = NULL,
-    .music_id   = 0,
+    .music_id   = AUDIO_MUSIC_PALLET_TOWN,
 };

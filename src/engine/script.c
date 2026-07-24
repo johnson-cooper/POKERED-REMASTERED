@@ -7,6 +7,7 @@
 #include "map_ids.h"
 #include "pokedex.h"
 #include "game.h"
+#include "audio.h"
 
 // ─── Global script state ────────────────────────────────────────────────────
 
@@ -258,6 +259,9 @@ void script_pallet_town(void) {
         // Allow an unfinished scene to be retried after a ROM update or a
         // reset. The completed-follow flag remains the permanent guard.
         flags_set(FLAG_OAK_APPEARED_IN_PALLET);
+        // Pokered changes to Oak's personal encounter theme when he stops
+        // the player at the Route 1 entrance.
+        audio_music_play(AUDIO_MUSIC_MEET_PROF_OAK);
         s_pallet_oak_target_x = p->tile_x <= 8 ? 8 : 10;
         s_pallet_oak_target_y = 2;
         p->move_state = MOVE_STATE_FROZEN;
@@ -408,6 +412,7 @@ typedef enum {
     OAKSLAB_INTRO_RIVAL_2,
     OAKSLAB_INTRO_OAK_2,
     OAKSLAB_WAIT_CHOOSE,      // player can press A on pokeballs
+    OAKSLAB_DONT_GO_AWAY,
     OAKSLAB_POKEDEX_WAIT,     // Pokédex entry shown before the choice prompt
     OAKSLAB_YESNO_WAIT,       // YES/NO menu for chosen pokemon
     OAKSLAB_NICKNAME_YESNO,   // ask whether to nickname the starter
@@ -432,6 +437,23 @@ static u8 s_rival_target_npc = 0;
 static bool8 s_oakslab_battle_row_armed = FALSE;
 static u8 s_oakslab_post_battle_step = 0;
 static bool8 s_oakslab_post_battle_started = FALSE;
+
+bool8 script_oaks_lab_blocks_exit(u8 dir) {
+    if (!g_world.map || g_world.map->map_id != MAP_OAKS_LAB)
+        return FALSE;
+    if (s_oakslab_state != OAKSLAB_WAIT_CHOOSE || dir != DIR_DOWN ||
+        s_blocks_input || dialog_is_open() || g_world.player.tile_y != 6)
+        return FALSE;
+
+    g_world.npcs[0].facing = DIR_DOWN;
+    g_world.npcs[1].facing = DIR_DOWN;
+    dialog_open();
+    dialog_set_text("OAK: Hey! Don't go\naway yet!");
+    s_blocks_input = TRUE;
+    s_active_script_id = ACTIVE_MAP_SCRIPT;
+    s_oakslab_state = OAKSLAB_DONT_GO_AWAY;
+    return TRUE;
+}
 
 static const char *s_ball_names[] = {
     /* 10 */ "CHARMANDER",
@@ -648,6 +670,14 @@ void script_oaks_lab(void) {
             else if (s_chosen_ball == 11) species = POKEDEX_SQUIRTLE;
             pokedex_open(species);
             s_oakslab_state = OAKSLAB_POKEDEX_WAIT;
+        }
+        break;
+
+    case OAKSLAB_DONT_GO_AWAY:
+        if (dialog_update()) {
+            s_blocks_input = FALSE;
+            s_active_script_id = 0;
+            s_oakslab_state = OAKSLAB_WAIT_CHOOSE;
         }
         break;
 
