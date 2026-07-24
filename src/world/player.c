@@ -41,10 +41,11 @@ static void player_check_warps(void) {
     }
 }
 
-// Check NPC interaction on A press.
-static void player_check_npc_interact(void) {
+// Check NPC interaction on A press. Return TRUE only when an interaction
+// actually starts, so a harmless A press in the overworld stays silent.
+static bool8 player_check_npc_interact(void) {
     const MapHeader *map = g_world.map;
-    if (!map->npcs || g_world.npc_count == 0) return;
+    if (!map->npcs || g_world.npc_count == 0) return FALSE;
 
     PlayerState *p = &g_world.player;
     s16 fx = p->tile_x + DIR_DX[p->facing];
@@ -78,12 +79,12 @@ static void player_check_npc_interact(void) {
             if (dx != 0 || dy != -1)
                 continue;
             script_trigger_npc(npc->script_id, i);
-            return;
+            return TRUE;
         }
 
         if ((s16)npc->x == fx && (s16)npc->y == fy) {
             script_trigger_npc(npc->script_id, i);
-            return;
+            return TRUE;
         }
 
         s16 dx = (s16)npc->x - p->tile_x;
@@ -102,8 +103,10 @@ static void player_check_npc_interact(void) {
         else if (dy > 0) p->facing = DIR_DOWN;
         else p->facing = DIR_UP;
         script_trigger_npc(npc->script_id, (u8)fallback);
-        return;
+        return TRUE;
     }
+
+    return FALSE;
 }
 
 static void player_try_collision_warp(s32 nx, s32 ny) {
@@ -144,7 +147,6 @@ bool8 player_script_start_step(Direction dir) {
         p->step_frame = 4;
         p->step_dx = 0;
         p->step_dy = 0;
-        audio_sfx_play(AUDIO_SFX_DENIED);
         return FALSE;
     }
 
@@ -218,8 +220,8 @@ void player_update(void) {
 
     // A button: NPC interaction
     if (input_pressed(KEY_A)) {
-        audio_sfx_play(AUDIO_SFX_CONFIRM);
-        player_check_npc_interact();
+        if (player_check_npc_interact())
+            audio_sfx_play(AUDIO_SFX_CONFIRM);
         return;
     }
 
