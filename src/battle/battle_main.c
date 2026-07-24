@@ -208,38 +208,48 @@ static void battle_msg(const char *text) {
     dialog_set_text(text);
 }
 
-static void setup_palettes(void) {
-    const struct { PokemonId id; u8 pal; } species_pal[] = {
-        { MON_BULBASAUR,  11 },
-        { MON_CHARMANDER, 12 },
-        { MON_SQUIRTLE,   13 },
-    };
+static void setup_species_obj_palette(vu16 *dst, PokemonId species) {
+    for (u8 i = 0; i < 16; i++)
+        dst[i] = 0x7FFF;
+    dst[0] = 0;
+    // Match the Pokédex sprite palettes in text.c/pokedex.c exactly. Battle
+    // sprites use indices 1-4, not the overworld 0/5/A/F shade slots.
+    dst[1] = RGB15(2, 1, 2); // outline
+    dst[2] = RGB15(31, 25, 31); // pale sprite highlight
 
+    switch (species) {
+    case MON_BULBASAUR:
+        dst[3] = RGB15(5, 15, 4);
+        dst[4] = RGB15(18, 28, 12);
+        break;
+    case MON_CHARMANDER:
+        dst[3] = RGB15(20, 5, 2);
+        dst[4] = RGB15(31, 16, 4);
+        break;
+    case MON_SQUIRTLE:
+        dst[3] = RGB15(3, 9, 22);
+        dst[4] = RGB15(13, 23, 31);
+        break;
+    case MON_PIDGEY:
+        dst[3] = RGB15(18, 12, 8);
+        dst[4] = RGB15(29, 24, 16);
+        break;
+    case MON_RATTATA:
+        dst[3] = RGB15(18, 9, 18);
+        dst[4] = RGB15(29, 18, 27);
+        break;
+    default:
+        dst[2] = RGB15(18, 18, 18);
+        dst[3] = RGB15(30, 30, 30);
+        break;
+    }
+}
+
+static void setup_palettes(void) {
     for (u8 slot = 0; slot < 2; slot++) {
         PokemonId sp = (slot == 0) ? s_battle.player_species : s_battle.enemy_species;
-        u8 src_pal = 11;
-        for (u8 i = 0; i < 3; i++)
-            if (species_pal[i].id == sp) { src_pal = species_pal[i].pal; break; }
-
         vu16 *obj_dst = PAL_OBJ + slot * 16;
-        obj_dst[0] = 0;
-        if (sp == MON_PIDGEY) {
-            for (u8 i = 1; i < 16; i++) obj_dst[i] = 0x7FFF;
-            obj_dst[1] = RGB15(2, 1, 2);
-            obj_dst[2] = RGB15(31, 25, 31);
-            obj_dst[3] = RGB15(18, 12, 8);
-            obj_dst[4] = RGB15(29, 24, 16);
-        } else if (sp == MON_RATTATA) {
-            for (u8 i = 1; i < 16; i++) obj_dst[i] = 0x7FFF;
-            obj_dst[1] = RGB15(2, 1, 2);
-            obj_dst[2] = RGB15(31, 25, 31);
-            obj_dst[3] = RGB15(18, 9, 18);
-            obj_dst[4] = RGB15(29, 18, 27);
-        } else {
-            vu16 *bg_src = (vu16 *)MEM_PAL + src_pal * 16;
-            for (u8 i = 1; i < 16; i++)
-                obj_dst[i] = bg_src[i];
-        }
+        setup_species_obj_palette(obj_dst, sp);
     }
 }
 

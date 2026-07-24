@@ -263,9 +263,10 @@ void tilemap_load_tileset(const Tileset *ts) {
     dma_copy32((void*)MEM_VRAM, ts->tiles, words);
     vu32 *vram_tiles = (vu32*)MEM_VRAM;
 
-    // Keep tile 0 intact for the real overworld graphics. BG1 uses this
-    // reserved tile for empty overlay cells instead.
-    dma_fill32((void*)(MEM_VRAM + OVERWORLD_EMPTY_TILE * 32), 0, 8);
+    // Tile 0 is the blank tile used by cleared screenblocks and the unused
+    // top layer. Keep it blank so small interior maps do not repeat artwork
+    // outside their room during a transition.
+    dma_fill32((void*)MEM_VRAM, 0, 8);
 
     // Build overlays from the original source graphics, not generated color
     // tiles, so transparent color ID 0 remains tied to the original masks.

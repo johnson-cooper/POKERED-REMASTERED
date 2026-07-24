@@ -27,11 +27,14 @@ static WarpEvent s_pending_warp;
 // visible layers; BLDY ranges from 0 (normal) to 16 (fully black).
 #define WORLD_REG_BLDCNT (*(vu16 *)0x04000050)
 #define WORLD_REG_BLDY   (*(vu16 *)0x04000054)
-
 static void world_transition_apply(void) {
     if (s_transition_phase == WORLD_TRANSITION_NONE) {
         WORLD_REG_BLDCNT = 0;
         WORLD_REG_BLDY = 0;
+        // Restore the room clipping window after the fade. Keeping it off
+        // during the fade prevents the small interior's edge from appearing
+        // as a line while the destination map is being rebuilt.
+        tilemap_update_scroll();
         return;
     }
 
@@ -222,6 +225,7 @@ void world_do_warp(const WarpEvent *w) {
 
     s_pending_warp = *w;
     audio_sfx_play(AUDIO_SFX_WARP_OUT);
+
     s_transition_level = 0;
     s_transition_phase = WORLD_TRANSITION_OUT;
     g_world.player.move_state = MOVE_STATE_FROZEN;
