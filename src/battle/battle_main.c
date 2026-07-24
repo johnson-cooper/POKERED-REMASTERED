@@ -7,6 +7,7 @@
 #include "battle_rng.h"
 #include "type_effectiveness.h"
 #include "gfx_battle_sprites.h"
+#include "gfx_title.h"
 #include "render.h"
 #include "gba.h"
 #include "text.h"
@@ -84,11 +85,17 @@ static bool8 s_blackout;
 #define TRANSITION_TILE    147
 #define TRANSITION_SBB     20
 #define TRANSITION_TILES   (TRANSITION_SCREEN_W * TRANSITION_SCREEN_H)
+#define BATTLE_TRAINER_TILE 128
+#define BATTLE_TRAINER_PAL  2
+#define BATTLE_RED_PAL      3
 
 static u16 s_transition_order[TRANSITION_TILES];
 static u16 s_transition_count;
 static u16 s_transition_cursor;
 static bool8 s_transition_active;
+static s16 s_player_slide_x;
+static bool8 s_trainer_visible;
+static bool8 s_player_is_trainer;
 
 static u32 s_player_sprite_buf[BATTLE_SPRITE_WORDS];
 static u32 s_enemy_sprite_buf[BATTLE_SPRITE_WORDS];
@@ -258,6 +265,18 @@ static void setup_palettes(void) {
         vu16 *obj_dst = PAL_OBJ + slot * 16;
         setup_species_obj_palette(obj_dst, sp);
     }
+
+    vu16 *trainer = PAL_OBJ + BATTLE_TRAINER_PAL * 16;
+    trainer[0] = 0;
+    trainer[1] = RGB15(8, 8, 16);
+    trainer[2] = RGB15(18, 15, 22);
+    trainer[3] = RGB15(31, 24, 14);
+
+    vu16 *red = PAL_OBJ + BATTLE_RED_PAL * 16;
+    red[0] = 0;
+    red[1] = RGB15(8, 8, 16);
+    red[2] = RGB15(18, 15, 22);
+    red[3] = RGB15(31, 24, 14);
 }
 
 static void draw_battle_bg(void) {
@@ -293,18 +312,63 @@ static void draw_sprites(void) {
     render_clear_sprites();
     RenderCmd cmd;
 
-    cmd.type = RCMD_DRAW_SPRITE_LARGE;
-    cmd.id = 0;
-    cmd.x = 72 - 32;
-    cmd.y = 80 - 32;
-    cmd.param = 0;
-    render_submit(cmd);
+    if (s_player_slide_x > -64) {
+        cmd.type = RCMD_DRAW_SPRITE_LARGE;
+        cmd.id = 0;
+        cmd.x = s_player_slide_x;
+        cmd.y = 80 - 32;
+        cmd.param = s_player_is_trainer ? BATTLE_RED_PAL : 0;
+        render_submit(cmd);
+    }
 
-    cmd.id = 64;
+    cmd.id = s_trainer_visible ? BATTLE_TRAINER_TILE : 64;
     cmd.x = 176 - 32;
     cmd.y = 40 - 32;
-    cmd.param = 1;
+    cmd.param = s_trainer_visible ? BATTLE_TRAINER_PAL : 1;
     render_submit(cmd);
+}
+
+static void update_player_slide(void) {
+    if (s_battle.state != BS_SEND_OUT_PLAYER)
+        return;
+    if (s_player_slide_x < 72 - 32) {
+        s_player_slide_x += 8;
+        if (s_player_slide_x > 72 - 32)
+            s_player_slide_x = 72 - 32;
+    }
+}
+
+static void start_player_send_out(void) {
+    vu32 *obj_vram = (vu32 *)(MEM_VRAM + 0x10000);
+    for (u32 i = 0; i < BATTLE_SPRITE_WORDS; i++)
+        obj_vram[i] = s_player_sprite_buf[i];
+    s_player_is_trainer = FALSE;
+    s_player_slide_x = -64;
+}
+
+static void copy_intro_trainer_tiles(vu32 *dest, const u32 *source) {
+    // pokered trainer pictures are 7x7 tiles. OBJ large sprites use an 8x8
+    // tile stride, so pad each source row instead of copying the sheet
+    // contiguously (which shifts every row after the first).
+    for (u32 i = 0; i < BATTLE_SPRITE_WORDS; i++)
+        dest[i] = 0;
+    for (u8 y = 0; y < 7; y++)
+        for (u8 x = 0; x < 7; x++)
+            for (u8 word = 0; word < 8; word++)
+                dest[(y * 8 + x) * 8 + word] =
+                    source[(y * 7 + x) * 8 + word];
+}
+
+static void copy_red_battle_tiles(vu32 *dest, const u32 *source) {
+    // Red's dedicated battle back picture is 32x32 (4x4 tiles). Center it
+    // inside the same 64x64 OBJ canvas used by the battle Pokémon sprites.
+    for (u32 i = 0; i < BATTLE_SPRITE_WORDS; i++)
+        dest[i] = 0;
+    for (u8 y = 0; y < 4; y++)
+        for (u8 x = 0; x < 4; x++)
+            for (u8 word = 0; word < 8; word++)
+                dest[((y + 2) * 8 + (x + 2)) * 8 + word] =
+                    source[(y * 4 + x) * 8 + word];
 }
 
 static void draw_box(u8 x, u8 y, u8 w, u8 h) {
@@ -658,6 +722,12 @@ void battle_init(void) {
     s_battle.last_damage = 0;
     s_battle.last_effectiveness = TYPE_MUL_NEUTRAL;
     s_battle.last_hit = FALSE;
+    // Keep both sides visible while the battle introduction is presented.
+    // The player sprite is moved off-screen only when the send-out message
+    // begins, matching pokered's delayed SendOutMon sequence.
+    s_player_slide_x = 72 - 32;
+    s_player_is_trainer = TRUE;
+    s_trainer_visible = !s_battle.is_wild;
 
     PartyPokemon *saved_player = party_get_active();
     s_has_pre_battle_party = FALSE;
@@ -706,6 +776,9 @@ void battle_init(void) {
         obj_vram[i] = s_player_sprite_buf[i];
     for (u32 i = 0; i < BATTLE_SPRITE_WORDS; i++)
         obj_vram[BATTLE_SPRITE_WORDS + i] = s_enemy_sprite_buf[i];
+    copy_red_battle_tiles(obj_vram, g_intro_red_battle_tiles);
+    copy_intro_trainer_tiles(obj_vram + BATTLE_TRAINER_TILE * 8,
+                             g_intro_rival_tiles);
 
     setup_palettes();
     setup_hp_palettes();
@@ -734,6 +807,7 @@ void battle_update(void) {
         return;
     }
 
+    update_player_slide();
     draw_sprites();
 
     switch (s_battle.state) {
@@ -746,6 +820,8 @@ void battle_update(void) {
             char *p;
             if (s_battle.is_wild) {
                 s_battle.state = BS_SEND_OUT_PLAYER;
+                start_player_send_out();
+                battle_play_cry(s_battle.player_species);
                 p = str_append(s_msg_buf, "Go! ");
                 p = str_append(p, mon_display_name(&s_battle.player_mon));
                 p = str_append(p, "!");
@@ -762,9 +838,12 @@ void battle_update(void) {
 
     case BS_SEND_OUT_ENEMY:
         if (dialog_update()) {
-            battle_play_cry(s_battle.player_species);
+            s_trainer_visible = FALSE;
+            battle_play_cry(s_battle.enemy_species);
             redraw_huds();
             s_battle.state = BS_SEND_OUT_PLAYER;
+            start_player_send_out();
+            battle_play_cry(s_battle.player_species);
             char *p = str_append(s_msg_buf, "Go! ");
             p = str_append(p, mon_display_name(&s_battle.player_mon));
             p = str_append(p, "!");
@@ -774,7 +853,7 @@ void battle_update(void) {
         break;
 
     case BS_SEND_OUT_PLAYER:
-        if (dialog_update()) {
+        if (dialog_update() && s_player_slide_x >= 72 - 32) {
             s_battle.state = BS_TURN_START;
         }
         break;

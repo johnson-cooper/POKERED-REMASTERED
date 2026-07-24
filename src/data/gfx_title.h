@@ -8,5 +8,6 @@ extern const u32 g_title_charmander_tiles[];
 extern const u32 g_intro_oak_tiles[];
 extern const u32 g_intro_rival_tiles[];
 extern const u32 g_intro_red_tiles[];
+extern const u32 g_intro_red_battle_tiles[];
 extern const u32 g_intro_nidorino_tiles[];
 

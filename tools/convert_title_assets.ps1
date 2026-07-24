@@ -15,6 +15,7 @@ $assets = @(
     @{ Name = "intro_oak"; Input = "E:\pokemon recomp\refs\pokered\gfx\trainers\prof.oak.png"; Width = 56; Height = 56; Absolute = $true },
     @{ Name = "intro_rival"; Input = "E:\pokemon recomp\refs\pokered\gfx\trainers\rival1.png"; Width = 56; Height = 56; Absolute = $true },
     @{ Name = "intro_red"; Input = "E:\pokemon recomp\refs\pokered\gfx\player\red.png"; Width = 56; Height = 56; Absolute = $true },
+    @{ Name = "intro_red_battle"; Input = "E:\pokemon recomp\refs\pokered\gfx\player\redb.png"; Width = 32; Height = 32; Absolute = $true },
     @{ Name = "intro_nidorino"; Input = "E:\pokemon recomp\refs\pokered\gfx\intro\red_nidorino_1.png"; Width = 48; Height = 48; Absolute = $true }
 )
 
@@ -29,6 +30,7 @@ $header = @(
     "extern const u32 g_intro_oak_tiles[];",
     "extern const u32 g_intro_rival_tiles[];",
     "extern const u32 g_intro_red_tiles[];",
+    "extern const u32 g_intro_red_battle_tiles[];",
     "extern const u32 g_intro_nidorino_tiles[];",
     ""
 )
