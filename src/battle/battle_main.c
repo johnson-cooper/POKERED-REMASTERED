@@ -1,6 +1,7 @@
 #include "battle.h"
 #include "battle_pokemon.h"
 #include "party.h"
+#include "experience.h"
 #include "battle_calc.h"
 #include "battle_ai.h"
 #include "battle_rng.h"
@@ -61,6 +62,7 @@ typedef struct {
     u8  turn_phase;
     u16 anim_timer;
     u16 exp_gained;
+    u32 player_experience;
     u16 saved_dispcnt;
     bool8 crit_flag;
     u16 last_damage;
@@ -649,6 +651,8 @@ void battle_init(void) {
     s_battle.turn_phase = 0;
     s_battle.anim_timer = 0;
     s_battle.exp_gained = 0;
+    s_battle.player_experience =
+        pokemon_exp_for_level(s_battle.player_species, 5);
     s_battle.crit_flag = FALSE;
     s_battle.run_ends_battle = FALSE;
     s_battle.last_damage = 0;
@@ -679,6 +683,7 @@ void battle_init(void) {
             s_battle.player_mon.pp[i] = saved_player->pp[i];
         }
         s_battle.player_mon.status = saved_player->status;
+        s_battle.player_experience = saved_player->experience;
         for (u8 i = 0; i < 6; i++) s_battle.player_mon.stages[i] = 0;
         s_battle.player_mon.nickname = saved_player->nickname[0] ? saved_player->nickname : NULL;
     } else {
@@ -1142,8 +1147,11 @@ void battle_update(void) {
         if (dialog_update()) {
             s_battle.state = BS_EXP;
             const PokemonBaseStats *ebase = &g_pokemon_base_stats[s_battle.enemy_species];
-            s_battle.exp_gained = (u16)((u32)ebase->base_exp * s_battle.enemy_mon.level / 7 * 3 / 2);
+            u32 exp = (u32)ebase->base_exp * s_battle.enemy_mon.level / 7;
+            if (!s_battle.is_wild) exp = exp * 3 / 2;
+            s_battle.exp_gained = (u16)exp;
             if (s_battle.exp_gained == 0) s_battle.exp_gained = 1;
+            s_battle.player_experience += s_battle.exp_gained;
 
             clear_lower_ui();
             char *p = str_append(s_msg_buf, mon_display_name(&s_battle.player_mon));
@@ -1157,23 +1165,25 @@ void battle_update(void) {
 
     case BS_EXP:
         if (dialog_update()) {
-            u16 exp_for_6 = 179;
-            u16 exp_for_5 = 135;
-            u16 current_exp = exp_for_5 + s_battle.exp_gained;
-            if (current_exp >= exp_for_6) {
-                s_battle.player_mon.level = 6;
+            u8 next_level = (u8)(s_battle.player_mon.level + 1);
+            u32 next_exp = pokemon_exp_for_level(s_battle.player_species,
+                                                  next_level);
+            if (next_level <= 100 && s_battle.player_experience >= next_exp) {
+                s_battle.player_mon.level = next_level;
                 const PokemonBaseStats *pbase = &g_pokemon_base_stats[s_battle.player_species];
                 u16 old_max = s_battle.player_mon.max_hp;
-                s_battle.player_mon.max_hp = (u16)(((u32)(pbase->hp + dv_hp(s_battle.player_mon.dv)) * 2 * 6) / 100 + 6 + 10);
-                s_battle.player_mon.attack = (u16)(((u32)(pbase->attack + dv_attack(s_battle.player_mon.dv)) * 2 * 6) / 100 + 5);
-                s_battle.player_mon.defense = (u16)(((u32)(pbase->defense + dv_defense(s_battle.player_mon.dv)) * 2 * 6) / 100 + 5);
-                s_battle.player_mon.speed = (u16)(((u32)(pbase->speed + dv_speed(s_battle.player_mon.dv)) * 2 * 6) / 100 + 5);
-                s_battle.player_mon.special = (u16)(((u32)(pbase->special + dv_special(s_battle.player_mon.dv)) * 2 * 6) / 100 + 5);
+                s_battle.player_mon.max_hp = (u16)(((u32)(pbase->hp + dv_hp(s_battle.player_mon.dv)) * 2 * next_level) / 100 + next_level + 10);
+                s_battle.player_mon.attack = (u16)(((u32)(pbase->attack + dv_attack(s_battle.player_mon.dv)) * 2 * next_level) / 100 + 5);
+                s_battle.player_mon.defense = (u16)(((u32)(pbase->defense + dv_defense(s_battle.player_mon.dv)) * 2 * next_level) / 100 + 5);
+                s_battle.player_mon.speed = (u16)(((u32)(pbase->speed + dv_speed(s_battle.player_mon.dv)) * 2 * next_level) / 100 + 5);
+                s_battle.player_mon.special = (u16)(((u32)(pbase->special + dv_special(s_battle.player_mon.dv)) * 2 * next_level) / 100 + 5);
                 s_battle.player_mon.current_hp += s_battle.player_mon.max_hp - old_max;
 
                 clear_lower_ui();
                 char *p = str_append(s_msg_buf, mon_display_name(&s_battle.player_mon));
-                p = str_append(p, " grew to\nlevel 6!");
+                p = str_append(p, " grew to\nlevel ");
+                p = str_append_num(p, next_level);
+                p = str_append(p, "!");
                 *p = '\0';
                 battle_msg(s_msg_buf);
                 s_battle.state = BS_LEVEL_UP;
@@ -1211,9 +1221,18 @@ void battle_update(void) {
             flags_set(FLAG_BATTLED_RIVAL_IN_OAKS_LAB);
         if (scripted_rival_battle && s_has_pre_battle_party) {
             // The Oak/Lab rival battle is part of the opening script. It is
-            // non-persistent: losing must not trigger a healing-point warp,
-            // and winning must not consume HP, PP, or other party state.
-            party_update_active(&s_pre_battle_party);
+            // non-persistent for battle damage and PP, but legitimate level
+            // and EXP progression must survive the scripted encounter.
+            PartyPokemon restored = s_pre_battle_party;
+            restored.level = s_battle.player_mon.level;
+            restored.experience = s_battle.player_experience;
+            restored.max_hp = s_battle.player_mon.max_hp;
+            restored.current_hp = restored.max_hp;
+            restored.attack = s_battle.player_mon.attack;
+            restored.defense = s_battle.player_mon.defense;
+            restored.speed = s_battle.player_mon.speed;
+            restored.special = s_battle.player_mon.special;
+            party_update_active(&restored);
         } else {
             PartyPokemon updated = {0};
             updated.species = s_battle.player_mon.species;
@@ -1230,6 +1249,7 @@ void battle_update(void) {
                 updated.pp[i] = s_battle.player_mon.pp[i];
             }
             updated.status = s_battle.player_mon.status;
+            updated.experience = s_battle.player_experience;
             PartyPokemon *old = party_get_active();
             if (old) {
                 for (u8 i = 0; i < PARTY_NICKNAME_LENGTH; i++)

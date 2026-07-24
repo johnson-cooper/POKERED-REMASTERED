@@ -21,6 +21,7 @@ typedef struct {
     u8 pp[4];
     u8 status;
     char nickname[PARTY_NICKNAME_LENGTH];
+    u32 experience;
 } PartyPokemon;
 
 typedef struct {

@@ -3,6 +3,7 @@
 #include "gba.h"
 #include "gfx_party_icons.h"
 #include "gfx_pokedex.h"
+#include "experience.h"
 #include "input.h"
 #include "party.h"
 #include "text.h"
@@ -134,15 +135,15 @@ static const char *party_type2(PokemonId species) {
     }
 }
 
-static char *party_number(u16 value) {
-    static char buffer[6];
+static char *party_number(u32 value) {
+    static char buffer[11];
     u8 i = 0;
     if (value == 0) {
         buffer[0] = '0';
         buffer[1] = '\0';
         return buffer;
     }
-    while (value && i < 5) {
+    while (value && i < 10) {
         buffer[i++] = (char)('0' + value % 10);
         value /= 10;
     }
@@ -153,6 +154,12 @@ static char *party_number(u16 value) {
     }
     buffer[i] = '\0';
     return buffer;
+}
+
+static u32 party_exp_to_next_level(const PartyPokemon *mon) {
+    if (mon->level >= 100) return 0;
+    u32 required = pokemon_exp_for_level(mon->species, (u8)(mon->level + 1));
+    return mon->experience < required ? required - mon->experience : 0;
 }
 
 static const char *party_mon_display_name(const PartyPokemon *mon) {
@@ -289,7 +296,11 @@ static void draw_status(void) {
     text_draw_str(22, 10, party_type2(mon->species));
     text_draw_str(14, 12, "STATUS/");
     text_draw_str(22, 12, party_status_name(mon->status));
-    text_draw_str(14, 15, "B:BACK");
+    text_draw_str(14, 14, "EXP");
+    text_draw_str(22, 14, party_number(mon->experience));
+    text_draw_str(14, 16, "NEXT");
+    text_draw_str(22, 16, party_number(party_exp_to_next_level(mon)));
+    text_draw_str(14, 18, "B:BACK");
 }
 
 void party_menu_open(void) {

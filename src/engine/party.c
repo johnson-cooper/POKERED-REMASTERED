@@ -1,5 +1,6 @@
 #include "party.h"
 #include "battle_pokemon.h"
+#include "experience.h"
 #include "map_ids.h"
 
 PartyState g_party;
@@ -52,6 +53,7 @@ void party_set_starter(PokemonId species, const char *nickname) {
     }
     g_party.mons[0].status = mon.status;
     copy_nickname(g_party.mons[0].nickname, nickname);
+    g_party.mons[0].experience = pokemon_exp_for_level(species, mon.level);
 }
 
 PartyPokemon *party_get_active(void) {
@@ -98,5 +100,10 @@ void party_import(const PartyState *in) {
     if (in) {
         g_party = *in;
         if (g_party.count > PARTY_SIZE) g_party.count = PARTY_SIZE;
+        for (u8 i = 0; i < g_party.count; i++)
+            if (!g_party.mons[i].experience && g_party.mons[i].level == 5)
+                g_party.mons[i].experience =
+                    pokemon_exp_for_level(g_party.mons[i].species,
+                                          g_party.mons[i].level);
     }
 }
