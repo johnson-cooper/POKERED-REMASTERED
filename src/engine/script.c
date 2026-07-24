@@ -51,6 +51,15 @@ void script_trigger_npc(u16 script_id, u8 npc_index) {
     if (s_blocks_input) return;
     if (dialog_is_open()) return;
 
+    // During the starter sequence the rival is moved by the Oak's Lab
+    // cutscene. Do not let the normal rival NPC interaction fire based on the
+    // player's position while the rival is selecting his Pokémon.
+    if (script_id == 1 && g_world.map &&
+        g_world.map->map_id == MAP_OAKS_LAB &&
+        flags_get(FLAG_OAK_ASKED_TO_CHOOSE_MON) &&
+        !flags_get(FLAG_RIVAL_LEFT_OAKS_LAB))
+        return;
+
     // The starter balls are present in the room from the beginning, but they
     // are not interactive until Oak finishes the introduction and gives the
     // player permission to choose. Ignore them before that point so an early

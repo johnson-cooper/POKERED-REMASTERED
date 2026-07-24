@@ -70,12 +70,16 @@ static void prepare_pokedex_palettes(void) {
     }
 
     paper[1] = RGB15(2, 1, 2);
-    paper[2] = RGB15(31, 25, 31);
+    // Use a true white paper so sprite transparency resolves to the same
+    // background as the rest of the menu screens.
+    paper[2] = RGB15(31, 31, 31);
     paper[3] = RGB15(8, 18, 8);
     paper[4] = RGB15(20, 25, 20);
 
     bulba[1] = charm[1] = squirt[1] = RGB15(2, 1, 2);
-    bulba[2] = charm[2] = squirt[2] = RGB15(31, 25, 31);
+    // Sprite background/transparent pixels use index 2 in the species
+    // palettes. Keep it identical to the white Pokédex paper.
+    bulba[2] = charm[2] = squirt[2] = RGB15(31, 31, 31);
     bulba[3] = RGB15(5, 15, 4);
     bulba[4] = RGB15(18, 28, 12);
     charm[3] = RGB15(20, 5, 2);
