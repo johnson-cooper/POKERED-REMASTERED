@@ -791,6 +791,7 @@ void script_oaks_lab(void) {
                 if (!nickname[i]) break;
             }
             s_starter_nickname[sizeof(s_starter_nickname) - 1] = '\0';
+            party_set_active_nickname(s_starter_nickname);
             oaks_lab_start_rival_choice();
         }
         break;

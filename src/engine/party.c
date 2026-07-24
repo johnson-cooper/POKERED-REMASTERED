@@ -56,6 +56,12 @@ void party_set_starter(PokemonId species, const char *nickname) {
     g_party.mons[0].experience = pokemon_exp_for_level(species, mon.level);
 }
 
+void party_set_active_nickname(const char *nickname) {
+    PartyPokemon *mon = party_get_active();
+    if (mon)
+        copy_nickname(mon->nickname, nickname);
+}
+
 PartyPokemon *party_get_active(void) {
     return g_party.count ? &g_party.mons[0] : NULL;
 }

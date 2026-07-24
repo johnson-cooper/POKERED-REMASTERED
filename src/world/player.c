@@ -44,6 +44,16 @@ static void player_check_warps(void) {
     }
 }
 
+static bool8 player_tile_has_warp(s32 x, s32 y) {
+    const MapHeader *map = g_world.map;
+    for (u8 i = 0; i < map->warp_count; i++) {
+        const WarpEvent *w = &map->warps[i];
+        if ((s16)w->x == (s16)x && (s16)w->y == (s16)y)
+            return TRUE;
+    }
+    return FALSE;
+}
+
 // Check NPC interaction on A press. Return TRUE only when an interaction
 // actually starts, so a harmless A press in the overworld stays silent.
 static bool8 player_check_npc_interact(void) {
@@ -131,14 +141,6 @@ static bool8 player_try_collision_warp(s32 nx, s32 ny) {
         }
     }
 
-    for (u8 i = 0; i < map->warp_count; i++) {
-        const WarpEvent *w = &map->warps[i];
-        if ((s16)w->x == (s16)nx && (s16)w->y == (s16)ny) {
-            world_do_warp(w);
-            return TRUE;
-        }
-    }
-
     // Map-edge warps are triggered while stepping off the boundary tile in
     // the reference engine. The destination warp is authored on the last
     // visible tile, so also match the player's current tile when nx/ny is
@@ -174,12 +176,13 @@ bool8 player_script_start_step(Direction dir) {
         return FALSE;
     }
 
-    // Warp tiles are allowed to be visually passable (doors and map-edge
-    // connections), so resolve them before the ordinary tile collision test.
+    // Boundary warps must resolve before movement because their destination
+    // is outside the current map. Exact warp tiles, however, are walkable:
+    // the player should finish stepping onto the tile before the warp fires.
     if (player_try_collision_warp(nx, ny))
         return TRUE;
 
-    if (!map_is_subtile_passable(nx, ny)) {
+    if (!player_tile_has_warp(nx, ny) && !map_is_subtile_passable(nx, ny)) {
         p->move_state = MOVE_STATE_TURNING;
         p->step_frame = 4;
         p->step_dx = 0;
