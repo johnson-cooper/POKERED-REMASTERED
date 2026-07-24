@@ -5,6 +5,7 @@
 #include "gfx_pokeball.h"
 #include "gfx_npcs.h"
 #include "gfx_npcs_extra.h"
+#include "map_ids.h"
 
 // VRAM layout:
 // CBB 0 (SBBs 0-7,  0x06000000): map tile graphics
@@ -33,6 +34,40 @@ static inline void sbb_set(u32 sbb, u32 sx, u32 sy, u16 entry) {
     SBB_PTR(block)[(sy & 31) * 32 + (sx & 31)] = entry;
 }
 
+static bool8 pallet_oaks_house_cell(s32 mx, s32 my) {
+    if (g_world.map->map_id != MAP_PALLET_TOWN)
+        return FALSE;
+
+    return ((my == 1 || my == 2) && (mx == 6 || mx == 7)) ||
+           (my == 4 && mx >= 5 && mx <= 7) ||
+           (my == 5 && mx >= 5 && mx <= 7);
+}
+
+static bool8 pallet_northeast_sign_cell(s32 mx, s32 my) {
+    return g_world.map->map_id == MAP_PALLET_TOWN && mx == 3 && my == 4;
+}
+
+static u8 tile_palette_for(const Tileset *ts, u16 tile_id, u8 explicit_palette,
+                           bool8 force_house_palette, bool8 force_sign_palette) {
+    if (force_sign_palette && tile_id >= OVERWORLD_OVERLAY_TRANSPARENT_WHITE_BASE)
+        return 5;
+
+    // Oak's Lab is assembled from several original blocks whose source
+    // palette assignments differ. Keep its grass base green, but make every
+    // visible house tile use the common beige house palette.
+    if (force_house_palette && tile_id != 0x23 && tile_id != 0x39)
+        return 8;
+
+    // Overlay tile IDs are deliberately assigned an explicit palette by the
+    // metatile definition (roof, sign, wall, etc.). Do not replace those
+    // semantic assignments with the generic source-tile palette map.
+    if (tile_id >= OVERWORLD_OVERLAY_TRANSPARENT_WHITE_BASE)
+        return explicit_palette;
+    if (ts->tile_palette_map)
+        return ts->tile_palette_map[tile_id];
+    return explicit_palette;
+}
+
 static void write_metatile(s32 mx, s32 my) {
     const MapLayout *layout = g_world.map->layout;
     if (!layout || !layout->tileset)
@@ -45,6 +80,8 @@ static void write_metatile(s32 mx, s32 my) {
         return;
 
     const Metatile *mt = &layout->tileset->metatiles[mtid];
+    bool8 house_cell = pallet_oaks_house_cell(mx, my);
+    bool8 sign_cell = pallet_northeast_sign_cell(mx, my);
 
     // Each Pokemon Red block is 4x4 8px tiles, or 32x32 pixels.
     u32 tx = (u32)(mx * 4);
@@ -54,14 +91,15 @@ static void write_metatile(s32 mx, s32 my) {
         for (u32 col = 0; col < 4; col++) {
             u32 i = row * 4 + col;
             u16 tile_id = mt->bottom[i];
-            u8 pal = mt->palettes[i];
+            u8 pal = tile_palette_for(layout->tileset, tile_id, mt->palettes[i], house_cell, sign_cell);
             sbb_set(BG2_SBB, tx + col, ty + row,
                     TILE_ENTRY(tile_id, pal, 0, 0));
 
             tile_id = mt->top[i];
-            pal = mt->top_palettes[i];
+            pal = tile_palette_for(layout->tileset, tile_id, mt->top_palettes[i], house_cell, sign_cell);
             sbb_set(BG1_SBB, tx + col, ty + row,
-                    tile_id ? TILE_ENTRY(tile_id, pal, 0, 0) : 0);
+                    tile_id ? TILE_ENTRY(tile_id, pal, 0, 0)
+                            : TILE_ENTRY(OVERWORLD_EMPTY_TILE, 0, 0, 0));
         }
     }
 }
@@ -144,17 +182,56 @@ static void make_edge_mask_overlay(u32 dst[8], const u32 src[8]) {
     }
 }
 
-// The four sloped roof-corner tiles contain both outside white pixels and a
-// light roof strip. The flood mask correctly removes the outside area, but
-// that strip can be connected to it in the source art. Restore the lower
-// roof-facing rows so grass cannot show through as a green seam.
-static void make_roof_corner_overlay(u32 dst[8], const u32 src[8]) {
-    make_edge_mask_overlay(dst, src);
+// Roof corner tiles have outside white connected to interior wall stripes
+// through edge pixels, so the standard all-edge flood fill leaks into the
+// interior. Seed only from edges that face the outside area:
+//   0x05, 0x06 (left corners): outside at upper-left → seed top + left
+//   0x08, 0x09 (right corners): outside at upper-right → seed top + right
+static void make_roof_corner_overlay(u32 dst[8], const u32 src[8],
+                                     bool8 seed_left) {
+    bool8 transparent[8][8] = { FALSE };
+    u8 queue_x[64], queue_y[64];
+    u32 head = 0, tail = 0;
 
     for (u32 y = 0; y < 8; y++) {
         for (u32 x = 0; x < 8; x++) {
-            if (tile_pixel(src, x, y) == 0xF)
-                set_tile_pixel(dst, x, y, 0xF);
+            bool8 seed = FALSE;
+            if (y == 0) seed = TRUE;
+            if (seed_left  && x == 0) seed = TRUE;
+            if (!seed_left && x == 7) seed = TRUE;
+
+            if (seed && tile_pixel(src, x, y) == 0xF) {
+                transparent[y][x] = TRUE;
+                queue_x[tail] = (u8)x;
+                queue_y[tail] = (u8)y;
+                tail++;
+            }
+        }
+    }
+
+    while (head < tail) {
+        s32 x = queue_x[head], y = queue_y[head];
+        head++;
+        static const s8 dx[4] = { -1, 1, 0, 0 };
+        static const s8 dy[4] = { 0, 0, -1, 1 };
+        for (u32 i = 0; i < 4; i++) {
+            s32 nx = x + dx[i], ny = y + dy[i];
+            if (nx < 0 || ny < 0 || nx >= 8 || ny >= 8) continue;
+            if (!transparent[ny][nx] && tile_pixel(src, (u32)nx, (u32)ny) == 0xF) {
+                transparent[ny][nx] = TRUE;
+                queue_x[tail] = (u8)nx;
+                queue_y[tail] = (u8)ny;
+                tail++;
+            }
+        }
+    }
+
+    for (u32 y = 0; y < 8; y++) {
+        dst[y] = 0;
+        for (u32 x = 0; x < 8; x++) {
+            u8 n = transparent[y][x] ? 0 : tile_pixel(src, x, y);
+            if (!transparent[y][x] && n == 0) n = 1;
+            set_tile_pixel(dst, x, y, n);
         }
     }
 }
@@ -184,38 +261,59 @@ void tilemap_load_tileset(const Tileset *ts) {
     // 8 u32 words per 4bpp 8x8 tile.
     u32 words = ts->tile_count * 8;
     dma_copy32((void*)MEM_VRAM, ts->tiles, words);
+    vu32 *vram_tiles = (vu32*)MEM_VRAM;
 
-    // Tile 0 is the transparent tile for the unused top BG layer.
-    dma_fill32((void*)MEM_VRAM, 0, 8);
+    // Keep tile 0 intact for the real overworld graphics. BG1 uses this
+    // reserved tile for empty overlay cells instead.
+    dma_fill32((void*)(MEM_VRAM + OVERWORLD_EMPTY_TILE * 32), 0, 8);
 
-    // Build transparent BG1 overlay copies after the original tile graphics.
-    u32 *vram_tiles = (u32*)MEM_VRAM;
+    // Build overlays from the original source graphics, not generated color
+    // tiles, so transparent color ID 0 remains tied to the original masks.
+    const u32 *overlay_tiles = ts->overlay_tiles ? ts->overlay_tiles : ts->tiles;
     u32 overlay_word = OVERWORLD_OVERLAY_TRANSPARENT_WHITE_BASE * 8;
     for (u32 i = 0; i < words; i++)
-        vram_tiles[overlay_word + i] = remap_overlay_nibbles(ts->tiles[i]);
+        vram_tiles[overlay_word + i] = remap_overlay_nibbles(overlay_tiles[i]);
 
     overlay_word = OVERWORLD_OVERLAY_EDGE_MASK_BASE * 8;
     for (u32 tile = 0; tile < ts->tile_count; tile++) {
-        if (tile == 0x05 || tile == 0x06 ||
-            tile == 0x08 || tile == 0x09)
+        if (tile == 0x05 || tile == 0x06)
             make_roof_corner_overlay(&vram_tiles[overlay_word + tile * 8],
-                                     &ts->tiles[tile * 8]);
+                                     &overlay_tiles[tile * 8], TRUE);
+        else if (tile == 0x08 || tile == 0x09)
+            make_roof_corner_overlay(&vram_tiles[overlay_word + tile * 8],
+                                     &overlay_tiles[tile * 8], FALSE);
         else
             make_edge_mask_overlay(&vram_tiles[overlay_word + tile * 8],
-                                   &ts->tiles[tile * 8]);
+                                   &overlay_tiles[tile * 8]);
     }
 
     overlay_word = OVERWORLD_OVERLAY_SOLID_BASE * 8;
     for (u32 tile = 0; tile < ts->tile_count; tile++)
         make_solid_overlay(&vram_tiles[overlay_word + tile * 8],
-                           &ts->tiles[tile * 8]);
+                           &overlay_tiles[tile * 8]);
 
-    for (u32 i = 0; i < ts->palette_count; i++) {
-        const u16 *src = &ts->palettes[i * 16];
+    const u16 *palette_colors = ts->palettes;
+    u8 palette_count = ts->palette_count;
+    if (ts->palette_profile) {
+        palette_colors = ts->palette_profile->colors;
+        palette_count = ts->palette_profile->count;
+    }
+    for (u32 i = 0; i < palette_count; i++) {
+        const u16 *src = &palette_colors[i * 16];
         u16 *dst = (u16*)MEM_PAL + i * 16;
         for (u32 j = 0; j < 16; j++)
             dst[j] = src[j];
     }
+}
+
+void tilemap_apply_roof_palette(const RoofPalette *roof) {
+    if (!roof)
+        return;
+    u16 *pal6 = (u16*)MEM_PAL + 6 * 16;
+    pal6[15] = roof->lightest;
+    pal6[10] = roof->light;
+    pal6[ 5] = roof->dark;
+    pal6[ 1] = roof->darkest;
 }
 
 // Swap nibbles 0 and F in a u32.
@@ -274,11 +372,21 @@ void tilemap_load_player_sprite(void) {
 
 
 
-    u16 *obj_pal = (u16*)0x05000200;
+    // Sprites always use the GBA OBJ palette region. This is intentionally
+    // separate from the BG palette banks loaded by tilemap_load_tileset(), so
+    // walking across grass, paths, roofs, or interiors cannot recolor them.
+    vu16 *obj_pal = PAL_OBJ;
     obj_pal[ 0] = 0x0000;               // transparent
-    obj_pal[ 5] = RGB15( 4, 4,16);      // dark navy
-    obj_pal[10] = RGB15(28,18,10);      // skin tone
+    obj_pal[ 5] = RGB15(24, 4, 4);      // red clothing
+    obj_pal[10] = RGB15(31,24,18);      // pale skin tone
     obj_pal[15] = RGB15( 2, 2, 2);      // near-black outline
+
+    // NPCs use OBJ palette bank 1 so their shared colors can differ from the
+    // player: red clothing and a lighter skin tone.
+    obj_pal[16 + 0] = 0x0000;
+    obj_pal[16 + 5] = RGB15(24, 4, 4);
+    obj_pal[16 +10] = RGB15(31,24,18);
+    obj_pal[16 +15] = RGB15( 2, 2, 2);
 }
 
 void tilemap_init(void) {
@@ -306,6 +414,9 @@ void tilemap_rebuild(void) {
     }
 
     tilemap_load_tileset(layout->tileset);
+
+    if (g_world.map)
+        tilemap_apply_roof_palette(g_world.map->roof_palette);
 
     for (s32 y = 0; y < layout->height; y++) {
         for (s32 x = 0; x < layout->width; x++)

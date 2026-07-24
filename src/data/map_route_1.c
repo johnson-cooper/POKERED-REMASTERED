@@ -1,6 +1,7 @@
 #include "world.h"
 #include "audio.h"
 #include "map_ids.h"
+#include "overworld_palette_map.h"
 
 extern const Tileset g_tileset_route1;
 
@@ -51,6 +52,7 @@ const MapHeader g_map_route_1 = {
     .npc_count = 0,
     .script = NULL,
     .music_id = AUDIO_MUSIC_ROUTES_1,
+    .roof_palette = &g_roof_pallet,
 };
 
 #undef P

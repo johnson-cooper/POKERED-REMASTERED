@@ -45,7 +45,7 @@ static void process_cmd(const RenderCmd *cmd) {
         break;
     case RCMD_DRAW_SPRITE:
         if (s_oam_index < 128) {
-            // 16×16 sprite, 4bpp, palette 0
+            // 16×16 sprite, 4bpp; bit 4 selects the NPC palette bank.
             // attr0 bits 14-15 = shape 00 (square) — no extra bits needed
             // attr1 bits 14-15 = size  01 (16px) = 0x4000
             s_oam_shadow[s_oam_index].attr0 = (u16)(cmd->y & 0xFF);
@@ -54,7 +54,9 @@ static void process_cmd(const RenderCmd *cmd) {
                 s_oam_shadow[s_oam_index].attr1 |= 0x1000; // horizontal flip
             // Keep world sprites below BG0 so dialog/name windows remain
             // opaque and always cover NPCs and the player.
-            s_oam_shadow[s_oam_index].attr2 = (u16)(cmd->id | (1 << 10));
+            s_oam_shadow[s_oam_index].attr2 =
+                (u16)(cmd->id | (1 << 10) |
+                      ((cmd->param & 0x10) ? (1 << 12) : 0));
             s_oam_index++;
         }
         break;

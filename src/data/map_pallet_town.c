@@ -5,6 +5,7 @@
 #include "audio.h"
 #include "map_ids.h"
 #include "metatile_ids.h"
+#include "overworld_palette_map.h"
 
 extern const Tileset g_tileset_overworld;
 
@@ -28,9 +29,9 @@ static const MapCell s_cells[] = {
     W(MT_BORDER_L  ), P(MT_GRASS     ), W(MT_BLDG_TOP_L), W(MT_BLDG_TOP_R), P(MT_GRASS     ), P(MT_GRASS     ), W(MT_BLDG_TOP_L), W(MT_BLDG_TOP_R), P(MT_GRASS     ), W(MT_BORDER_R  ), // row 1
     W(MT_BORDER_L  ), W(MT_TREE_CORNER),W(MT_BLDG_WALL_L),W(MT_BLDG_WALL_R),P(MT_GRASS     ), W(MT_TREE_CORNER),W(MT_BLDG_WALL_L),W(MT_BLDG_WALL_R),P(MT_GRASS     ), W(MT_BORDER_R  ), // row 2
     W(MT_BORDER_L  ), P(MT_GRASS     ), P(MT_GRASS     ), P(MT_GRASS     ), P(MT_GRASS     ), P(MT_GRASS     ), P(MT_GRASS     ), P(MT_GRASS     ), P(MT_GRASS     ), W(MT_BORDER_R  ), // row 3
-    W(MT_BORDER_L  ), P(MT_GRASS     ), P(MT_ROAD_CORNER),W(MT_SIGN      ), P(MT_GRASS     ), W(MT_BLDG_LEFT ), W(MT_BLDG_MID  ), W(MT_BLDG_RIGHT), P(MT_GRASS     ), W(MT_BORDER_R  ), // row 4
-    W(MT_BORDER_L  ), P(MT_GRASS     ), P(MT_ROAD_H    ), P(MT_ROAD_H    ), P(MT_GRASS     ), P(MT_DIRT      ), P(MT_BLDG_DOOR ), W(MT_GRASS_STEP ), P(MT_GRASS     ), W(MT_BORDER_R  ), // row 5
-    W(MT_BORDER_L  ), P(MT_GRASS     ), P(MT_GRASS     ), P(MT_GRASS     ), P(MT_GRASS     ), P(MT_ROAD_CORNER),W(MT_SIGN      ), P(MT_ROAD_CORNER), P(MT_PATH_CORNER),W(MT_BORDER_R  ), // row 6
+    W(MT_BORDER_L  ), P(MT_GRASS     ), W(MT_ROAD_CORNER),W(MT_SIGN      ), P(MT_GRASS     ), W(MT_BLDG_LEFT ), W(MT_BLDG_MID  ), W(MT_BLDG_RIGHT), P(MT_GRASS     ), W(MT_BORDER_R  ), // row 4
+    W(MT_BORDER_L  ), P(MT_GRASS     ), P(MT_ROAD_H    ), P(MT_ROAD_H    ), P(MT_GRASS     ), P(MT_BLDG_FRONT_L), P(MT_BLDG_DOOR ), W(MT_BLDG_FRONT_R), P(MT_GRASS     ), W(MT_BORDER_R  ), // row 5
+    W(MT_BORDER_L  ), P(MT_GRASS     ), P(MT_GRASS     ), P(MT_GRASS     ), P(MT_GRASS     ), W(MT_ROAD_CORNER),W(MT_SIGN      ), W(MT_ROAD_CORNER), P(MT_PATH_CORNER),W(MT_BORDER_R  ), // row 6
     W(MT_BORDER_L  ), P(MT_PATH_WALK ), P(MT_WALKWAY_L ), P(MT_WALKWAY_R ), P(MT_PATH_CORNER),P(MT_ROAD_H    ), P(MT_ROAD_H    ), P(MT_PATH_WALK ), P(MT_PATH_CORNER),W(MT_BORDER_R  ), // row 7
     W(MT_BORDER_BL ), P(MT_PATH_WALK ), P(MT_ROUTE_BR  ), P(MT_ROUTE_BL  ), P(MT_ROUTE_B   ), P(MT_ROUTE_B   ), P(MT_ROUTE_B   ), P(MT_ROUTE_B   ), P(MT_ROUTE_B   ), W(MT_BORDER_TR ), // row 8
 };
@@ -90,4 +91,5 @@ const MapHeader g_map_pallet_town = {
     .npc_count  = ARRAY_COUNT(s_npcs),
     .script     = script_pallet_town,
     .music_id   = AUDIO_MUSIC_PALLET_TOWN,
+    .roof_palette = &g_roof_pallet,
 };

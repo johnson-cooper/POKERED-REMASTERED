@@ -18,12 +18,31 @@ typedef struct {
     u8  top_palettes[16];
 } Metatile;
 
+typedef struct {
+    const u16 *colors;
+    u8 count;
+} PaletteProfile;
+
+// Per-town roof colors replacing all four meaningful shades of the ROOF
+// palette slot (palette 6).  The reference provides only the two lightest;
+// we derive a matching dark-mid shade so the stripe pattern doesn't use the
+// green OUTDOOR_ROOF base color.
+typedef struct {
+    u16 lightest;   // palette index 15 (GB shade 0)
+    u16 light;      // palette index 10 (GB shade 1)
+    u16 dark;       // palette index  5 (GB shade 2)
+    u16 darkest;    // palette index  1 (GB shade 3)
+} RoofPalette;
+
 // ── Tileset ───────────────────────────────────────────────────────────────────
 typedef struct {
     const u32     *tiles;
+    const u32     *overlay_tiles;
     u32            tile_count;
     const u16     *palettes;
     u8             palette_count;
+    const PaletteProfile *palette_profile;
+    const u8      *tile_palette_map;
     const Metatile *metatiles;
     u16            metatile_count;
     bool8          use_cell_collision; // TRUE = indoor: refine W cells per-subtile by tile content
@@ -100,6 +119,7 @@ typedef struct {
     u8              npc_count;
     MapScriptFn     script;
     u16             music_id;
+    const RoofPalette *roof_palette;
 } MapHeader;
 
 // ── Player ────────────────────────────────────────────────────────────────────
@@ -170,6 +190,7 @@ void camera_update(void);
 // Tilemap (GBA BG hardware)
 void tilemap_init(void);
 void tilemap_load_tileset(const Tileset *ts);
+void tilemap_apply_roof_palette(const RoofPalette *roof);
 void tilemap_load_player_sprite(void);
 void tilemap_rebuild(void);
 void tilemap_update_scroll(void);

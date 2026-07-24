@@ -25,6 +25,8 @@
 #define MT_BLDG_LEFT   0x0C  // narrow building left column
 #define MT_BLDG_MID    0x0D  // narrow building middle column
 #define MT_BLDG_RIGHT  0x0E  // narrow building right / above-door
+#define MT_BLDG_FRONT_L 0x72 // Oak's Lab front-left beige facade
+#define MT_BLDG_FRONT_R 0x73 // Oak's Lab front-right beige facade
 
 // Signs / objects
 #define MT_SIGN        0x56  // sign post

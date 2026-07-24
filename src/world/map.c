@@ -99,8 +99,25 @@ bool8 map_is_subtile_passable(s32 x, s32 y) {
         return indoor_tile_is_passable(ts, mt->bottom[row * 4 + col]);
     }
 
-    // Overworld: tile-based passability
     u16 mtid = MAPCELL_METATILE(cell);
+
+    // Apply explicit collision only to true building/fence objects. Borders,
+    // trees, and mixed ground blocks retain the original tile-based rules;
+    // their W() map flag does not mean every subtile is solid.
+    if (MAPCELL_COLLISION(cell) != 0) {
+        if ((mtid == MT_BLDG_TOP_L || mtid == MT_BLDG_TOP_R ||
+             mtid == MT_SIGN ||
+             mtid == MT_ROAD_CORNER) &&
+            (y & 1) == 0)
+            return TRUE;
+        if (mtid == MT_BLDG_TOP_L || mtid == MT_BLDG_TOP_R ||
+            mtid == MT_SIGN ||
+            mtid == MT_ROAD_CORNER ||
+            mtid == MT_BLDG_LEFT || mtid == MT_BLDG_MID ||
+            mtid == MT_BLDG_RIGHT || mtid == MT_BLDG_DOOR ||
+            mtid == MT_BLDG_WALL_L || mtid == MT_BLDG_WALL_R)
+            return FALSE;
+    }
 
     if (g_world.map->map_id == MAP_PALLET_TOWN &&
         block_x == 7 && block_y == 5)

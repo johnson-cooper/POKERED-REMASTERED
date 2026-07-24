@@ -1,5 +1,6 @@
 #pragma once
 #include "types.h"
+#include "gfx_overworld_color.h"
 
 extern const u32 g_overworld_tiles[];
 extern const u32 g_overworld_tile_count;
@@ -9,3 +10,6 @@ extern const u32 g_overworld_tile_count;
 #define OVERWORLD_OVERLAY_TRANSPARENT_WHITE_BASE 96
 #define OVERWORLD_OVERLAY_EDGE_MASK_BASE        192
 #define OVERWORLD_OVERLAY_SOLID_BASE            288
+// Reserved blank tile for empty BG1 entries. Tile 0 is a real overworld
+// graphics tile and must remain available to BG2.
+#define OVERWORLD_EMPTY_TILE                   511

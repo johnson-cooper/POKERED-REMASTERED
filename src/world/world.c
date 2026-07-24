@@ -328,7 +328,7 @@ void world_render(void) {
                 .id    = sprite_id,
                 .x     = nx,
                 .y     = ny,
-                .param = sprite_param,
+                .param = (u8)(sprite_param | 0x10), // NPC palette bank 1
             };
             render_submit(cmd);
         }
