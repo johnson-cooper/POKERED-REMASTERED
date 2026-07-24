@@ -1,4 +1,5 @@
 #include "save.h"
+#include <stddef.h>
 
 #define SAVE_VERSION 2
 #define SAVE_MAGIC_0 'R'
@@ -22,7 +23,7 @@ static volatile const char s_save_type_marker[] = "SRAM_V113";
 static u8 save_checksum(const SaveData *data) {
     const u8 *bytes = (const u8 *)data;
     u8 sum = 0;
-    for (u32 i = 4; i < sizeof(SaveData) - 1; i++)
+    for (u32 i = 4; i < offsetof(SaveData, checksum); i++)
         sum = (u8)(sum + bytes[i]);
     return sum;
 }
@@ -47,7 +48,7 @@ typedef struct {
 static u8 legacy_checksum(const LegacySaveData *data) {
     const u8 *bytes = (const u8 *)data;
     u8 sum = 0;
-    for (u32 i = 4; i < sizeof(LegacySaveData) - 1; i++)
+    for (u32 i = 4; i < offsetof(LegacySaveData, checksum); i++)
         sum = (u8)(sum + bytes[i]);
     return sum;
 }

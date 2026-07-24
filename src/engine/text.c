@@ -212,6 +212,7 @@ static u8 ascii_to_pokered(char c) {
         case '!':  return 103; // pokered $E7
         case '.':  return 104; // pokered $E8
         case ',':  return 116; // pokered $F4
+        case '/':  return 115; // pokered $F3
         case '>':  return 108; // pokered right-arrow glyph
         default:   return BLANK_TILE;
     }

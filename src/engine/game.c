@@ -13,6 +13,7 @@
 #include "script.h"
 #include "audio.h"
 #include "party.h"
+#include "party_menu.h"
 
 GameContext g_game = {
     .state      = GAME_STATE_BOOT,
@@ -79,6 +80,7 @@ static bool8 s_option_battle_style;
 static bool8 s_options_from_pause;
 static u8 s_pause_menu_cursor;
 static bool8 s_pause_pokedex_active;
+static bool8 s_pause_party_active;
 static bool8 s_continue_load;
 
 static bool8 title_save_available(void) {
@@ -248,6 +250,7 @@ void game_update(void) {
         } else if (entering == GAME_STATE_MENU) {
             s_pause_menu_cursor = 0;
             s_pause_pokedex_active = FALSE;
+            s_pause_party_active = FALSE;
             s_options_from_pause = FALSE;
             pause_menu_draw();
         }
@@ -646,6 +649,13 @@ static void state_menu_update(void) {
         }
         return;
     }
+    if (s_pause_party_active) {
+        if (party_menu_update()) {
+            s_pause_party_active = FALSE;
+            pause_menu_draw();
+        }
+        return;
+    }
     if (s_options_from_pause)
         title_options_update();
     else
@@ -696,7 +706,12 @@ static void pause_menu_select(void) {
 
     switch (selected) {
     case 0:
-        pause_menu_message("No other POKeMON!");
+        if (g_party.count) {
+            party_menu_open();
+            s_pause_party_active = TRUE;
+        } else {
+            pause_menu_message("No POKeMON!");
+        }
         break;
     case 1:
         pause_menu_message("No items!");
