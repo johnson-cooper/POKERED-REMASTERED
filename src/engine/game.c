@@ -44,6 +44,8 @@ typedef enum {
     INTRO_RIVAL_INTRO,
     INTRO_RIVAL_NAME_SELECT,
     INTRO_RIVAL_NAME_CONFIRM,
+    INTRO_PLAYER_SHRINK1,
+    INTRO_PLAYER_SHRINK2,
     INTRO_DONE,
 } IntroState;
 
@@ -52,6 +54,7 @@ static char s_player_name[8];
 static char s_rival_name[8];
 static char s_intro_dialog[128];
 static bool8 s_selecting_rival;
+static u8 s_intro_transition_frames;
 static u8 s_name_row;
 static u8 s_name_col;
 static bool8 s_nickname_active;
@@ -202,6 +205,7 @@ void game_update(void) {
             s_selecting_rival = FALSE;
             s_name_row = 0;
             s_name_col = 0;
+            s_intro_transition_frames = 0;
             dialog_open();
             dialog_set_text(
                 "Hello there!\f"
@@ -342,9 +346,23 @@ static void state_intro_update(void) {
             s_intro_state = INTRO_DONE;
         }
         break;
-    case INTRO_DONE:
-        if (dialog_update())
+    case INTRO_PLAYER_SHRINK1:
+        if (++s_intro_transition_frames >= 4) {
+            s_intro_transition_frames = 0;
+            intro_graphics_show(INTRO_GFX_SHRINK2);
+            s_intro_state = INTRO_PLAYER_SHRINK2;
+        }
+        break;
+    case INTRO_PLAYER_SHRINK2:
+        if (++s_intro_transition_frames >= 4)
             game_change_state(GAME_STATE_OVERWORLD);
+        break;
+    case INTRO_DONE:
+        if (dialog_update()) {
+            intro_graphics_show(INTRO_GFX_SHRINK1);
+            s_intro_transition_frames = 0;
+            s_intro_state = INTRO_PLAYER_SHRINK1;
+        }
         break;
     }
 }

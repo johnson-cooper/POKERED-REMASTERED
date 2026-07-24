@@ -2,6 +2,7 @@
 #include "gba.h"
 #include "text.h"
 #include "gfx_title.h"
+#include "gfx_intro_shrink.h"
 
 #define TITLE_CBB       3
 #define TITLE_SBB       21
@@ -137,6 +138,14 @@ void intro_graphics_show(u8 scene) {
         break;
     case INTRO_GFX_RIVAL:
         title_draw_asset(INTRO_RIVAL_BASE, 11, 3, 7, 7, INTRO_TRAINER_PAL);
+        break;
+    case INTRO_GFX_SHRINK1:
+        copy_title_tiles(INTRO_NIDORINO_BASE, g_intro_shrink1_tiles, 49);
+        title_draw_asset(INTRO_NIDORINO_BASE, 12, 3, 7, 7, INTRO_TRAINER_PAL);
+        break;
+    case INTRO_GFX_SHRINK2:
+        copy_title_tiles(INTRO_NIDORINO_BASE, g_intro_shrink2_tiles, 49);
+        title_draw_asset(INTRO_NIDORINO_BASE, 12, 3, 7, 7, INTRO_TRAINER_PAL);
         break;
     }
 }
