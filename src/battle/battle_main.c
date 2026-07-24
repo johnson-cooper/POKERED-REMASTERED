@@ -89,6 +89,8 @@ static bool8 s_transition_active;
 
 static u32 s_player_sprite_buf[BATTLE_SPRITE_WORDS];
 static u32 s_enemy_sprite_buf[BATTLE_SPRITE_WORDS];
+static PartyPokemon s_pre_battle_party;
+static bool8 s_has_pre_battle_party;
 
 static char s_msg_buf[128];
 
@@ -650,6 +652,11 @@ void battle_init(void) {
     s_battle.last_hit = FALSE;
 
     PartyPokemon *saved_player = party_get_active();
+    s_has_pre_battle_party = FALSE;
+    if (saved_player) {
+        s_pre_battle_party = *saved_player;
+        s_has_pre_battle_party = TRUE;
+    }
     u16 player_dv = saved_player ? saved_player->dv : (u16)(battle_random() | 0x0001);
     u16 rival_dv = 0x9888;
 
@@ -1180,9 +1187,15 @@ void battle_update(void) {
 
     case BS_END:
         if (dialog_is_open()) { dialog_update(); break; }
-        if (!s_battle.is_wild)
+        bool8 scripted_rival_battle = !s_battle.is_wild;
+        if (scripted_rival_battle)
             flags_set(FLAG_BATTLED_RIVAL_IN_OAKS_LAB);
-        {
+        if (scripted_rival_battle && s_has_pre_battle_party) {
+            // The Oak/Lab rival battle is part of the opening script. It is
+            // non-persistent: losing must not trigger a healing-point warp,
+            // and winning must not consume HP, PP, or other party state.
+            party_update_active(&s_pre_battle_party);
+        } else {
             PartyPokemon updated = {0};
             updated.species = s_battle.player_mon.species;
             updated.level = s_battle.player_mon.level;
@@ -1205,7 +1218,7 @@ void battle_update(void) {
             }
             party_update_active(&updated);
         }
-        if (s_blackout && party_all_fainted()) {
+        if (s_blackout && party_all_fainted() && !scripted_rival_battle) {
             const MapHeader *recovery_map = map_get_by_id(g_last_healing_point.map_id);
             if (!recovery_map)
                 recovery_map = map_get_by_id(MAP_PLAYERS_HOUSE_1F);
