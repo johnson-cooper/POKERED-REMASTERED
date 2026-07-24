@@ -43,6 +43,7 @@ static const AudioTrackData *audio_track_for_id(AudioMusicId id) {
     if (id == AUDIO_MUSIC_OAKS_LAB)         return &g_audio_oakslab;
     if (id == AUDIO_MUSIC_INTRO_BATTLE)     return &g_audio_intro_battle;
     if (id == AUDIO_MUSIC_MEET_PROF_OAK)    return &g_audio_meet_prof_oak;
+    if (id == AUDIO_MUSIC_WILD_BATTLE)      return &g_audio_wild_battle;
     return NULL;
 }
 
@@ -188,6 +189,7 @@ void audio_sfx_play(AudioSfxId id) {
     case AUDIO_SFX_CRY_BULBASAUR:  period = 1200; s_sfx_frames = 24; break;
     case AUDIO_SFX_CRY_CHARMANDER: period = 1500; s_sfx_frames = 22; break;
     case AUDIO_SFX_CRY_SQUIRTLE:   period = 1750; s_sfx_frames = 20; break;
+    case AUDIO_SFX_CRY_WILD:       period = 1320; s_sfx_frames = 20; break;
     }
     // Fixed 1/4-duty, no-envelope pulse for every menu effect. Battle SFX
     // intentionally share the normal UI sound character rather than using a
@@ -244,6 +246,8 @@ static void audio_update_sfx_voice(void) {
         period = (u16)(1500 - (u16)(22 - s_sfx_frames) * 30);
     else if (s_sfx_id == AUDIO_SFX_CRY_SQUIRTLE)
         period = (u16)(1750 + (u16)(20 - s_sfx_frames) * 28);
+    else if (s_sfx_id == AUDIO_SFX_CRY_WILD)
+        period = (u16)(1320 - (u16)(20 - s_sfx_frames) * 18);
     else
         return;
     if (s_sfx_channel == 0)

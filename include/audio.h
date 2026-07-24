@@ -12,6 +12,7 @@ typedef enum {
     AUDIO_MUSIC_OAKS_LAB,
     AUDIO_MUSIC_INTRO_BATTLE,
     AUDIO_MUSIC_MEET_PROF_OAK,
+    AUDIO_MUSIC_WILD_BATTLE,
 } AudioMusicId;
 
 typedef enum {
@@ -30,6 +31,7 @@ typedef enum {
     AUDIO_SFX_CRY_BULBASAUR,
     AUDIO_SFX_CRY_CHARMANDER,
     AUDIO_SFX_CRY_SQUIRTLE,
+    AUDIO_SFX_CRY_WILD,
 } AudioSfxId;
 
 void audio_init(void);

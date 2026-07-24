@@ -1,6 +1,6 @@
 """Convert pokered music ASM files to GBA AudioCommand data.
 
-Generates trainer_battle, defeated_trainer, routes1, and oakslab.
+Generates trainer_battle, defeated_trainer, wild_battle, routes1, and oakslab.
 
 Channel routing (matches pokered):
   Ch1 -> GBA square 1   octave_shift=+1  (pokered sq plays 1 oct above our formula)
@@ -320,3 +320,17 @@ write_track(
      ("ch3", mpo_ch3, mpo_ch3_loop), ("ch4", [], 0)],
 )
 print(f"meet_prof_oak: ch1={len(mpo_ch1)} ch2={len(mpo_ch2)} ch3={len(mpo_ch3)}")
+
+# ── Wild Pokémon battle ──────────────────────────────────────────────────────
+text = (REFS / "music/wildbattle.asm").read_text()
+wb_ch1, wb_ch1_loop = flatten_channel(text, "Music_WildBattle_Ch1::", octave_shift=1)
+wb_ch2, wb_ch2_loop = flatten_channel(text, "Music_WildBattle_Ch2::", octave_shift=1)
+wb_ch3, wb_ch3_loop = flatten_channel(text, "Music_WildBattle_Ch3::", octave_shift=0)
+write_track(
+    OUT / "wild_battle_audio_data.c",
+    "wild_battle",
+    "refs/pokered/audio/music/wildbattle.asm",
+    [("ch1", wb_ch1, wb_ch1_loop), ("ch2", wb_ch2, wb_ch2_loop),
+     ("ch3", wb_ch3, wb_ch3_loop), ("ch4", [], 0)],
+)
+print(f"wild_battle: ch1={len(wb_ch1)} ch2={len(wb_ch2)} ch3={len(wb_ch3)}")

@@ -40,3 +40,4 @@ extern const AudioTrackData g_audio_routes1;
 extern const AudioTrackData g_audio_oakslab;
 extern const AudioTrackData g_audio_intro_battle;
 extern const AudioTrackData g_audio_meet_prof_oak;
+extern const AudioTrackData g_audio_wild_battle;

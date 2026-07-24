@@ -1,5 +1,6 @@
 #include "battle.h"
 #include "battle_pokemon.h"
+#include "party.h"
 #include "battle_calc.h"
 #include "battle_ai.h"
 #include "battle_rng.h"
@@ -13,6 +14,7 @@
 #include "audio.h"
 #include "game.h"
 #include "world.h"
+#include "map_ids.h"
 #include "irq.h"
 #include "flags.h"
 
@@ -66,10 +68,13 @@ typedef struct {
     bool8 last_hit;
     PokemonId player_species;
     PokemonId enemy_species;
+    u8 enemy_level;
+    bool8 is_wild;
     const char *player_nickname;
 } BattleCtx;
 
 static BattleCtx s_battle;
+static bool8 s_blackout;
 
 #define TRANSITION_SCREEN_W 30
 #define TRANSITION_SCREEN_H 20
@@ -86,6 +91,17 @@ static u32 s_player_sprite_buf[BATTLE_SPRITE_WORDS];
 static u32 s_enemy_sprite_buf[BATTLE_SPRITE_WORDS];
 
 static char s_msg_buf[128];
+
+static void battle_play_cry(PokemonId species) {
+    if (species == MON_BULBASAUR)
+        audio_sfx_play(AUDIO_SFX_CRY_BULBASAUR);
+    else if (species == MON_CHARMANDER)
+        audio_sfx_play(AUDIO_SFX_CRY_CHARMANDER);
+    else if (species == MON_SQUIRTLE)
+        audio_sfx_play(AUDIO_SFX_CRY_SQUIRTLE);
+    else
+        audio_sfx_play(AUDIO_SFX_CRY_WILD);
+}
 
 static void battle_transition_build_order(void) {
     s_transition_count = 0;
@@ -151,6 +167,8 @@ static const MoveId s_starter_moves[][2] = {
     [MON_BULBASAUR]  = { MOVE_TACKLE, MOVE_GROWL },
     [MON_CHARMANDER] = { MOVE_SCRATCH, MOVE_GROWL },
     [MON_SQUIRTLE]   = { MOVE_TACKLE, MOVE_TAIL_WHIP },
+    [MON_PIDGEY]     = { MOVE_GUST, MOVE_SAND_ATTACK },
+    [MON_RATTATA]    = { MOVE_TACKLE, MOVE_TAIL_WHIP },
 };
 
 static const char *species_name(PokemonId id) {
@@ -203,11 +221,25 @@ static void setup_palettes(void) {
         for (u8 i = 0; i < 3; i++)
             if (species_pal[i].id == sp) { src_pal = species_pal[i].pal; break; }
 
-        vu16 *bg_src = (vu16 *)MEM_PAL + src_pal * 16;
         vu16 *obj_dst = PAL_OBJ + slot * 16;
         obj_dst[0] = 0;
-        for (u8 i = 1; i < 16; i++)
-            obj_dst[i] = bg_src[i];
+        if (sp == MON_PIDGEY) {
+            for (u8 i = 1; i < 16; i++) obj_dst[i] = 0x7FFF;
+            obj_dst[1] = RGB15(2, 1, 2);
+            obj_dst[2] = RGB15(31, 25, 31);
+            obj_dst[3] = RGB15(18, 12, 8);
+            obj_dst[4] = RGB15(29, 24, 16);
+        } else if (sp == MON_RATTATA) {
+            for (u8 i = 1; i < 16; i++) obj_dst[i] = 0x7FFF;
+            obj_dst[1] = RGB15(2, 1, 2);
+            obj_dst[2] = RGB15(31, 25, 31);
+            obj_dst[3] = RGB15(18, 9, 18);
+            obj_dst[4] = RGB15(29, 18, 27);
+        } else {
+            vu16 *bg_src = (vu16 *)MEM_PAL + src_pal * 16;
+            for (u8 i = 1; i < 16; i++)
+                obj_dst[i] = bg_src[i];
+        }
     }
 }
 
@@ -554,6 +586,8 @@ static void apply_stat_effect(MoveId move, BattlePokemon *target) {
 }
 
 void battle_setup_rival(u16 chosen_ball, const char *player_nickname) {
+    s_battle.is_wild = FALSE;
+    s_battle.enemy_level = 5;
     switch (chosen_ball) {
     case 10:
         s_battle.player_species = MON_CHARMANDER;
@@ -572,8 +606,26 @@ void battle_setup_rival(u16 chosen_ball, const char *player_nickname) {
     s_battle.player_nickname = player_nickname;
 }
 
+void battle_setup_wild(PokemonId species, u8 level, PokemonId player_species,
+                       const char *player_nickname) {
+    s_battle.is_wild = TRUE;
+    s_battle.enemy_species = species;
+    s_battle.enemy_level = level;
+    s_battle.player_species = player_species;
+    s_battle.player_nickname = player_nickname;
+}
+
+bool8 battle_is_wild(void) {
+    return s_battle.is_wild;
+}
+
+bool8 battle_is_blackout(void) {
+    return s_blackout;
+}
+
 void battle_init(void) {
     battle_rng_seed(g_vblank_count);
+    s_blackout = FALSE;
 
     s_battle.saved_dispcnt = REG_DISPCNT;
     s_battle.state = BS_INIT;
@@ -587,12 +639,33 @@ void battle_init(void) {
     s_battle.last_effectiveness = TYPE_MUL_NEUTRAL;
     s_battle.last_hit = FALSE;
 
-    u16 player_dv = (u16)(battle_random() | 0x0001);
+    PartyPokemon *saved_player = party_get_active();
+    u16 player_dv = saved_player ? saved_player->dv : (u16)(battle_random() | 0x0001);
     u16 rival_dv = 0x9888;
 
-    battle_pokemon_init(&s_battle.player_mon, s_battle.player_species, 5,
-                        player_dv, s_starter_moves[s_battle.player_species], 2);
-    battle_pokemon_init(&s_battle.enemy_mon, s_battle.enemy_species, 5,
+    if (saved_player && saved_player->species == s_battle.player_species) {
+        s_battle.player_mon.species = saved_player->species;
+        s_battle.player_mon.level = saved_player->level;
+        s_battle.player_mon.dv = saved_player->dv;
+        s_battle.player_mon.max_hp = saved_player->max_hp;
+        s_battle.player_mon.current_hp = saved_player->current_hp;
+        s_battle.player_mon.attack = saved_player->attack;
+        s_battle.player_mon.defense = saved_player->defense;
+        s_battle.player_mon.speed = saved_player->speed;
+        s_battle.player_mon.special = saved_player->special;
+        for (u8 i = 0; i < 4; i++) {
+            s_battle.player_mon.moves[i] = saved_player->moves[i];
+            s_battle.player_mon.pp[i] = saved_player->pp[i];
+        }
+        s_battle.player_mon.status = saved_player->status;
+        for (u8 i = 0; i < 6; i++) s_battle.player_mon.stages[i] = 0;
+        s_battle.player_mon.nickname = saved_player->nickname[0] ? saved_player->nickname : NULL;
+    } else {
+        battle_pokemon_init(&s_battle.player_mon, s_battle.player_species,
+                            5, player_dv, s_starter_moves[s_battle.player_species], 2);
+    }
+    battle_pokemon_init(&s_battle.enemy_mon, s_battle.enemy_species,
+                        s_battle.enemy_level,
                         rival_dv, s_starter_moves[s_battle.enemy_species], 2);
     s_battle.player_mon.nickname = s_battle.player_nickname &&
         s_battle.player_nickname[0] ? s_battle.player_nickname : NULL;
@@ -616,7 +689,12 @@ void battle_init(void) {
     REG_DISPCNT = DCNT_MODE0 | DCNT_OBJ_MAP_1D | DCNT_BG0 | DCNT_BG3 | DCNT_OBJ;
 
     s_battle.state = BS_INTRO;
-    char *p = str_append(s_msg_buf, "[RIVAL] wants to fight!");
+    char *p = s_battle.is_wild ? str_append(s_msg_buf, "Wild ") :
+                                 str_append(s_msg_buf, "[RIVAL] wants to fight!");
+    if (s_battle.is_wild) {
+        p = str_append(p, species_name(s_battle.enemy_species));
+        p = str_append(p, " appeared!");
+    }
     *p = '\0';
     battle_msg(s_msg_buf);
 }
@@ -638,16 +716,19 @@ void battle_update(void) {
 
     case BS_INTRO:
         if (dialog_update()) {
-            if (s_battle.enemy_species == MON_BULBASAUR)
-                audio_sfx_play(AUDIO_SFX_CRY_BULBASAUR);
-            else if (s_battle.enemy_species == MON_CHARMANDER)
-                audio_sfx_play(AUDIO_SFX_CRY_CHARMANDER);
-            else
-                audio_sfx_play(AUDIO_SFX_CRY_SQUIRTLE);
-            s_battle.state = BS_SEND_OUT_ENEMY;
-            char *p = str_append(s_msg_buf, "[RIVAL] sent out\n");
-            p = str_append(p, species_name(s_battle.enemy_species));
-            p = str_append(p, "!");
+            battle_play_cry(s_battle.enemy_species);
+            char *p;
+            if (s_battle.is_wild) {
+                s_battle.state = BS_SEND_OUT_PLAYER;
+                p = str_append(s_msg_buf, "Go! ");
+                p = str_append(p, mon_display_name(&s_battle.player_mon));
+                p = str_append(p, "!");
+            } else {
+                s_battle.state = BS_SEND_OUT_ENEMY;
+                p = str_append(s_msg_buf, "[RIVAL] sent out\n");
+                p = str_append(p, species_name(s_battle.enemy_species));
+                p = str_append(p, "!");
+            }
             *p = '\0';
             battle_msg(s_msg_buf);
         }
@@ -655,12 +736,7 @@ void battle_update(void) {
 
     case BS_SEND_OUT_ENEMY:
         if (dialog_update()) {
-            if (s_battle.player_species == MON_BULBASAUR)
-                audio_sfx_play(AUDIO_SFX_CRY_BULBASAUR);
-            else if (s_battle.player_species == MON_CHARMANDER)
-                audio_sfx_play(AUDIO_SFX_CRY_CHARMANDER);
-            else
-                audio_sfx_play(AUDIO_SFX_CRY_SQUIRTLE);
+            battle_play_cry(s_battle.player_species);
             redraw_huds();
             s_battle.state = BS_SEND_OUT_PLAYER;
             char *p = str_append(s_msg_buf, "Go! ");
@@ -1087,13 +1163,54 @@ void battle_update(void) {
 
     case BS_DEFEAT_WAIT:
         if (dialog_update()) {
+            s_blackout = TRUE;
             s_battle.state = BS_END;
         }
         break;
 
     case BS_END:
         if (dialog_is_open()) { dialog_update(); break; }
-        flags_set(FLAG_BATTLED_RIVAL_IN_OAKS_LAB);
+        if (!s_battle.is_wild)
+            flags_set(FLAG_BATTLED_RIVAL_IN_OAKS_LAB);
+        {
+            PartyPokemon updated = {0};
+            updated.species = s_battle.player_mon.species;
+            updated.level = s_battle.player_mon.level;
+            updated.dv = s_battle.player_mon.dv;
+            updated.max_hp = s_battle.player_mon.max_hp;
+            updated.current_hp = s_battle.player_mon.current_hp;
+            updated.attack = s_battle.player_mon.attack;
+            updated.defense = s_battle.player_mon.defense;
+            updated.speed = s_battle.player_mon.speed;
+            updated.special = s_battle.player_mon.special;
+            for (u8 i = 0; i < 4; i++) {
+                updated.moves[i] = s_battle.player_mon.moves[i];
+                updated.pp[i] = s_battle.player_mon.pp[i];
+            }
+            updated.status = s_battle.player_mon.status;
+            PartyPokemon *old = party_get_active();
+            if (old) {
+                for (u8 i = 0; i < PARTY_NICKNAME_LENGTH; i++)
+                    updated.nickname[i] = old->nickname[i];
+            }
+            party_update_active(&updated);
+        }
+        if (s_blackout && party_all_fainted()) {
+            const MapHeader *recovery_map = map_get_by_id(g_last_healing_point.map_id);
+            if (!recovery_map)
+                recovery_map = map_get_by_id(MAP_PLAYERS_HOUSE_1F);
+            party_heal_all();
+            if (recovery_map) {
+                u8 spawn_x = g_last_healing_point.x;
+                u8 spawn_y = g_last_healing_point.y;
+                if (g_last_healing_point.map_id == MAP_PLAYERS_HOUSE_1F) {
+                    spawn_x = 4;
+                    spawn_y = 3;
+                }
+                world_init(recovery_map, spawn_x, spawn_y);
+                g_world.player.facing = (Direction)g_last_healing_point.facing;
+            }
+        }
         text_init();
         tilemap_rebuild();
         tilemap_update_scroll();

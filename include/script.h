@@ -1,5 +1,6 @@
 #pragma once
 #include "types.h"
+#include "pokemon.h"
 
 // Map script system — called once per frame from world_update() via the
 // map header's script function pointer.
@@ -19,6 +20,7 @@ void script_update(void);
 // block input (e.g. scripted walks, dialog).
 bool8 script_blocks_input(void);
 bool8 script_oaks_lab_blocks_exit(u8 dir);
+PokemonId script_get_starter_species(void);
 void script_reset_runtime(void);
 
 // Pallet Town and Oak's Lab script functions (referenced by MapHeader.script)

@@ -3,6 +3,9 @@
 #include "dialog.h"
 #include "script.h"
 #include "audio.h"
+#include "route1.h"
+#include "map_ids.h"
+#include "flags.h"
 
 #define STEP_PIXELS  16
 #define STEP_FRAMES  16
@@ -109,17 +112,51 @@ static bool8 player_check_npc_interact(void) {
     return FALSE;
 }
 
-static void player_try_collision_warp(s32 nx, s32 ny) {
+static bool8 player_try_collision_warp(s32 nx, s32 ny) {
     // Fires when the player walks into an impassable tile that is a warp
     // (pokered: CheckWarpsCollision — used for building doors).
     const MapHeader *map = g_world.map;
+
+    // Pallet Town's north connection spans the full visible top boundary in
+    // the reference connection system. Once Oak's opening sequence is done,
+    // allow the player to leave from any top-edge subtile instead of relying
+    // on one exact warp coordinate.
+    if (map->map_id == MAP_PALLET_TOWN && ny < 0 &&
+        flags_get(FLAG_FOLLOWED_OAK_INTO_LAB)) {
+        for (u8 i = 0; i < map->warp_count; i++) {
+            if (map->warps[i].dest_map == MAP_ROUTE_1) {
+                world_do_warp(&map->warps[i]);
+                return TRUE;
+            }
+        }
+    }
+
     for (u8 i = 0; i < map->warp_count; i++) {
         const WarpEvent *w = &map->warps[i];
         if ((s16)w->x == (s16)nx && (s16)w->y == (s16)ny) {
             world_do_warp(w);
-            return;
+            return TRUE;
         }
     }
+
+    // Map-edge warps are triggered while stepping off the boundary tile in
+    // the reference engine. The destination warp is authored on the last
+    // visible tile, so also match the player's current tile when nx/ny is
+    // outside the map.
+    const MapLayout *layout = map->layout;
+    s32 map_width = layout->width * 2;
+    s32 map_height = layout->height * 2;
+    if (nx < 0 || ny < 0 || nx >= map_width || ny >= map_height) {
+        for (u8 i = 0; i < map->warp_count; i++) {
+            const WarpEvent *w = &map->warps[i];
+            if ((s16)w->x == g_world.player.tile_x &&
+                (s16)w->y == g_world.player.tile_y) {
+                world_do_warp(w);
+                return TRUE;
+            }
+        }
+    }
+    return FALSE;
 }
 
 bool8 player_script_start_step(Direction dir) {
@@ -137,12 +174,12 @@ bool8 player_script_start_step(Direction dir) {
         return FALSE;
     }
 
-    if (!map_is_subtile_passable(nx, ny)) {
-        // Check for collision warp before turning (pokered: CheckWarpsCollision)
-        const MapHeader *old_map = g_world.map;
-        player_try_collision_warp(nx, ny);
-        if (g_world.map != old_map) return TRUE; // warp changed maps — bail out
+    // Warp tiles are allowed to be visually passable (doors and map-edge
+    // connections), so resolve them before the ordinary tile collision test.
+    if (player_try_collision_warp(nx, ny))
+        return TRUE;
 
+    if (!map_is_subtile_passable(nx, ny)) {
         p->move_state = MOVE_STATE_TURNING;
         p->step_frame = 4;
         p->step_dx = 0;
@@ -212,6 +249,7 @@ void player_update(void) {
                 player_check_warps();
                 // If warp fired, world_init() reset player to IDLE — bail out
                 if (p->move_state == MOVE_STATE_IDLE) return;
+                route1_try_wild_encounter();
             }
             p->move_state = MOVE_STATE_IDLE;
         }

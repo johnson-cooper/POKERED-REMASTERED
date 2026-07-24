@@ -7,6 +7,8 @@ $sprites = @(
     @{ Symbol = "bulbasaur_front"; File = (Join-Path $ReferenceDir "front\bulbasaur.png"); Width = 40; Height = 40 },
     @{ Symbol = "charmander_front"; File = (Join-Path $ReferenceDir "front\charmander.png"); Width = 40; Height = 40 },
     @{ Symbol = "squirtle_front"; File = (Join-Path $ReferenceDir "front\squirtle.png"); Width = 40; Height = 40 },
+    @{ Symbol = "pidgey_front"; File = (Join-Path $ReferenceDir "front\pidgey.png"); Width = 40; Height = 40 },
+    @{ Symbol = "rattata_front"; File = (Join-Path $ReferenceDir "front\rattata.png"); Width = 40; Height = 40 },
     @{ Symbol = "bulbasaur_back"; File = (Join-Path $ReferenceDir "back\bulbasaurb.png"); Width = 32; Height = 32 },
     @{ Symbol = "charmander_back"; File = (Join-Path $ReferenceDir "back\charmanderb.png"); Width = 32; Height = 32 },
     @{ Symbol = "squirtle_back"; File = (Join-Path $ReferenceDir "back\squirtleb.png"); Width = 32; Height = 32 }
@@ -68,6 +70,8 @@ $lines.Add('static const u32 *front_sprite(PokemonId species) {')
 $lines.Add('    switch (species) {')
 $lines.Add('    case MON_CHARMANDER: return g_battle_charmander_front;')
 $lines.Add('    case MON_SQUIRTLE: return g_battle_squirtle_front;')
+ $lines.Add('    case MON_PIDGEY: return g_battle_pidgey_front;')
+ $lines.Add('    case MON_RATTATA: return g_battle_rattata_front;')
 $lines.Add('    default: return g_battle_bulbasaur_front;')
 $lines.Add('    }')
 $lines.Add('}')

@@ -8,6 +8,7 @@
 #include "pokedex.h"
 #include "game.h"
 #include "audio.h"
+#include "party.h"
 
 // ─── Global script state ────────────────────────────────────────────────────
 
@@ -430,6 +431,20 @@ typedef enum {
 
 static OaksLabScriptState s_oakslab_state = OAKSLAB_IDLE;
 static u16 s_chosen_ball = 0; // script_id of selected pokeball (10/11/12)
+
+PokemonId script_get_starter_species(void) {
+    if (flags_get(FLAG_STARTER_CHARMANDER)) return MON_CHARMANDER;
+    if (flags_get(FLAG_STARTER_SQUIRTLE)) return MON_SQUIRTLE;
+    if (flags_get(FLAG_STARTER_BULBASAUR)) return MON_BULBASAUR;
+    // Compatibility with saves created before the dedicated starter flags
+    // were added. The selected lab ball is also persisted as a taken flag.
+    if (flags_get(FLAG_OAKSLAB_CHARMANDER_TAKEN)) return MON_CHARMANDER;
+    if (flags_get(FLAG_OAKSLAB_SQUIRTLE_TAKEN)) return MON_SQUIRTLE;
+    if (flags_get(FLAG_OAKSLAB_BULBASAUR_TAKEN)) return MON_BULBASAUR;
+    if (s_chosen_ball == 10) return MON_CHARMANDER;
+    if (s_chosen_ball == 11) return MON_SQUIRTLE;
+    return MON_BULBASAUR;
+}
 static u8 s_oakslab_oak_step = 0;
 static u8 s_oakslab_player_step = 0;
 static char s_starter_nickname[8];
@@ -718,6 +733,10 @@ void script_oaks_lab(void) {
         else if (s_chosen_ball == 11) flags_set(FLAG_OAKSLAB_SQUIRTLE_TAKEN);
         else flags_set(FLAG_OAKSLAB_BULBASAUR_TAKEN);
         flags_set(FLAG_GOT_STARTER);
+        if (s_chosen_ball == 10) flags_set(FLAG_STARTER_CHARMANDER);
+        else if (s_chosen_ball == 11) flags_set(FLAG_STARTER_SQUIRTLE);
+        else flags_set(FLAG_STARTER_BULBASAUR);
+        party_set_starter(script_get_starter_species(), s_starter_nickname);
         g_world.npcs[s_active_npc_index].flags |= NPCF_HIDDEN;
         s_blocks_input = TRUE;
         dialog_open();

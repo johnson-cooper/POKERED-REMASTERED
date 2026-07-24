@@ -60,9 +60,11 @@ static const WarpEvent s_warps[] = {
     // [2] Oak's Lab entrance — left door subtile
     { .x = 12, .y = 11, .dest_map = MAP_OAKS_LAB,          .dest_warp = 1 },
     // [3] Return point used by Route 1's south connection (dest_warp=3 must stay here).
-    { .x = 8,  .y = 0,  .dest_map = MAP_ROUTE_1,           .dest_warp = 0 },
+    { .x = 11, .y = 0,  .dest_map = MAP_ROUTE_1,           .dest_warp = 0 },
     // [4] Right subtile of the Oak's Lab door — mirrors [2] so either tile warps in.
     { .x = 13, .y = 11, .dest_map = MAP_OAKS_LAB,          .dest_warp = 1 },
+    // [5] Right subtile of the Route 1 north exit.
+    { .x =  9, .y =  0, .dest_map = MAP_ROUTE_1,           .dest_warp = 0 },
 };
 
 extern void script_pallet_town(void);
@@ -83,7 +85,7 @@ const MapHeader g_map_pallet_town = {
     .name       = "Pallet Town",
     .layout     = &s_pallet_layout,
     .warps      = s_warps,
-    .warp_count = 5,
+    .warp_count = ARRAY_COUNT(s_warps),
     .npcs       = s_npcs,
     .npc_count  = ARRAY_COUNT(s_npcs),
     .script     = script_pallet_town,

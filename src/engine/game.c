@@ -12,6 +12,7 @@
 #include "save.h"
 #include "script.h"
 #include "audio.h"
+#include "party.h"
 
 GameContext g_game = {
     .state      = GAME_STATE_BOOT,
@@ -102,6 +103,8 @@ static void save_capture(SaveData *data) {
     copy_name((char *)data->player_name, s_player_name);
     copy_name((char *)data->rival_name, s_rival_name);
     flags_export(data->flags);
+    party_export(&data->party);
+    data->last_healing_point = g_last_healing_point;
     data->option_fast_text = s_option_fast_text;
     data->option_battle_animation = s_option_battle_animation;
     data->option_battle_style = s_option_battle_style;
@@ -131,6 +134,12 @@ static bool8 game_load_saved(void) {
     g_world.player.facing = (Direction)data.player_facing;
     g_world.last_map = last_map;
     flags_import(data.flags);
+    party_import(&data.party);
+    g_last_healing_point = data.last_healing_point;
+    if (data.version < 2 || g_last_healing_point.map_id >= MAP_COUNT)
+        party_set_healing_point(MAP_PLAYERS_HOUSE_1F, 4, 3, DIR_RIGHT);
+    if (!party_get_active() && flags_get(FLAG_GOT_STARTER))
+        party_set_starter(script_get_starter_species(), NULL);
     return TRUE;
 }
 
@@ -221,6 +230,7 @@ void game_update(void) {
             } else if (previous_state != GAME_STATE_BATTLE &&
                        previous_state != GAME_STATE_MENU) {
                 flags_clear_all();
+                party_clear();
                 // Spawn in Red's House 2F, center of room.
                 world_init(&g_map_reds_house_2f, 3, 3);
             } else if (previous_state == GAME_STATE_BATTLE) {
@@ -232,7 +242,8 @@ void game_update(void) {
             }
         } else if (entering == GAME_STATE_BATTLE) {
             battle_transition_start();
-            audio_music_play(AUDIO_MUSIC_TRAINER_BATTLE);
+            audio_music_play(battle_is_wild() ? AUDIO_MUSIC_WILD_BATTLE :
+                                                AUDIO_MUSIC_TRAINER_BATTLE);
             audio_sfx_set_battle_intro(TRUE);
         } else if (entering == GAME_STATE_MENU) {
             s_pause_menu_cursor = 0;

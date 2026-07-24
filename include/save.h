@@ -1,6 +1,7 @@
 #pragma once
 
 #include "types.h"
+#include "party.h"
 
 #define SAVE_NAME_LENGTH 8
 
@@ -18,6 +19,8 @@ typedef struct {
     u8  option_fast_text;
     u8  option_battle_animation;
     u8  option_battle_style;
+    PartyState party;
+    HealingPoint last_healing_point;
     u8  checksum;
 } SaveData;
 
