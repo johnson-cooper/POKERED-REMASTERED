@@ -132,10 +132,12 @@ static bool8 game_load_saved(void) {
     s_option_battle_animation = data.option_battle_animation;
     s_option_battle_style = data.option_battle_style;
 
+    // Import flags before rebuilding the map so persistent Oak's Lab objects
+    // (taken Poké Balls and the departed rival) are hidden during world_init.
+    flags_import(data.flags);
     world_init(map, data.player_x, data.player_y);
     g_world.player.facing = (Direction)data.player_facing;
     g_world.last_map = last_map;
-    flags_import(data.flags);
     party_import(&data.party);
     g_last_healing_point = data.last_healing_point;
     if (data.version < 2 || g_last_healing_point.map_id >= MAP_COUNT)
