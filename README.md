@@ -1,62 +1,90 @@
-# Pokémon Red Remaster
+# Pokemon Red Remaster
 
-Pokémon Red Remaster is an in-progress Game Boy Advance reimplementation of the opening Pokémon Red experience. It is written in C and targets original GBA hardware through devkitPro, devkitARM, and libgba.
+Pokemon Red Remaster is an in-progress Game Boy Advance reimplementation of
+the opening Pokemon Red experience. It is written in C and targets original
+GBA hardware through devkitPro, devkitARM, and libgba.
 
-The current playable slice includes the title and introduction flow, opening overworld areas, Oak's Lab starter selection, starter nickname entry, Oak's Lab rival movement, and a first-pass turn-based rival battle. Battle presentation and data are developed against a local pokered reference checkout.
+This is an experimental fan project. Pokemon, character names, original game
+content, and reference assets belong to their respective copyright holders.
+Do not distribute commercial game ROMs or other copyrighted material with
+this source tree.
 
-This is an experimental fan project. Pokémon, character names, original game content, and reference assets belong to their respective copyright holders. Do not distribute commercial game ROMs or other copyrighted material with this source tree.
+## Current playable slice
 
-## Current status
+The current build includes:
 
-Implemented or partially implemented:
+- GBA boot, title screen, introduction flow, audio cues, and game-state flow.
+- Pallet Town, Oak's Lab, Route 1, Red's House 1F/2F, and Rival's House.
+- Player movement, walking animation, NPC movement, collision, camera
+  scrolling, map-edge warps, walkable step-on warps, collision warps, and
+  fade transitions.
+- Scripted Oak's Lab events: starter selection, Oak's dialogue, starter
+  nickname entry, persistent Pokeball removal, rival movement, rival starter
+  selection, and the rival battle.
+- Bulbasaur, Charmander, and Squirtle starter selection with the correct
+  opposite-starter rival mapping.
+- Persistent party data for species, nickname, level, DVs, stats, HP, status,
+  moves, PP, and experience.
+- Full-screen party list and status screens with animated party icons,
+  nickname/species fallback, level, HP, status, stats, types, total experience,
+  and experience remaining to the next level.
+- Species-specific experience growth curves and level-up stat/HP updates.
+- Wild and trainer battles with battle introductions, trainer and Pokemon
+  sprites, front/back sprites, send-out sequencing, cries, move selection,
+  PP, accuracy, critical hits, type effectiveness, stat stages, fainting,
+  experience, leveling, victory/defeat handling, and wild-battle escape
+  attempts.
+- Battle HUDs with Pokemon names or nicknames, levels, HP values, and HP bars.
+- Current starter moves and rival battle AI.
+- Pokedex species screens for the implemented starter entries, including
+  white backgrounds, sprite transparency, and species palettes.
+- Colorized overworld graphics, flowers, NPCs, player sprite, signs, fences,
+  houses, and Oak's House palette corrections.
+- Colorized indoor maps using per-tileset palettes for Red's House, Rival's
+  House, and Oak's Lab, with tile-specific palette assignments and
+  transition-safe tile loading.
+- SRAM save/load with checksum validation, player/map position, party data,
+  healing point, options, flags, hidden objects, completed scripts, and Oak's
+  Lab progression state.
 
-- GBA boot, title, introduction, and overworld state flow.
-- Pallet Town, Oak's Lab, Route 1, Red's House 1F, and Red's House 2F.
-- Player movement, NPC movement, map transitions, collision, and scripted Oak's Lab events.
-- Starter selection for Bulbasaur, Charmander, and Squirtle.
-- Starter nickname entry and nickname display in battle UI and messages.
-- Rival starter selection using the opposite-starter mapping from Pokémon Red.
-- Battle HUD with Pokémon sprites, names, levels, HP values, and HP bars.
-- Pokered-derived front and back battle sprite conversion for the three starter species.
-- Fight, PKMN, Item, and Run battle menu entries.
-- Two starter moves per species, move selection, PP, damage, accuracy, critical hits, type effectiveness, stat stages, fainting, experience, and a level-up path.
+## Current limitations
 
-Known limitations:
-
-- The party currently contains only the active starter. The PKMN screen is a functional placeholder and reports that there are no other Pokémon to use.
-- There is no inventory or item database yet. The Item screen currently reports "No items!" and returns to the battle menu.
-- Run is rejected during the Oak's Lab rival trainer battle, matching trainer-battle rules. Wild battles and escape calculations are not implemented.
-- Only the opening species, moves, maps, and scripted battle are represented.
-- Save/load is implemented for the current player/map/flag/options state. It uses
-  32 KiB GBA SRAM and writes a small checksummed record at the start of SRAM.
+- The party model currently starts with one active starter. Additional party
+  acquisition, party switching, storage, and party-wide battle logic are not
+  implemented yet.
+- There is no inventory or item database. The Item screen reports "No items!".
+- Run is unavailable in trainer battles and available only in wild battles.
+- The Pokedex currently exposes the implemented starter species rather than a
+  complete Pokemon database flow.
+- Only the opening maps, species, moves, NPCs, and scripted sequence are
+  represented.
 - There is no automated unit-test suite or emulator-driven integration test.
 
 ## Repository layout
 
     .
-    ├── Makefile                         GBA build rules
-    ├── build.sh                         Git Bash/MSYS convenience wrapper
-    ├── link.ld                          Reference linker script
-    ├── assets/                          Project-owned source artwork/assets
-    ├── include/                         Public headers and shared data types
-    ├── src/
-    │   ├── battle/                      Battle state machine and battle rules
-    │   ├── data/                        Maps, Pokémon, moves, tiles, graphics
-    │   ├── engine/                      Game state, scripts, dialog, text, flags
-    │   ├── graphics/                    Hardware renderer and sprite submission
-    │   ├── input/                       GBA key input handling
-    │   └── world/                       Maps, player movement, tilemaps, NPCs
-    ├── tools/                           Asset conversion scripts
-    ├── refs/                            Local pokered checkout; intentionally ignored
-    ├── build/                           Object/dependency/map output; ignored
-    ├── debug/                           Local debugger output; ignored
-    └── tmp/                             Local temporary files; ignored
+    |-- Makefile                         GBA build rules
+    |-- build.sh                         Git Bash/MSYS convenience wrapper
+    |-- link.ld                          Reference linker script
+    |-- assets/                          Project-owned source artwork/assets
+    |-- include/                         Public headers and shared data types
+    |-- src/
+    |   |-- battle/                      Battle state machine and battle rules
+    |   |-- data/                        Maps, Pokemon, moves, tiles, graphics
+    |   |-- engine/                      Game state, scripts, dialog, text, flags
+    |   |-- graphics/                    Hardware renderer and sprite submission
+    |   |-- input/                       GBA key input handling
+    |   `-- world/                       Maps, player movement, tilemaps, NPCs
+    |-- tools/                           Asset conversion scripts
+    |-- refs/                            Local pokered checkout; ignored
+    |-- build/                           Object/dependency/map output; ignored
+    `-- README.md
 
-The refs/ directory is deliberately not published. It is intended for a developer's local checkout of pokered. Generated assets needed by the GBA build, such as src/data/gfx_battle_sprites.c, are tracked in this repository.
+The refs/ directory is deliberately not published. It is intended for a
+developer's local checkout of pokered. Generated assets needed by the GBA
+build are tracked in this repository.
 
-## Required development environment
-
-### Toolchain
+## Development environment
 
 Install:
 
@@ -74,7 +102,8 @@ The following commands should be available:
     gbafix
     make
 
-The Makefile uses DEVKITPRO and DEVKITARM. If unset, it defaults to the common MSYS2 paths /c/devkitpro and /c/devkitpro/devkitARM. On another installation, set them before building.
+The Makefile uses DEVKITPRO and DEVKITARM. If unset, it defaults to the
+common MSYS2 paths /c/devkitpro and /c/devkitpro/devkitARM.
 
 Git Bash example:
 
@@ -88,74 +117,39 @@ PowerShell example:
     $env:DEVKITARM = 'C:/devkitpro/devkitARM'
     $env:Path = "$env:DEVKITARM/bin;$env:DEVKITPRO/tools/bin;$env:Path"
 
-The normal build does not require Node.js, Python, CMake, or a separate package manager.
-
-### Optional asset-generation tools
-
-The battle and overworld NPC sprite conversion scripts additionally require
-Windows PowerShell 5+ or PowerShell 7+, ffmpeg on PATH, and a local pokered
-reference checkout containing the expected PNG files.
-
-Asset conversion is not part of the normal C build because the generated C array is checked in.
-
-## Getting the source
-
-    git clone https://github.com/johnson-cooper/POKERED-REMASTERED.git
-    cd POKERED-REMASTERED
-    git status --short --branch
-
-The repository intentionally excludes:
-
-- .gb and .gba ROM files.
-- .sav and emulator state files.
-- Object files, ELF files, map files, and build directories.
-- .claude/, .agents/, session handoffs, conversation exports, and local debugging artifacts.
-- The local refs/ pokered checkout.
+The normal C build does not require Node.js, Python, CMake, or a separate
+package manager.
 
 ## Building the ROM
 
-### Standard build
-
-From Git Bash, MSYS2, or a shell where GNU Make and devkitARM are available:
+Standard build:
 
     make
 
-The default output is pokered_remaster.gba.
+The output is `pokered_remaster.gba`. The build discovers C and assembly
+sources, compiles them for the ARM7TDMI in Thumb mode, links against libgba,
+converts the ELF to a raw GBA binary, and runs gbafix.
 
-The build:
-
-1. Discovers C and assembly sources under the directories listed in SRCDIRS.
-2. Compiles C for the ARM7TDMI processor in Thumb mode.
-3. Compiles assembly assets with the C preprocessor enabled.
-4. Links against libgba.
-5. Writes pokered_remaster.elf and build/pokered_remaster.map.
-6. Converts the ELF to a raw GBA binary with arm-none-eabi-objcopy.
-7. Runs gbafix to write the title, game code, and header checksum.
-
-Use parallel compilation:
+Use parallel compilation when appropriate:
 
     make -j2
 
-### Clean rebuild
+Clean rebuild:
 
     make clean
     make -j2
 
-make clean removes the local build/ directory, ELF, and GBA output. It does not remove source files, reference assets, save files, or session data.
+`make clean` removes local build output, the ELF, and the GBA output. It does
+not remove source files, reference assets, saves, or session data.
 
-### Convenience wrapper
-
-build.sh sets the common devkitPro paths and calls Make. It assumes the original checkout is mounted as /e/pokemon recomp, so it may need editing after cloning elsewhere:
+The convenience wrapper assumes the checkout is mounted as `/e/pokemon
+recomp` and may need editing elsewhere:
 
     bash build.sh
     bash build.sh -j2
     bash build.sh clean
 
-For a different checkout, prefer make directly or update the cd line in build.sh.
-
-## Build output and generated files
-
-Typical local output includes:
+Typical local build output includes:
 
     pokered_remaster.gba
     pokered_remaster.elf
@@ -163,297 +157,167 @@ Typical local output includes:
     build/**/*.d
     build/pokered_remaster.map
 
-These are local build artifacts and are ignored by Git. The source of truth is the C, assembly, header, map, graphics, and tool files tracked in the repository.
-
-## Development workflow
-
-Use this loop:
-
-    git status --short --branch
-    # edit source files
-    git diff --check
-    make -j2
-    git status --short --branch
-
-Before committing, review the staged list explicitly:
-
-    git add include src tools assets Makefile build.sh link.ld README.md
-    git diff --cached --stat
-    git diff --cached --name-only
-
-Do not use git add -A in a workspace containing local ROMs, saves, references, or session data unless the staged file list has been reviewed.
-
-Recommended commit prefixes:
-
-- battle: battle rules, battle UI, or battle state changes.
-- world: maps, movement, collision, or overworld changes.
-- graphics: tiles, palettes, sprites, or renderer changes.
-- script: event and cutscene changes.
-- build: Makefile, linker, toolchain, or asset pipeline changes.
-- docs: README and developer documentation changes.
-
-Never put machine-specific absolute paths, usernames, temporary directories, ROMs, saves, or emulator state into tracked files.
+These are local build artifacts and are ignored by Git.
 
 ## Program architecture
 
-### Top-level game state
+`src/engine/game.c` owns the top-level states:
 
-src/engine/game.c owns the top-level state machine:
+- `GAME_STATE_BOOT`
+- `GAME_STATE_TITLE`
+- `GAME_STATE_INTRO`
+- `GAME_STATE_OVERWORLD`
+- `GAME_STATE_BATTLE`
+- `GAME_STATE_MENU`
 
-- GAME_STATE_BOOT: hardware and initial runtime setup.
-- GAME_STATE_TITLE: title screen and title input.
-- GAME_STATE_INTRO: opening introduction sequence.
-- GAME_STATE_OVERWORLD: map, player, NPC, and script updates.
-- GAME_STATE_BATTLE: battle initialization and frame updates.
-- GAME_STATE_MENU: reserved for broader menu work.
+`src/engine/script.c` owns scripted events and flags. The Oak's Lab flow
+selects and removes the starter Pokeball, handles nickname entry, moves the
+rival, selects the rival's starter, and starts the battle.
 
-Use game_change_state() for transitions. Battle entry calls battle_init(). Battle exit restores the overworld display state and preserves Oak's Lab context.
+Battle modules are split by responsibility:
 
-### Scripts and events
+- `src/battle/battle_main.c`: battle context, state machine, HUD, menus,
+  messages, animations, and turn sequencing.
+- `src/battle/battle_pokemon.c`: runtime Pokemon initialization, HP/stat
+  calculation, DVs, and stat-stage scaling.
+- `src/battle/battle_calc.c`: accuracy, critical hits, damage, and helpers.
+- `src/battle/battle_ai.c`: rival move selection.
+- `src/battle/battle_rng.c`: battle random number generation.
+- `src/pokemon/experience.c`: species growth curves and level thresholds.
 
-src/engine/script.c contains the current event state machines. The Oak's Lab flow:
+Party and status UI live in `src/engine/party.c` and
+`src/engine/party_menu.c`. Nicknames are stored in the party record and are
+used everywhere a Pokemon name is displayed, with the species name as the
+fallback when no nickname exists.
 
-1. Selects one of three Poké Balls.
-2. Sets the starter flag and hides the selected ball/NPC.
-3. Asks whether to nickname the starter.
-4. Runs the nickname editor when requested.
-5. Moves the rival through Oak's Lab.
-6. Calls battle_setup_rival() and enters GAME_STATE_BATTLE.
+World behavior is split between `src/world/player.c`, `map.c`, `world.c`, and
+`tilemap.c`. Exact warp coordinates are walkable and trigger after the player
+finishes stepping onto them; boundary warps still resolve when leaving the
+map. Map flags and script state are restored when a save is loaded.
 
-Keep event decisions in the script layer. Do not launch battles directly from rendering or input code.
+## Graphics and palettes
 
-### Battle system
+Graphics are embedded in tracked C and assembly data under `src/data/`.
+Tileset definitions assign collision behavior, metatiles, and palette data.
+The indoor palette system is defined in:
 
-- src/battle/battle_main.c: battle context, state machine, HUD, menus, messages, animations, and turn sequencing.
-- src/battle/battle_pokemon.c: runtime Pokémon initialization, HP/stat calculation, DVs, and stat-stage scaling.
-- src/battle/battle_calc.c: accuracy, critical hit, damage, and physical/special helpers.
-- src/battle/battle_ai.c: rival move selection.
-- src/battle/battle_rng.c: battle random number generation.
-- src/data/moves.c: move definitions and move names.
-- src/data/pokemon_base_stats.c: base stats and species data.
-- src/data/type_effectiveness.c: type matchup table.
+- `include/indoor_palette.h`
+- `src/data/indoor_palette.c`
+- `src/data/tileset_house.c`
+- `src/data/tileset_house_general.c`
+- `src/data/tileset_gym.c`
 
-The battle flow is broadly:
+Indoor tile palettes use per-tile maps and are based on the local
+pokemon-rgb reference. Tilemap loading also preserves indoor tile 0 during
+room transitions so wall graphics do not become blank or produce transition
+artifacts.
 
-    initialize → intro → enemy send-out → player send-out → action menu
-    → fight/move selection or another action screen → turn resolution
-    → move execution and damage animation → faint/experience/level checks
-    → victory or defeat → return to overworld
+Battle sprites use 64x64 GBA sprite canvases for Pokemon. Red's dedicated
+battle back picture is a separate 32x32 source asset and is centered inside
+that canvas. Trainer intro sprites use their own source dimensions and tile
+stride rather than being treated as Pokemon sprites.
 
-The action menu follows the pokered layout:
+## Reference and asset workflow
 
-    FIGHT  PKMN
-    ITEM   RUN
-
-Fight enters move selection. PKMN displays the single active starter and reports that no other Pokémon are available. Item displays an empty item state. Run is disallowed for the rival trainer battle.
-
-### Pokémon nicknames
-
-The nickname editor lives in src/engine/game.c. Oak's Lab copies the result into the script runtime, then passes it to battle_setup_rival(). The battle context stores the pointer for the battle lifetime and uses the nickname in HUDs and battle messages, falling back to the species name when no nickname was entered.
-
-If the Pokémon storage model changes, update nickname ownership and lifetime rules. Battle text must never point at a temporary stack buffer.
-
-### Rendering and graphics
-
-- src/graphics/renderer.c: render command submission and sprite/OAM work.
-- src/engine/text.c: text tiles, boxes, palettes, and text drawing.
-- src/data/gfx_*.c and src/data/gfx_*.s: embedded graphics data.
-- src/data/tileset_*.c: map tile and metatile definitions.
-- src/data/gfx_battle_sprites.c: generated 4bpp battle sprite arrays.
-
-Battle sprites are 64×64 GBA sprite canvases. The player uses the back sprite and the opponent uses the front sprite. The conversion maps pokered grayscale shades to species object-palette indices.
-
-## Pokered reference workflow
-
-The project uses pret's pokered repository as its local reference. Clone it
-from GitHub after cloning this project:
+The project uses pret's pokered repository as a local reference. Clone it
+after cloning this project:
 
     git clone https://github.com/pret/pokered.git refs/pokered
 
-This command must be run from the project root. The resulting layout should
-be:
-
-    POKERED-REMASTERED/
-    ├── refs/
-    │   └── pokered/
-    ├── src/
-    └── README.md
-
-The reference checkout is intentionally ignored by this repository, so it
-will not be included in commits or pushes. To update an existing checkout:
+The reference checkout is ignored and must not be committed. Update it with:
 
     git -C refs/pokered fetch origin
     git -C refs/pokered pull --ff-only
 
-For reproducible asset work, record the pokered commit used when regenerating
-graphics:
+For reproducible asset work, record the reference revision:
 
     git -C refs/pokered rev-parse HEAD
 
-Place the checkout at:
+Optional conversion scripts require Windows PowerShell 5+ or PowerShell 7+,
+ffmpeg on PATH, and the expected pokered PNG files. Generated C arrays are
+checked in and asset conversion is not part of the normal build.
 
-    refs/pokered/
-
-The converter expects:
-
-    refs/pokered/gfx/pokemon/front/bulbasaur.png
-    refs/pokered/gfx/pokemon/front/charmander.png
-    refs/pokered/gfx/pokemon/front/squirtle.png
-    refs/pokered/gfx/pokemon/back/bulbasaurb.png
-    refs/pokered/gfx/pokemon/back/charmanderb.png
-    refs/pokered/gfx/pokemon/back/squirtleb.png
-
-Run the battle sprite converter from PowerShell:
+Battle sprites:
 
     .\tools\convert_battle_sprites.ps1
 
-The Pallet Town girl, fisherman, and rival-house Daisy sprites are generated
-from the pokered 16×96 NPC sheets with:
+NPC sprites:
 
     .\tools\convert_npc_sprites.ps1
 
-This writes src/data/gfx_npcs_extra.c and src/data/gfx_npcs_extra.h. Both
-generated files are tracked because they are required by the normal C build.
-
-For another checkout location:
-
-    .\tools\convert_battle_sprites.ps1 -ReferenceDir 'E:\path\to\refs\pokered\gfx\pokemon' -OutputFile 'E:\path\to\POKERED-REMASTERED\src\data\gfx_battle_sprites.c'
-
-After regeneration, perform a clean build and inspect all six sprites in an emulator. Do not regenerate from an unknown reference revision without recording the change.
+The battle converter expects pokered front and back sprites for Bulbasaur,
+Charmander, and Squirtle. After regeneration, perform a clean build and
+inspect the graphics in an emulator.
 
 ## Controls
 
 - D-pad: move the player, navigate menus, and navigate the nickname editor.
 - A: interact, confirm, select a move, and advance prompts.
-- B: cancel/back out of move, PKMN, and Item screens.
-- Start/Select: reserved or context-dependent in the current slice.
+- B: cancel/back out of move, party, and item screens.
+- Start: open the pause menu from the overworld.
+- Select: reserved or context-dependent in the current slice.
 
-## Save data and emulator detection
+## Save data and emulator setup
 
-The ROM identifies its backup hardware with the standard `SRAM_V113` marker and
-uses the GBA's byte-addressable SRAM region at `0x0E000000`. This is the normal
-combination for automatic SRAM detection in mGBA, VBA-M, and compatible GBA
-emulators. The expected emulator backup size is 32 KiB.
+The ROM declares the standard `SRAM_V113` backup marker and uses the GBA's
+32 KiB byte-addressable SRAM region. The pause-menu SAVE entry verifies the
+SRAM write-back and checksum before showing success.
 
-The in-game pause menu's `SAVE` entry verifies the SRAM read-back and checksum
-before displaying success. If an emulator has a manually forced backup type,
-select `SRAM` or `SRAM 32K`, remove the old `.sav` for a clean test, and reopen
-the newly built ROM. Do not use EEPROM or Flash for this project.
+For mGBA, VBA-M, and compatible emulators, use automatic detection or force
+`SRAM` / `SRAM 32K`. Do not use EEPROM or Flash. If an emulator caches backup
+settings for a ROM filename, use a new filename or clear its cartridge
+configuration.
 
-After building, confirm the marker is present with:
+Verify the marker after building:
 
     rg -a -o "SRAM_V113" pokered_remaster.gba
 
-Some emulator frontends cache backup settings per ROM filename. If automatic
-detection does not occur, use a new ROM filename or clear that frontend's
-cartridge configuration once; the ROM itself already declares SRAM.
+When testing script persistence, save after completing a scripted event and
+reload the save. Starter Pokeballs, hidden NPCs, completed flags, party
+stats, nicknames, map position, and script progression should remain intact.
 
-The key constants are defined in include/gba.h and consumed through include/input.h. Use input_pressed() for one-frame actions and input_held() only when a held button is intentional.
+## Testing and development workflow
 
-## Running and testing the ROM
-
-1. Build pokered_remaster.gba.
-2. Open it in a GBA emulator such as mGBA, or transfer it to compatible development hardware.
-3. Start a new emulator save when testing the opening sequence.
-4. Exercise title, introduction, movement, starter selection, nickname flow, rival approach, battle menu, move execution, and battle exit.
-
-For bug reports, include emulator/version, new or continued save state, selected starter/nickname, exact input sequence, last visible message, screenshot if graphical, and the commit/ROM build used.
-
-Validation checklist:
-
-    git diff --check
-    make clean
-    make -j2
-
-Then verify:
-
-- the ROM was created and gbafix completed;
-- no compiler errors occurred;
-- warnings are understood and not introduced by the change;
-- the expected state or screen is reachable;
-- text fits inside intended boxes;
-- sprites have the correct orientation and palette;
-- HP bars remain inside HUD boxes;
-- nickname and species fallback text both work;
-- git status contains no unintended generated or local files.
-
-The current build emits known non-fatal warnings for unused helpers, title arithmetic parentheses, and intentional map array override initializers. New warnings should be investigated.
-
-## Troubleshooting
-
-### Compiler not found
-
-Install devkitARM and add its bin directory to PATH:
-
-    which arm-none-eabi-gcc
-    arm-none-eabi-gcc --version
-
-### devkitARM paths cannot be resolved
-
-Set DEVKITPRO and DEVKITARM to the actual installation paths, then run make clean and make.
-
-### libgba or gba.specs cannot be found
-
-Verify:
-
-    $DEVKITARM/arm-none-eabi/lib/gba.specs
-    $DEVKITPRO/libgba/include
-    $DEVKITPRO/libgba/lib
-
-### gbafix cannot be found
-
-Add $DEVKITPRO/tools/bin to PATH or set DEVKITPRO correctly.
-
-### Sprite conversion fails
-
-Confirm PowerShell, ffmpeg, and all six pokered PNG paths. Pass -ReferenceDir and -OutputFile for a non-default checkout.
-
-### Graphics look wrong but build succeeds
-
-Check palette indices, tile dimensions, OAM coordinates, and text tilemap positions. A compiler cannot detect sprites outside the screen, overlapping HUD borders, or the wrong object palette.
-
-### A battle starts repeatedly after returning to the overworld
-
-Check the battle-complete flag and previous-state handling in src/engine/game.c and src/engine/script.c. Battle exit must return to the existing Oak's Lab context and not rerun the completed script branch.
-
-## Extending the project
-
-### Adding a Pokémon or move
-
-1. Add or extend the species/move identifier.
-2. Add base stats or move data.
-3. Add front/back graphics and palette mapping if battle-ready.
-4. Update battle sprite selection and species-name fallback logic.
-5. Update starter/rival setup only when appropriate.
-6. Build cleanly and test HUD, menus, moves, and battle outcomes.
-
-Explicit tables are used in several places, so adding an enum value does not automatically add graphics, text, stats, moves, or a valid party.
-
-### Adding a map or event
-
-A map change may require updates to:
-
-- include/map_ids.h;
-- src/data/map_*.c;
-- src/data/tileset_*.c;
-- NPC/object definitions;
-- collision or warp handling in src/world/;
-- event logic in src/engine/script.c.
-
-Test entry and exit warps from both directions. Test scripted events from a fresh state because flags and hidden NPC state can mask bugs on repeated runs.
-
-## Publishing changes
-
-Before publishing:
+Useful checks before committing:
 
     git status --short --branch
     git diff --check
-    git diff --stat
     make clean
     make -j2
 
-Review the staged list and confirm it contains no ROMs, saves, reference checkout, debugger output, .claude/, .agents/, or conversation exports. Publish source and project-owned assets, not local development state.
+Test in an emulator from a fresh save and exercise title, introduction,
+movement, house and lab warps, starter selection, nickname entry, rival
+approach, battle introduction, move execution, wild encounters, Run, party
+list/status screens, save/load, and battle exit.
+
+For bug reports, include the emulator/version, fresh or continued save,
+selected starter/nickname, exact input sequence, last visible message, a
+screenshot when graphical, and the commit or ROM build used.
+
+Known non-fatal compiler warnings may include unused helpers, title arithmetic
+parentheses, and discarded volatile qualifiers in tile overlay helpers. New
+warnings should be investigated.
+
+## Contributing and publishing
+
+Review the staged list explicitly before committing:
+
+    git add include src tools assets Makefile build.sh link.ld README.md
+    git diff --cached --stat
+    git diff --cached --name-only
+
+Do not use `git add -A` in a workspace containing local ROMs, saves, reference
+checkouts, debugger output, or conversation exports unless the staged list has
+been reviewed. Never commit machine-specific absolute paths, usernames,
+temporary files, ROMs, saves, emulator states, or session exports.
+
+Suggested commit prefixes are `battle:`, `world:`, `graphics:`, `script:`,
+`build:`, and `docs:`.
 
 ## License and attribution
 
-This repository is an educational and experimental fan project. Additions should respect the licenses and attribution requirements of external code, graphics, tools, and reference data. Keep external reference checkouts outside the published source tree unless their license explicitly permits redistribution.
+This repository is an educational and experimental fan project. Additions
+must respect the licenses and attribution requirements of external code,
+graphics, tools, and reference data. Keep external reference checkouts
+outside the published source tree unless their license explicitly permits
+redistribution.
