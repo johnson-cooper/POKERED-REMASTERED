@@ -51,6 +51,27 @@ bool8 map_is_subtile_passable_from(s32 x, s32 y, Direction dir) {
     return map_is_subtile_passable(x, y);
 }
 
+u16 map_get_subtile_tile_id(s32 x, s32 y) {
+    const MapLayout *layout = g_world.map->layout;
+    if (x < 0 || y < 0)
+        return 0xFFFF;
+
+    s32 block_x = x / 2;
+    s32 block_y = y / 2;
+    if (block_x >= layout->width || block_y >= layout->height)
+        return 0xFFFF;
+
+    MapCell cell = map_get_cell(block_x, block_y);
+    u16 mtid = MAPCELL_METATILE(cell);
+    if (!layout->tileset || mtid >= layout->tileset->metatile_count)
+        return 0xFFFF;
+
+    const Metatile *mt = &layout->tileset->metatiles[mtid];
+    u32 col = (u32)(x & 1) * 2;
+    u32 row = (u32)(y & 1) * 2 + 1;
+    return mt->bottom[row * 4 + col];
+}
+
 bool8 map_is_subtile_passable(s32 x, s32 y) {
     const MapLayout *layout = g_world.map->layout;
 

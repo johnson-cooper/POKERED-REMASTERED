@@ -145,6 +145,7 @@ typedef struct {
     u8        step_frame;
     s16       step_dx, step_dy;
     u8        walk_cycle;
+    bool8     ledge_jumping;
 } PlayerState;
 
 // ── Camera ────────────────────────────────────────────────────────────────────
@@ -176,6 +177,7 @@ MapCell  map_get_cell(s32 x, s32 y);
 bool8    map_is_passable(s32 x, s32 y);
 bool8    map_is_subtile_passable(s32 x, s32 y);
 bool8    map_is_subtile_passable_from(s32 x, s32 y, Direction dir);
+u16      map_get_subtile_tile_id(s32 x, s32 y);
 
 // Map registry
 const MapHeader *map_get_by_id(u8 map_id);

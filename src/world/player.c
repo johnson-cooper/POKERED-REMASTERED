@@ -15,6 +15,48 @@
 
 static const s8 DIR_DX[4] = {  0,  0, -1,  1 };
 static const s8 DIR_DY[4] = {  1, -1,  0,  0 };
+static bool8 player_tile_occupied_by_npc(s32 x, s32 y);
+
+static bool8 player_try_ledge_jump(Direction dir) {
+    PlayerState *p = &g_world.player;
+    if (!g_world.map->layout->tileset ||
+        g_world.map->layout->tileset->use_cell_collision)
+        return FALSE;
+
+    s32 front_x = p->tile_x + DIR_DX[dir];
+    s32 front_y = p->tile_y + DIR_DY[dir];
+    u16 standing = map_get_subtile_tile_id(p->tile_x, p->tile_y);
+    u16 front = map_get_subtile_tile_id(front_x, front_y);
+    bool8 match = FALSE;
+
+    // Exact pokered LedgeTiles table. There is deliberately no DIR_UP entry.
+    if (dir == DIR_DOWN)
+        match = (standing == 0x2C && front == 0x37) ||
+                (standing == 0x39 && (front == 0x36 || front == 0x37));
+    else if (dir == DIR_LEFT)
+        match = (front == 0x27 && (standing == 0x2C || standing == 0x39));
+    else if (dir == DIR_RIGHT)
+        match = (standing == 0x2C && (front == 0x0D || front == 0x1D)) ||
+                (standing == 0x39 && front == 0x0D);
+
+    if (!match)
+        return FALSE;
+
+    s32 landing_x = p->tile_x + DIR_DX[dir] * 2;
+    s32 landing_y = p->tile_y + DIR_DY[dir] * 2;
+    if (!map_is_subtile_passable(landing_x, landing_y) ||
+        player_tile_occupied_by_npc(landing_x, landing_y))
+        return FALSE;
+
+    p->tile_x = (s16)landing_x;
+    p->tile_y = (s16)landing_y;
+    p->move_state = MOVE_STATE_WALKING;
+    p->step_frame = STEP_FRAMES * 2;
+    p->step_dx = DIR_DX[dir];
+    p->step_dy = DIR_DY[dir];
+    p->ledge_jumping = TRUE;
+    return TRUE;
+}
 
 // NPC coordinates are the same logical subtile coordinates used by player
 // movement. Treat every visible NPC as a solid tile so the player cannot walk
@@ -176,6 +218,9 @@ bool8 player_script_start_step(Direction dir) {
         return FALSE;
     }
 
+    if (player_try_ledge_jump(dir))
+        return TRUE;
+
     // Boundary warps must resolve before movement because their destination
     // is outside the current map. Exact warp tiles, however, are walkable:
     // the player should finish stepping onto the tile before the warp fires.
@@ -249,6 +294,7 @@ void player_update(void) {
         if (p->step_frame == 0) {
             if (p->move_state == MOVE_STATE_WALKING) {
                 p->walk_cycle ^= 1;
+                p->ledge_jumping = FALSE;
                 player_check_warps();
                 // If warp fired, world_init() reset player to IDLE — bail out
                 if (p->move_state == MOVE_STATE_IDLE) return;

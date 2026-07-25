@@ -56,6 +56,7 @@ void world_init(const MapHeader *map, u8 start_x, u8 start_y) {
     p->move_state = MOVE_STATE_IDLE;
     p->step_frame = 0;
     p->walk_cycle = 0;
+    p->ledge_jumping = FALSE;
 
     g_world.npc_count = map->npc_count;
     if (g_world.npc_count > ARRAY_COUNT(g_world.npcs))
@@ -343,6 +344,14 @@ void world_render(void) {
     // pokered aligns sprite Y positions four pixels above the map grid
     // position (InitializeSpriteScreenPosition).
     s16 sy = (s16)(p->py - cam->y - 4);
+
+    if (p->ledge_jumping) {
+        u8 progress = (u8)(32 - p->step_frame);
+        u8 height = progress <= 16
+                  ? (u8)(progress / 2)
+                  : (u8)((32 - progress) / 2);
+        sy -= height;
+    }
 
     // The sheet stores down, up, and one side-facing pose. Left and right
     // share the side pose; the renderer mirrors it for the opposite side.
