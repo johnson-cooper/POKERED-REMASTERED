@@ -350,7 +350,8 @@ void audio_update(void) {
                 break;
             case AUDIO_CMD_VIBRATO:
                 state->vibrato_delay = (u8)command->value;
-                state->vibrato_extent = command->arg1;
+                // Keep Square 1's soundtrack voice free of pitch modulation.
+                state->vibrato_extent = (channel == 0) ? 0 : command->arg1;
                 state->vibrato_rate = command->arg2;
                 break;
             case AUDIO_CMD_LOOP:
