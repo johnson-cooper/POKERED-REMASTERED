@@ -11,7 +11,9 @@ $sprites = @(
     @{ Symbol = "rattata_front"; File = (Join-Path $ReferenceDir "front\rattata.png"); Width = 40; Height = 40 },
     @{ Symbol = "bulbasaur_back"; File = (Join-Path $ReferenceDir "back\bulbasaurb.png"); Width = 32; Height = 32 },
     @{ Symbol = "charmander_back"; File = (Join-Path $ReferenceDir "back\charmanderb.png"); Width = 32; Height = 32 },
-    @{ Symbol = "squirtle_back"; File = (Join-Path $ReferenceDir "back\squirtleb.png"); Width = 32; Height = 32 }
+    @{ Symbol = "squirtle_back"; File = (Join-Path $ReferenceDir "back\squirtleb.png"); Width = 32; Height = 32 },
+    @{ Symbol = "pidgey_back"; File = (Join-Path $ReferenceDir "back\pidgeyb.png"); Width = 32; Height = 32 },
+    @{ Symbol = "rattata_back"; File = (Join-Path $ReferenceDir "back\rattatab.png"); Width = 32; Height = 32 }
 )
 
 $tempDir = Join-Path ([IO.Path]::GetTempPath()) "pokered-battle-sprites"
@@ -80,6 +82,8 @@ $lines.Add('static const u32 *back_sprite(PokemonId species) {')
 $lines.Add('    switch (species) {')
 $lines.Add('    case MON_CHARMANDER: return g_battle_charmander_back;')
 $lines.Add('    case MON_SQUIRTLE: return g_battle_squirtle_back;')
+$lines.Add('    case MON_PIDGEY: return g_battle_pidgey_back;')
+$lines.Add('    case MON_RATTATA: return g_battle_rattata_back;')
 $lines.Add('    default: return g_battle_bulbasaur_back;')
 $lines.Add('    }')
 $lines.Add('}')

@@ -52,6 +52,7 @@ typedef enum {
     BS_DEFEAT,
     BS_DEFEAT_WAIT,
     BS_SWITCH_IN,
+    BS_FLEE_FAIL,
     BS_END,
 } BattleState;
 
@@ -86,6 +87,7 @@ static BattleCtx s_battle;
 static bool8 s_blackout;
 static u8 s_active_party_slot;
 static bool8 s_force_switch;
+static bool8 s_skip_player_turn;
 static u8 s_battle_party_cursor;
 static BattleState s_after_msg_state;
 static PartyPokemon s_caught_mon;
@@ -811,6 +813,7 @@ void battle_init(void) {
     s_blackout = FALSE;
     s_active_party_slot = 0;
     s_force_switch = FALSE;
+    s_skip_player_turn = FALSE;
     s_battle_party_cursor = 0;
     s_after_msg_state = BS_PLAYER_MENU;
     s_caught_pending = FALSE;
@@ -1021,16 +1024,42 @@ void battle_update(void) {
                 clear_lower_ui();
                 if (!s_battle.is_wild) {
                     battle_msg("Can't escape!");
+                    s_battle.state = BS_ACTION_MSG_WAIT;
                 } else if ((battle_random() & 0xFF) < 192) {
                     // Wild encounters use a deliberately generous escape
                     // chance, matching the reference's run mechanic while
                     // keeping early-route battles forgiving.
                     s_battle.run_ends_battle = TRUE;
                     battle_msg("Got away safely!");
+                    s_battle.state = BS_ACTION_MSG_WAIT;
                 } else {
+                    // Failed flee — enemy gets a free attack this turn.
+                    s_battle.player_goes_first = FALSE;
+                    s_battle.turn_phase = 0;
+                    s_battle.enemy_move = battle_ai_choose_move(&s_battle.enemy_mon);
+                    {
+                        const MoveData *md = &g_move_data[s_battle.enemy_move];
+                        s_battle.last_hit = battle_check_hit(
+                            &s_battle.enemy_mon, &s_battle.player_mon, s_battle.enemy_move);
+                        if (s_battle.last_hit && md->power > 0) {
+                            s_battle.crit_flag = battle_check_critical(
+                                &s_battle.enemy_mon, s_battle.enemy_move);
+                            s_battle.last_damage = battle_calc_damage(
+                                &s_battle.enemy_mon, &s_battle.player_mon,
+                                s_battle.enemy_move, s_battle.crit_flag);
+                            const PokemonBaseStats *def_base =
+                                &g_pokemon_base_stats[s_battle.player_mon.species];
+                            s_battle.last_effectiveness = type_effectiveness(
+                                md->type, def_base->type1, def_base->type2);
+                        } else {
+                            s_battle.crit_flag = FALSE;
+                            s_battle.last_damage = 0;
+                            s_battle.last_effectiveness = TYPE_MUL_NEUTRAL;
+                        }
+                    }
                     battle_msg("Can't escape!");
+                    s_battle.state = BS_FLEE_FAIL;
                 }
-                s_battle.state = BS_ACTION_MSG_WAIT;
             }
         }
         break;
@@ -1446,6 +1475,13 @@ void battle_update(void) {
 
     case BS_NEXT_ATTACKER:
         if (s_battle.turn_phase == 0) {
+            if (s_skip_player_turn) {
+                // After a flee failure or voluntary switch the player doesn't
+                // get a second attack in the same turn.
+                s_skip_player_turn = FALSE;
+                s_battle.state = BS_TURN_START;
+                break;
+            }
             s_battle.turn_phase = 1;
             s_battle.state = BS_EXECUTE_MOVE;
             clear_lower_ui();
@@ -1606,10 +1642,12 @@ void battle_update(void) {
             // player_goes_first is repurposed here: FALSE = forced faint switch
             // (go straight to next turn), TRUE = voluntary switch (enemy attacks).
             if (s_battle.player_goes_first) {
-                // Voluntary switch: enemy gets to attack.
+                // Voluntary switch: enemy gets one free attack; player
+                // does not attack again this turn.
                 s_battle.enemy_move = battle_ai_choose_move(&s_battle.enemy_mon);
-                s_battle.player_goes_first = FALSE; // enemy goes first this turn
+                s_battle.player_goes_first = FALSE;
                 s_battle.turn_phase = 0;
+                s_skip_player_turn = TRUE;
                 s_battle.state = BS_EXECUTE_MOVE;
                 clear_lower_ui();
                 const MoveData *md = &g_move_data[s_battle.enemy_move];
@@ -1642,6 +1680,32 @@ void battle_update(void) {
                 // Forced switch after faint — new turn, enemy doesn't get free hit.
                 s_battle.state = BS_TURN_START;
             }
+        }
+        break;
+
+    case BS_FLEE_FAIL:
+        if (dialog_update()) {
+            // "Can't escape!" was dismissed — show the enemy's free attack.
+            clear_lower_ui();
+            {
+                const MoveData *md = &g_move_data[s_battle.enemy_move];
+                char *p = str_append(s_msg_buf, "FOE's ");
+                p = str_append(p, mon_display_name(&s_battle.enemy_mon));
+                p = str_append(p, "\nused ");
+                p = str_append(p, md->name);
+                p = str_append(p, "!");
+                *p = '\0';
+                for (u8 i = 0; i < 4; i++) {
+                    if (s_battle.enemy_mon.moves[i] == s_battle.enemy_move &&
+                        s_battle.enemy_mon.pp[i] > 0) {
+                        s_battle.enemy_mon.pp[i]--;
+                        break;
+                    }
+                }
+            }
+            battle_msg(s_msg_buf);
+            s_skip_player_turn = TRUE;
+            s_battle.state = BS_EXECUTE_MOVE;
         }
         break;
 
