@@ -161,6 +161,24 @@ static bool8 player_check_npc_interact(void) {
         return TRUE;
     }
 
+    // In pokered the nurse object is behind the Pokécenter counter at
+    // (3,1), while the player talks to the counter from the short approach
+    // lane below it. The nurse's tall sprite makes this look like a normal
+    // adjacent NPC interaction, but the logical coordinates are several
+    // tiles apart. Run this only after ordinary NPC targeting has had a
+    // chance, and keep it to the single reference counter approach tile so
+    // it does not consume interactions across the south end.
+    if (map->map_id == MAP_VIRIDIAN_POKECENTER &&
+        p->tile_x == 3 && p->tile_y == 3) {
+        for (u8 i = 0; i < g_world.npc_count; i++) {
+            const NpcState *npc = &g_world.npcs[i];
+            if (!(npc->flags & NPCF_HIDDEN) && npc->script_id == 25) {
+                script_trigger_npc(npc->script_id, i);
+                return TRUE;
+            }
+        }
+    }
+
     return FALSE;
 }
 

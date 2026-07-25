@@ -39,7 +39,13 @@ static const MapLayout s_layout = {
 
 // South connection to Pallet Town. Pallet's route warp is index 3.
 static const WarpEvent s_warps[] = {
+    // The Pallet Town south connection is two tiles wide.
+    { .x = 10, .y = 35, .dest_map = MAP_PALLET_TOWN, .dest_warp = 3 },
     { .x = 11, .y = 35, .dest_map = MAP_PALLET_TOWN, .dest_warp = 3 },
+    // The Viridian entrance is two tiles wide. Both north-edge tiles must
+    // resolve to the same city spawn point.
+    { .x = 10, .y = 0, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 0 },
+    { .x = 11, .y = 0, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 0 },
 };
 
 const MapHeader g_map_route_1 = {
@@ -47,7 +53,7 @@ const MapHeader g_map_route_1 = {
     .name = "Route 1",
     .layout = &s_layout,
     .warps = s_warps,
-    .warp_count = 1,
+    .warp_count = ARRAY_COUNT(s_warps),
     .npcs = NULL,
     .npc_count = 0,
     .script = NULL,

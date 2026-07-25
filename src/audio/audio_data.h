@@ -41,3 +41,4 @@ extern const AudioTrackData g_audio_oakslab;
 extern const AudioTrackData g_audio_intro_battle;
 extern const AudioTrackData g_audio_meet_prof_oak;
 extern const AudioTrackData g_audio_wild_battle;
+extern const AudioTrackData g_audio_viridian_city;

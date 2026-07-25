@@ -13,6 +13,7 @@ typedef enum {
     AUDIO_MUSIC_INTRO_BATTLE,
     AUDIO_MUSIC_MEET_PROF_OAK,
     AUDIO_MUSIC_WILD_BATTLE,
+    AUDIO_MUSIC_VIRIDIAN_CITY,
 } AudioMusicId;
 
 typedef enum {

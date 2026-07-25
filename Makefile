@@ -5,10 +5,13 @@ BUILD   := build
 SRCDIRS := src/engine src/graphics src/input src/audio src/battle \
            src/pokemon src/world src/ui src/data src/save
 
-# GCC uses the host environment's temporary directory. Keep these generic so
-# the project does not contain a developer-specific absolute path.
-export TMPDIR ?= $(TEMP)
-export TMP    ?= $(TEMP)
+# GCC needs a writable temporary directory. Some Windows/MSYS2 environments
+# inherit an unwritable C:\WINDOWS as TEMP. Force all three variables to the
+# build directory so compilation and linking always succeed.
+override TEMP   := $(CURDIR)/$(BUILD)
+override TMP    := $(CURDIR)/$(BUILD)
+override TMPDIR := $(CURDIR)/$(BUILD)
+export TEMP TMP TMPDIR
 
 # ── devkitPro / devkitARM ─────────────────────────────────────────────────────
 ifeq ($(strip $(DEVKITPRO)),)
@@ -74,6 +77,7 @@ $(TARGET).gba: $(TARGET).elf
 	@ls -lh $@
 
 $(TARGET).elf: $(OFILES)
+	TEMP="$(CURDIR)/$(BUILD)" TMP="$(CURDIR)/$(BUILD)" TMPDIR="$(CURDIR)/$(BUILD)" \
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 $(BUILD)/%.o: %.c

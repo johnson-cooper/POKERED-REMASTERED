@@ -157,6 +157,9 @@ static void world_npcs_update(void) {
                 if (npc->movement == NPC_MOVE_UP_DOWN &&
                     (dir == DIR_LEFT || dir == DIR_RIGHT))
                     continue;
+                if (npc->movement == NPC_MOVE_LEFT_RIGHT &&
+                    (dir == DIR_UP || dir == DIR_DOWN))
+                    continue;
                 s16 nx = (s16)npc->x +
                     (dir == DIR_RIGHT ? 1 : dir == DIR_LEFT ? -1 : 0);
                 s16 ny = (s16)npc->y +

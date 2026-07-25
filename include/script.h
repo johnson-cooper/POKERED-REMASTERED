@@ -26,3 +26,5 @@ void script_reset_runtime(void);
 // Pallet Town and Oak's Lab script functions (referenced by MapHeader.script)
 void script_pallet_town(void);
 void script_oaks_lab(void);
+void script_viridian_city(void);
+void script_viridian_mart(void);

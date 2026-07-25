@@ -45,11 +45,106 @@ static const char *const s_npc_texts[] = {
     /* 12 */ "",
     /* 13 */ "I study POKeMON as\nPROF.OAK's AIDE.",
     /* 14 */ "I study POKeMON as\nPROF.OAK's AIDE.",
+    /* 15 */ "Those POKeBALLs at\nyour waist!\nYou have POKeMON!\fIt's great that you\ncan carry and use\nPOKeMON any time,\nanywhere!",
+    /* 16 */ "This POKeMON GYM is\nalways closed.\fI wonder who the\nLEADER is?",
+    /* 17 */ "CATERPIE has no\npoison, but WEEDLE\ndoes.\fWatch out for its\nPOISON STING!",
+    /* 18 */ "Oh Grandpa! Don't\nbe so mean!\nHe hasn't had his\ncoffee yet.",
+    /* 19 */ "You can't go\nthrough here!\fThis is private\nproperty!",
+    /* 20 */ "Yawn!\nI must have dozed\noff in the sun.\fI had this dream\nabout a DROWZEE\neating my dream.\nWhat's this?\fThis is spooky!\nHere, you can have\nthis TM.",
+    /* 21 */ "Ahh, I've had my\ncoffee now and I\nfeel great!\fSure you can go\nthrough!\fLet me show you\nhow to catch a\nPOKeMON!",
+    /* 22 */ "Okay! Say hi to\nPROF.OAK for me!",
+    /* 23 */ "This shop sells\nmany ANTIDOTEs.",
+    /* 24 */ "No! POTIONs are\nall sold out.",
+    /* 25 */ "Welcome to our\nPOKeMON CENTER!\fWe heal your\nPOKeMON back to\nperfect health!",
+    /* 26 */ "You can use that PC\nin the corner.\fThe receptionist\ntold me. So kind!",
+    /* 27 */ "There's a POKeMON\nCENTER in every\ntown ahead.\fThey don't charge\nany money either!",
+    /* 28 */ "Welcome!\fThe CABLE CLUB is\nupstairs.",
+    /* 29 */ "Whew! I'm trying\nto memorize all\nmy notes.",
+    /* 30 */ "Okay! Be sure to\nread the blackboard\ncarefully!",
+    /* 31 */ "Coming up with\nnicknames is fun,\nbut hard.\fSimple names are\nthe easiest to\nremember.",
+    /* 32 */ "My Daddy loves\nPOKeMON too.",
+    /* 33 */ "SPEARY: Tetweet!",
+    /* 34 */ "",
+    /* 35 */ "Yo! Champ in making!\fThis GYM's door is\nlocked right now.",
 };
+
+static u8 s_viridian_mart_state = 0;
+
+// Pokered's Pokécenter nurse interaction is a small multi-step script rather
+// than ordinary NPC text: welcome, yes/no choice, healing, and farewell.
+enum {
+    POKECENTER_IDLE = 0,
+    POKECENTER_WELCOME,
+    POKECENTER_CHOICE,
+    POKECENTER_NEED_PARTY,
+    POKECENTER_FIT_PARTY,
+    POKECENTER_FAREWELL,
+    POKECENTER_RELEASE,
+};
+static u8 s_pokecenter_state = POKECENTER_IDLE;
+
+void script_viridian_city(void) {
+    // After the player receives the Pokedex, the Old Man (NPC 6) steps
+    // aside so the north road to Route 2 is passable.
+    if (flags_get(FLAG_GOT_POKEDEX) && g_world.npc_count > 6) {
+        NpcState *old_man = &g_world.npcs[6];
+        if (old_man->x == 17 && old_man->y == 5) {
+            old_man->x = 16;
+            old_man->px = 16 * 16;
+            old_man->movement = NPC_MOVE_STAY;
+            old_man->facing = DIR_RIGHT;
+        }
+    }
+}
+
+void script_viridian_mart(void) {
+    if (flags_get(FLAG_GOT_OAKS_PARCEL)) return;
+
+    if (s_viridian_mart_state == 0) {
+        dialog_open();
+        dialog_set_text("Hey! You came from\nPALLET TOWN?");
+        s_viridian_mart_state = 1;
+    } else if (s_viridian_mart_state == 1) {
+        if (dialog_update()) {
+            dialog_open();
+            dialog_set_text("You know PROF.OAK, right?\fHis order came in.\nWill you take it to him?\f[NAME] got OAK's PARCEL!");
+            s_viridian_mart_state = 2;
+        }
+    } else if (s_viridian_mart_state == 2 && dialog_update()) {
+        flags_set(FLAG_GOT_OAKS_PARCEL);
+        s_viridian_mart_state = 3;
+    }
+}
 
 void script_trigger_npc(u16 script_id, u8 npc_index) {
     if (s_blocks_input) return;
     if (dialog_is_open()) return;
+
+    // Viridian's nurse uses pokered's DisplayPokemonCenterDialogue_ flow.
+    // The reference sets the blackout/respawn point only after the player
+    // accepts healing, so declining does not change the last center.
+    if (script_id == 25 && g_world.map &&
+        g_world.map->map_id == MAP_VIRIDIAN_POKECENTER) {
+        s_active_script_id = script_id;
+        s_active_npc_index = npc_index;
+        s_pokecenter_state = POKECENTER_WELCOME;
+        dialog_open();
+        dialog_set_text("Welcome to our\nPOKeMON CENTER!\fWe heal your\nPOKeMON back to\nperfect health!");
+        s_blocks_input = TRUE;
+        return;
+    }
+
+    if (g_world.map && g_world.map->map_id == MAP_OAKS_LAB &&
+        npc_index == 1 && flags_get(FLAG_GOT_OAKS_PARCEL) &&
+        !flags_get(FLAG_OAK_GOT_PARCEL)) {
+        s_active_script_id = 34;
+        s_active_npc_index = npc_index;
+        dialog_open();
+        dialog_set_text("OAK: Ah, my PARCEL!\fThank you, [NAME]!\nThis will help me with my research.");
+        s_npc_script_state = 1;
+        s_blocks_input = TRUE;
+        return;
+    }
 
     // During the starter sequence the rival is moved by the Oak's Lab
     // cutscene. Do not let the normal rival NPC interaction fire based on the
@@ -109,6 +204,19 @@ void script_trigger_npc(u16 script_id, u8 npc_index) {
         return;
     }
 
+    // Old Man capture tutorial: before getting the Pokedex he blocks the
+    // path north and refuses to move. After Pokedex he offers to demonstrate
+    // catching (the actual Old Man battle type is not yet implemented).
+    if (script_id == 21 && !flags_get(FLAG_GOT_POKEDEX)) {
+        s_active_script_id = script_id;
+        s_active_npc_index = npc_index;
+        dialog_open();
+        dialog_set_text("I haven't had my\ncoffee yet.\fDon't talk to me!");
+        s_npc_script_state = 1;
+        s_blocks_input = TRUE;
+        return;
+    }
+
     s_active_script_id = script_id;
     s_active_npc_index  = npc_index;
 
@@ -134,6 +242,68 @@ void script_trigger_npc(u16 script_id, u8 npc_index) {
 static bool8 npc_script_tick(void) {
     if (!s_blocks_input) return TRUE;
 
+    if (s_active_script_id == 25 &&
+        g_world.map && g_world.map->map_id == MAP_VIRIDIAN_POKECENTER) {
+        if (s_pokecenter_state == POKECENTER_WELCOME) {
+            if (dialog_update()) {
+                dialog_yesno_open();
+                s_pokecenter_state = POKECENTER_CHOICE;
+            }
+            return FALSE;
+        }
+        if (s_pokecenter_state == POKECENTER_CHOICE) {
+            u8 choice = dialog_yesno_update();
+            if (choice == 0xFF) return FALSE;
+
+            if (choice) {
+                // Viridian City is the outdoor map associated with this
+                // center. Respawn on the same entrance warp used by the
+                // pokered map, facing outward from the building.
+                party_set_healing_point(MAP_VIRIDIAN_CITY, 23, 25, DIR_DOWN);
+                dialog_open();
+                dialog_set_text("OK. We'll need\nyour POKeMON.");
+                s_pokecenter_state = POKECENTER_NEED_PARTY;
+            } else {
+                dialog_open();
+                dialog_set_text("We hope to see\nyou again!");
+                s_pokecenter_state = POKECENTER_FAREWELL;
+            }
+            return FALSE;
+        }
+        if (s_pokecenter_state == POKECENTER_NEED_PARTY) {
+            if (dialog_update()) {
+                party_heal_all();
+                dialog_open();
+                dialog_set_text("Thank you!\nYour POKeMON are\nfighting fit!");
+                s_pokecenter_state = POKECENTER_FIT_PARTY;
+            }
+            return FALSE;
+        }
+        if (s_pokecenter_state == POKECENTER_FIT_PARTY) {
+            if (dialog_update()) {
+                dialog_open();
+                dialog_set_text("We hope to see\nyou again!");
+                s_pokecenter_state = POKECENTER_FAREWELL;
+            }
+            return FALSE;
+        }
+        if (s_pokecenter_state == POKECENTER_FAREWELL) {
+            if (dialog_update()) {
+                // Keep input blocked for one extra frame. This mirrors the
+                // generic dialog release behavior and prevents the A press
+                // that closed the farewell page from retriggering the nurse.
+                s_pokecenter_state = POKECENTER_RELEASE;
+            }
+            return FALSE;
+        }
+        if (s_pokecenter_state == POKECENTER_RELEASE) {
+            s_pokecenter_state = POKECENTER_IDLE;
+            s_active_script_id = 0;
+            s_blocks_input = FALSE;
+            return TRUE;
+        }
+    }
+
     if (s_active_script_id >= 10 && s_active_script_id <= 12) {
         // Pokéball: handled by oaks_lab script — it clears s_blocks_input
         return FALSE;
@@ -141,6 +311,8 @@ static bool8 npc_script_tick(void) {
 
     if (s_npc_script_state == 1) {
         if (dialog_update()) {
+            if (s_active_script_id == 34)
+                flags_set(FLAG_OAK_GOT_PARCEL);
             // Stay blocked for one more frame so the A press that closed the
             // dialog isn't seen by player_update() as a fresh NPC interaction.
             s_npc_script_state = 2;
@@ -162,7 +334,9 @@ void script_update(void) {
     // Oak's Lab has its own map-script tick, so let that handler service
     // normal NPC dialogs there. Otherwise the same A press can close a box
     // and immediately trigger Oak again through player interaction.
-    if (s_blocks_input && s_active_script_id < 10 &&
+    if (s_blocks_input &&
+        !(s_active_script_id >= 10 && s_active_script_id <= 12) &&
+        s_active_script_id != ACTIVE_MAP_SCRIPT &&
         (!g_world.map || g_world.map->map_id != MAP_OAKS_LAB))
         npc_script_tick();
 }
@@ -551,6 +725,8 @@ void script_reset_runtime(void) {
     s_pallet_move_watchdog = 0;
     s_pallet_oak_target_x = 8;
     s_pallet_oak_target_y = 2;
+    s_viridian_mart_state = 0;
+    s_pokecenter_state = POKECENTER_IDLE;
     s_oakslab_state = OAKSLAB_IDLE;
     s_chosen_ball = 0;
     s_oakslab_oak_step = 0;

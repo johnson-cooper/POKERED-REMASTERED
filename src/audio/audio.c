@@ -44,6 +44,7 @@ static const AudioTrackData *audio_track_for_id(AudioMusicId id) {
     if (id == AUDIO_MUSIC_INTRO_BATTLE)     return &g_audio_intro_battle;
     if (id == AUDIO_MUSIC_MEET_PROF_OAK)    return &g_audio_meet_prof_oak;
     if (id == AUDIO_MUSIC_WILD_BATTLE)      return &g_audio_wild_battle;
+    if (id == AUDIO_MUSIC_VIRIDIAN_CITY)   return &g_audio_viridian_city;
     return NULL;
 }
 

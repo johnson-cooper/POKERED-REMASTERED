@@ -103,6 +103,7 @@ typedef enum {
     NPC_MOVE_STAY = 0,
     NPC_MOVE_WALK_ANY,
     NPC_MOVE_UP_DOWN,
+    NPC_MOVE_LEFT_RIGHT,
 } NpcMovement;
 
 // ── Map script ────────────────────────────────────────────────────────────────
