@@ -284,7 +284,6 @@ static void audio_play_note_or_rest(u8 channel, MusicChannelState *state,
     u16 delay = (u16)((command->arg1 + 1) * state->speed * state->tempo);
     delay = (u16)(delay + state->fractional);
     state->remaining = (u8)(delay >> 8);
-    if (state->remaining) state->remaining--;
     state->fractional = (u8)delay;
 
     if (command->type == AUDIO_CMD_REST) {
@@ -322,11 +321,15 @@ void audio_update(void) {
         if ((channel == s_sfx_channel) && s_sfx_frames)
             continue;
         if (data->count == 0) continue;
-        if (state->remaining) {
+        // Pokered keeps the high byte of the 16-bit note delay. A counter of
+        // one means the next note is due on this update; waiting an extra
+        // frame here makes channels with more notes drift behind the others.
+        if (state->remaining > 1) {
             state->remaining--;
             audio_apply_vibrato(channel, state);
             continue;
         }
+        state->remaining = 0;
         while (TRUE) {
             const AudioCommand *command = &data->commands[state->position++];
             switch (command->type) {
@@ -362,7 +365,6 @@ void audio_update(void) {
                     u16 delay = (u16)((command->arg1 + 1) * state->speed * state->tempo);
                     delay = (u16)(delay + state->fractional);
                     state->remaining = (u8)(delay >> 8);
-                    if (state->remaining) state->remaining--;
                     state->fractional = (u8)delay;
                     REG_SOUND4CNT_L = command->value;
                     REG_SOUND4CNT_H = (u16)(0x8000u | command->arg2);
