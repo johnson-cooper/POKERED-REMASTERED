@@ -14,7 +14,7 @@
 #define PARTY_SPRITE_TILE (PARTY_ICON_TILE + PARTY_SIZE * 4)
 #define PARTY_SPRITE_SIZE 5
 #define PARTY_SPRITE_PAL 11
-#define PARTY_ICON_PAL 14
+#define PARTY_ICON_PAL 10
 #define PARTY_ICON_FRAME_WORDS 32
 
 typedef enum {
@@ -35,8 +35,8 @@ static void prepare_party_palettes(void) {
     vu16 *bulba  = (vu16 *)MEM_PAL + 11 * 16;
     vu16 *charm  = (vu16 *)MEM_PAL + 12 * 16;
     vu16 *squirt = (vu16 *)MEM_PAL + 13 * 16;
-    vu16 *pidgey = (vu16 *)MEM_PAL + 14 * 16;
-    vu16 *rattat = (vu16 *)MEM_PAL + 15 * 16;
+    vu16 *pidgey = (vu16 *)MEM_PAL + 8 * 16;
+    vu16 *rattat = (vu16 *)MEM_PAL + 9 * 16;
 
     for (u8 i = 0; i < 16; i++) {
         ui[i] = bulba[i] = charm[i] = squirt[i] = 0x7FFF;
@@ -98,8 +98,8 @@ static u8 party_sprite_palette(PokemonId species) {
     switch (species) {
     case MON_CHARMANDER: return 12;
     case MON_SQUIRTLE:   return 13;
-    case MON_PIDGEY:     return 14;
-    case MON_RATTATA:    return 15;
+    case MON_PIDGEY:     return 8;
+    case MON_RATTATA:    return 9;
     case MON_BULBASAUR:
     default:             return PARTY_SPRITE_PAL;
     }
@@ -312,7 +312,7 @@ static void draw_status(void) {
     if (s_cursor == 0)
         text_draw_str(14, 18, "B:BACK");
     else
-        text_draw_str(12, 18, "A:MOVE FRONT B:BACK");
+        text_draw_str(14, 18, "A:LEAD  B:BACK");
 }
 
 void party_menu_open(void) {
