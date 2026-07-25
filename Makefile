@@ -62,9 +62,13 @@ OFILES  := $(patsubst %.c,$(BUILD)/%.o,$(CFILES)) \
            $(patsubst %.s,$(BUILD)/%.o,$(SFILES))
 
 DFILES  := $(OFILES:.o=.d)
--include $(DFILES)
 
 # ── Targets ───────────────────────────────────────────────────────────────────
+# .DEFAULT_GOAL must be set before -include so that dependency files don't
+# inadvertently steal the default goal from 'all'.
+.DEFAULT_GOAL := all
+-include $(DFILES)
+
 .PHONY: all clean
 
 all: $(TARGET).gba

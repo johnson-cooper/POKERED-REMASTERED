@@ -3,7 +3,7 @@
 #include "battle.h"
 #include "battle_rng.h"
 #include "game.h"
-#include "script.h"
+#include "party.h"
 #include "map_ids.h"
 
 static bool8 route1_player_in_grass(void) {
@@ -40,7 +40,10 @@ bool8 route1_try_wild_encounter(void) {
 
     u8 level;
     PokemonId species = route1_random_species(&level);
-    battle_setup_wild(species, level, script_get_starter_species(), NULL);
+    PartyPokemon *active = party_get_active();
+    PokemonId player_species = active ? active->species : MON_BULBASAUR;
+    const char *player_nickname = active ? (active->nickname[0] ? active->nickname : NULL) : NULL;
+    battle_setup_wild(species, level, player_species, player_nickname);
     game_change_state(GAME_STATE_BATTLE);
     return TRUE;
 }

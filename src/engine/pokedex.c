@@ -6,6 +6,7 @@
 #include "text.h"
 #include "world.h"
 #include "audio.h"
+#include "save.h"
 
 #define POKEDEX_SPRITE_TILE 140
 #define POKEDEX_PAL 14
@@ -199,4 +200,291 @@ void pokedex_close(void) {
         for (u8 i = 0; i < 16; i++) pal[i] = s_saved_palette[i];
         s_palette_saved = FALSE;
     }
+}
+
+// ─── Pokédex seen/owned tracking ─────────────────────────────────────────────
+
+static u8 s_dex_seen[POKEDEX_BYTES];
+static u8 s_dex_owned[POKEDEX_BYTES];
+
+void pokedex_tracking_clear(void) {
+    for (u8 i = 0; i < POKEDEX_BYTES; i++) {
+        s_dex_seen[i] = 0;
+        s_dex_owned[i] = 0;
+    }
+}
+
+void pokedex_set_seen(PokemonId species) {
+    if (species < 1 || species > NUM_POKEMON) return;
+    u8 idx = (u8)(species - 1);
+    s_dex_seen[idx / 8] |= (u8)(1 << (idx % 8));
+}
+
+void pokedex_set_owned(PokemonId species) {
+    if (species < 1 || species > NUM_POKEMON) return;
+    u8 idx = (u8)(species - 1);
+    s_dex_owned[idx / 8] |= (u8)(1 << (idx % 8));
+    s_dex_seen[idx / 8] |= (u8)(1 << (idx % 8));
+}
+
+bool8 pokedex_is_seen(PokemonId species) {
+    if (species < 1 || species > NUM_POKEMON) return FALSE;
+    u8 idx = (u8)(species - 1);
+    return (s_dex_seen[idx / 8] >> (idx % 8)) & 1;
+}
+
+bool8 pokedex_is_owned(PokemonId species) {
+    if (species < 1 || species > NUM_POKEMON) return FALSE;
+    u8 idx = (u8)(species - 1);
+    return (s_dex_owned[idx / 8] >> (idx % 8)) & 1;
+}
+
+u16 pokedex_seen_count(void) {
+    u16 count = 0;
+    for (u8 i = 0; i < POKEDEX_BYTES; i++) {
+        u8 b = s_dex_seen[i];
+        while (b) { count++; b &= (u8)(b - 1); }
+    }
+    return count;
+}
+
+u16 pokedex_owned_count(void) {
+    u16 count = 0;
+    for (u8 i = 0; i < POKEDEX_BYTES; i++) {
+        u8 b = s_dex_owned[i];
+        while (b) { count++; b &= (u8)(b - 1); }
+    }
+    return count;
+}
+
+void pokedex_tracking_export(u8 seen[20], u8 owned[20]) {
+    for (u8 i = 0; i < POKEDEX_BYTES; i++) {
+        seen[i] = s_dex_seen[i];
+        owned[i] = s_dex_owned[i];
+    }
+}
+
+void pokedex_tracking_import(const u8 seen[20], const u8 owned[20]) {
+    for (u8 i = 0; i < POKEDEX_BYTES; i++) {
+        s_dex_seen[i] = seen[i];
+        s_dex_owned[i] = owned[i];
+    }
+}
+
+// ─── Pokédex list menu ───────────────────────────────────────────────────────
+
+static const char *s_species_names[] = {
+    "", "BULBASAUR", "IVYSAUR", "VENUSAUR",
+    "CHARMANDER", "CHARMELEON", "CHARIZARD",
+    "SQUIRTLE", "WARTORTLE", "BLASTOISE",
+    "CATERPIE", "METAPOD", "BUTTERFREE",
+    "WEEDLE", "KAKUNA", "BEEDRILL",
+    "PIDGEY", "PIDGEOTTO", "PIDGEOT",
+    "RATTATA", "RATICATE", "SPEAROW",
+    "FEAROW", "EKANS", "ARBOK",
+    "PIKACHU", "RAICHU", "SANDSHREW",
+    "SANDSLASH", "NIDORAN F", "NIDORINA",
+    "NIDOQUEEN", "NIDORAN M", "NIDORINO",
+    "NIDOKING", "CLEFAIRY", "CLEFABLE",
+    "VULPIX", "NINETALES", "JIGGLYPUFF",
+    "WIGGLYTUFF", "ZUBAT", "GOLBAT",
+    "ODDISH", "GLOOM", "VILEPLUME",
+    "PARAS", "PARASECT", "VENONAT",
+    "VENOMOTH", "DIGLETT", "DUGTRIO",
+    "MEOWTH", "PERSIAN", "PSYDUCK",
+    "GOLDUCK", "MANKEY", "PRIMEAPE",
+    "GROWLITHE", "ARCANINE", "POLIWAG",
+    "POLIWHIRL", "POLIWRATH", "ABRA",
+    "KADABRA", "ALAKAZAM", "MACHOP",
+    "MACHOKE", "MACHAMP", "BELLSPROUT",
+    "WEEPINBELL", "VICTREEBEL", "TENTACOOL",
+    "TENTACRUEL", "GEODUDE", "GRAVELER",
+    "GOLEM", "PONYTA", "RAPIDASH",
+    "SLOWPOKE", "SLOWBRO", "MAGNEMITE",
+    "MAGNETON", "FARFETCH'D", "DODUO",
+    "DODRIO", "SEEL", "DEWGONG",
+    "GRIMER", "MUK", "SHELLDER",
+    "CLOYSTER", "GASTLY", "HAUNTER",
+    "GENGAR", "ONIX", "DROWZEE",
+    "HYPNO", "KRABBY", "KINGLER",
+    "VOLTORB", "ELECTRODE", "EXEGGCUTE",
+    "EXEGGUTOR", "CUBONE", "MAROWAK",
+    "HITMONLEE", "HITMONCHAN", "LICKITUNG",
+    "KOFFING", "WEEZING", "RHYHORN",
+    "RHYDON", "CHANSEY", "TANGELA",
+    "KANGASKHAN", "HORSEA", "SEADRA",
+    "GOLDEEN", "SEAKING", "STARYU",
+    "STARMIE", "MR.MIME", "SCYTHER",
+    "JYNX", "ELECTABUZZ", "MAGMAR",
+    "PINSIR", "TAUROS", "MAGIKARP",
+    "GYARADOS", "LAPRAS", "DITTO",
+    "EEVEE", "VAPOREON", "JOLTEON",
+    "FLAREON", "PORYGON", "OMANYTE",
+    "OMASTAR", "KABUTO", "KABUTOPS",
+    "AERODACTYL", "SNORLAX", "ARTICUNO",
+    "ZAPDOS", "MOLTRES", "DRATINI",
+    "DRAGONAIR", "DRAGONITE", "MEWTWO",
+    "MEW",
+};
+
+static bool8 s_list_open;
+static u8 s_list_cursor;
+static u8 s_list_scroll;
+static u16 s_list_saved_dispcnt;
+static bool8 s_list_detail_open;
+
+static void dex_draw_box(u8 left, u8 top, u8 right, u8 bottom) {
+    for (u8 y = top; y <= bottom; y++) {
+        for (u8 x = left; x <= right; x++) {
+            u8 tile = BOX_FILL;
+            if (x == left && y == top) tile = BOX_TL;
+            else if (x == right && y == top) tile = BOX_TR;
+            else if (x == left && y == bottom) tile = BOX_BL;
+            else if (x == right && y == bottom) tile = BOX_BR;
+            else if (y == top) tile = BOX_TE;
+            else if (y == bottom) tile = BOX_BE;
+            else if (x == left) tile = BOX_LE;
+            else if (x == right) tile = BOX_RE;
+            text_draw_tile(x, y, tile);
+        }
+    }
+}
+
+static void pokedex_list_draw(void) {
+    text_clear();
+    dex_draw_box(0, 0, 29, 19);
+
+    u16 seen = pokedex_seen_count();
+    u16 owned = pokedex_owned_count();
+    char buf[20];
+
+    text_draw_str(1, 1, "POKeDEX");
+    char *p = buf;
+    p[0] = 'S'; p[1] = 'E'; p[2] = 'E'; p[3] = 'N'; p[4] = ' ';
+    p += 5;
+    if (seen >= 100) { *p++ = (char)('0' + seen / 100); }
+    if (seen >= 10) { *p++ = (char)('0' + (seen / 10) % 10); }
+    *p++ = (char)('0' + seen % 10);
+    *p = '\0';
+    text_draw_str(12, 1, buf);
+
+    p = buf;
+    p[0] = 'O'; p[1] = 'W'; p[2] = 'N'; p[3] = ' ';
+    p += 4;
+    if (owned >= 100) { *p++ = (char)('0' + owned / 100); }
+    if (owned >= 10) { *p++ = (char)('0' + (owned / 10) % 10); }
+    *p++ = (char)('0' + owned % 10);
+    *p = '\0';
+    text_draw_str(21, 1, buf);
+
+    for (u8 i = 0; i < 8; i++) {
+        u8 dex_num = (u8)(s_list_scroll + i + 1);
+        u8 row = (u8)(3 + i * 2);
+
+        for (u8 col = 1; col < 29; col++)
+            text_draw_char(col, row, ' ');
+
+        if (dex_num > NUM_POKEMON) continue;
+
+        char num[5];
+        num[0] = (char)('0' + dex_num / 100);
+        num[1] = (char)('0' + (dex_num / 10) % 10);
+        num[2] = (char)('0' + dex_num % 10);
+        num[3] = '\0';
+        text_draw_str(2, row, num);
+
+        if (pokedex_is_seen((PokemonId)dex_num)) {
+            text_draw_str(6, row, s_species_names[dex_num]);
+            if (pokedex_is_owned((PokemonId)dex_num))
+                text_draw_char(1, row, '*');
+        } else {
+            text_draw_str(6, row, "----------");
+        }
+
+        if (i == s_list_cursor)
+            text_draw_char(1, row, '>');
+    }
+}
+
+void pokedex_list_open(void) {
+    s_list_cursor = 0;
+    s_list_scroll = 0;
+    s_list_open = TRUE;
+    s_list_detail_open = FALSE;
+    s_list_saved_dispcnt = REG_DISPCNT;
+    REG_DISPCNT = (u16)((s_list_saved_dispcnt & (u16)~(DCNT_BG1 | DCNT_BG2 | DCNT_OBJ)) |
+                        DCNT_BG0);
+    pokedex_list_draw();
+}
+
+bool8 pokedex_list_update(void) {
+    if (!s_list_open) return TRUE;
+
+    if (s_list_detail_open) {
+        if (pokedex_update()) {
+            pokedex_close();
+            s_list_detail_open = FALSE;
+            REG_DISPCNT = (u16)((s_list_saved_dispcnt & (u16)~(DCNT_BG1 | DCNT_BG2 | DCNT_OBJ)) |
+                                DCNT_BG0);
+            pokedex_list_draw();
+        }
+        return FALSE;
+    }
+
+    if (input_pressed(KEY_B)) {
+        return TRUE;
+    }
+
+    bool8 redraw = FALSE;
+    if (input_pressed(KEY_UP)) {
+        if (s_list_cursor > 0) {
+            s_list_cursor--;
+        } else if (s_list_scroll > 0) {
+            s_list_scroll--;
+        }
+        redraw = TRUE;
+        audio_sfx_play(AUDIO_SFX_SELECT);
+    }
+    if (input_pressed(KEY_DOWN)) {
+        u8 dex_num = (u8)(s_list_scroll + s_list_cursor + 1);
+        if (dex_num < NUM_POKEMON) {
+            if (s_list_cursor < 7) {
+                s_list_cursor++;
+            } else {
+                s_list_scroll++;
+            }
+            redraw = TRUE;
+            audio_sfx_play(AUDIO_SFX_SELECT);
+        }
+    }
+
+    if (input_pressed(KEY_A)) {
+        u8 dex_num = (u8)(s_list_scroll + s_list_cursor + 1);
+        if (dex_num <= NUM_POKEMON && pokedex_is_seen((PokemonId)dex_num)) {
+            PokedexSpecies sp;
+            if (dex_num == MON_BULBASAUR) sp = POKEDEX_BULBASAUR;
+            else if (dex_num == MON_CHARMANDER) sp = POKEDEX_CHARMANDER;
+            else if (dex_num == MON_SQUIRTLE) sp = POKEDEX_SQUIRTLE;
+            else {
+                audio_sfx_play(AUDIO_SFX_CONFIRM);
+                return FALSE;
+            }
+            pokedex_open(sp);
+            s_list_detail_open = TRUE;
+            audio_sfx_play(AUDIO_SFX_CONFIRM);
+            return FALSE;
+        }
+    }
+
+    if (redraw) pokedex_list_draw();
+    return FALSE;
+}
+
+void pokedex_list_close(void) {
+    if (!s_list_open) return;
+    s_list_open = FALSE;
+    text_init();
+    tilemap_rebuild();
+    tilemap_update_scroll();
+    REG_DISPCNT = s_list_saved_dispcnt;
 }

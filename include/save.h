@@ -2,8 +2,10 @@
 
 #include "types.h"
 #include "party.h"
+#include "item.h"
 
 #define SAVE_NAME_LENGTH 8
+#define POKEDEX_BYTES 20
 
 typedef struct {
     u8  magic[4];
@@ -21,6 +23,10 @@ typedef struct {
     u8  option_battle_style;
     PartyState party;
     HealingPoint last_healing_point;
+    u32 money;
+    BagState bag;
+    u8  pokedex_seen[POKEDEX_BYTES];
+    u8  pokedex_owned[POKEDEX_BYTES];
     u8  checksum;
 } SaveData;
 

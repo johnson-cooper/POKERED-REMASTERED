@@ -2,6 +2,7 @@
 #include "battle_pokemon.h"
 #include "experience.h"
 #include "map_ids.h"
+#include "pokedex.h"
 
 PartyState g_party;
 HealingPoint g_last_healing_point;
@@ -54,6 +55,7 @@ void party_set_starter(PokemonId species, const char *nickname) {
     g_party.mons[0].status = mon.status;
     copy_nickname(g_party.mons[0].nickname, nickname);
     g_party.mons[0].experience = pokemon_exp_for_level(species, mon.level);
+    pokedex_set_owned(species);
 }
 
 void party_set_active_nickname(const char *nickname) {
@@ -66,9 +68,39 @@ PartyPokemon *party_get_active(void) {
     return g_party.count ? &g_party.mons[0] : NULL;
 }
 
+PartyPokemon *party_get_slot(u8 slot) {
+    return (slot < g_party.count) ? &g_party.mons[slot] : NULL;
+}
+
 void party_update_active(const PartyPokemon *mon) {
     if (g_party.count && mon)
         g_party.mons[0] = *mon;
+}
+
+void party_update_slot(u8 slot, const PartyPokemon *mon) {
+    if (slot < g_party.count && mon)
+        g_party.mons[slot] = *mon;
+}
+
+void party_swap_slots(u8 a, u8 b) {
+    if (a >= g_party.count || b >= g_party.count || a == b) return;
+    PartyPokemon tmp = g_party.mons[a];
+    g_party.mons[a] = g_party.mons[b];
+    g_party.mons[b] = tmp;
+}
+
+bool8 party_add(const PartyPokemon *mon) {
+    if (!mon || g_party.count >= PARTY_SIZE) return FALSE;
+    g_party.mons[g_party.count++] = *mon;
+    return TRUE;
+}
+
+bool8 party_has_usable_mon(u8 exclude_slot) {
+    for (u8 i = 0; i < g_party.count && i < PARTY_SIZE; i++) {
+        if (i == exclude_slot) continue;
+        if (g_party.mons[i].current_hp > 0) return TRUE;
+    }
+    return FALSE;
 }
 
 void party_heal_all(void) {

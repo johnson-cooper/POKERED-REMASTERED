@@ -14,12 +14,29 @@
 #include "audio.h"
 #include "party.h"
 #include "party_menu.h"
+#include "item.h"
 
 GameContext g_game = {
     .state      = GAME_STATE_BOOT,
     .next_state = GAME_STATE_BOOT,
     .frame      = 0,
 };
+
+u32 g_player_money = 0;
+
+void game_add_money(u32 amount) {
+    u32 new_money = g_player_money + amount;
+    if (new_money < g_player_money) new_money = 999999;
+    if (new_money > 999999) new_money = 999999;
+    g_player_money = new_money;
+}
+
+void game_subtract_money(u32 amount) {
+    if (amount > g_player_money)
+        g_player_money = 0;
+    else
+        g_player_money -= amount;
+}
 
 extern const MapHeader g_map_reds_house_2f;
 
@@ -36,6 +53,11 @@ static void title_options_update(void);
 static void title_draw_menu_box(u8 left, u8 top, u8 right, u8 bottom);
 static void pause_menu_draw(void);
 static void pause_menu_update(void);
+static void pause_menu_message(const char *message);
+static void trainer_card_draw(void);
+static void trainer_card_update(void);
+static void key_item_menu_draw(void);
+static void key_item_menu_update(void);
 
 typedef enum {
     INTRO_OAK_DIALOG = 0,
@@ -81,6 +103,10 @@ static bool8 s_options_from_pause;
 static u8 s_pause_menu_cursor;
 static bool8 s_pause_pokedex_active;
 static bool8 s_pause_party_active;
+static bool8 s_pause_item_active;
+static bool8 s_pause_key_item_active;
+static bool8 s_trainer_card_active;
+static u8 s_key_item_cursor;
 static bool8 s_continue_load;
 
 static bool8 title_save_available(void) {
@@ -110,6 +136,9 @@ static void save_capture(SaveData *data) {
     data->option_fast_text = s_option_fast_text;
     data->option_battle_animation = s_option_battle_animation;
     data->option_battle_style = s_option_battle_style;
+    data->money = g_player_money;
+    bag_export(&data->bag);
+    pokedex_tracking_export(data->pokedex_seen, data->pokedex_owned);
 }
 
 static bool8 game_load_saved(void) {
@@ -144,6 +173,15 @@ static bool8 game_load_saved(void) {
         party_set_healing_point(MAP_PLAYERS_HOUSE_1F, 4, 3, DIR_RIGHT);
     if (!party_get_active() && flags_get(FLAG_GOT_STARTER))
         party_set_starter(script_get_starter_species(), NULL);
+    if (data.version >= 4) {
+        g_player_money = data.money;
+        bag_import(&data.bag);
+        pokedex_tracking_import(data.pokedex_seen, data.pokedex_owned);
+    } else {
+        g_player_money = STARTING_MONEY;
+        bag_init();
+        pokedex_tracking_clear();
+    }
     return TRUE;
 }
 
@@ -235,6 +273,9 @@ void game_update(void) {
                        previous_state != GAME_STATE_MENU) {
                 flags_clear_all();
                 party_clear();
+                g_player_money = STARTING_MONEY;
+                bag_init();
+                pokedex_tracking_clear();
                 // Spawn in Red's House 2F, center of room.
                 world_init(&g_map_reds_house_2f, 3, 3);
             } else if (previous_state == GAME_STATE_BATTLE) {
@@ -253,6 +294,9 @@ void game_update(void) {
             s_pause_menu_cursor = 0;
             s_pause_pokedex_active = FALSE;
             s_pause_party_active = FALSE;
+            s_pause_item_active = FALSE;
+            s_pause_key_item_active = FALSE;
+            s_trainer_card_active = FALSE;
             s_options_from_pause = FALSE;
             pause_menu_draw();
         }
@@ -642,10 +686,165 @@ static void state_battle_update(void) {
     battle_update();
 }
 
+static u8 s_item_cursor;
+
+static void item_menu_draw(void);
+static void item_menu_update(void);
+
+// ─── Trainer Card ─────────────────────────────────────────────────────────────
+
+static void trainer_card_draw_box(u8 x1, u8 y1, u8 x2, u8 y2) {
+    for (u8 cy = y1; cy <= y2; cy++) {
+        for (u8 cx = x1; cx <= x2; cx++) {
+            u8 t = BOX_FILL;
+            if      (cx == x1 && cy == y1) t = BOX_TL;
+            else if (cx == x2 && cy == y1) t = BOX_TR;
+            else if (cx == x1 && cy == y2) t = BOX_BL;
+            else if (cx == x2 && cy == y2) t = BOX_BR;
+            else if (cy == y1) t = BOX_TE;
+            else if (cy == y2) t = BOX_BE;
+            else if (cx == x1) t = BOX_LE;
+            else if (cx == x2) t = BOX_RE;
+            text_draw_tile(cx, cy, t);
+        }
+    }
+}
+
+static void trainer_card_draw_money(u8 col, u8 row) {
+    u32 m = g_player_money;
+    char buf[10];
+    char *p = buf;
+    if (m >= 100000) *p++ = (char)('0' + m / 100000 % 10);
+    if (m >= 10000)  *p++ = (char)('0' + m / 10000 % 10);
+    if (m >= 1000)   *p++ = (char)('0' + m / 1000 % 10);
+    if (m >= 100)    *p++ = (char)('0' + m / 100 % 10);
+    if (m >= 10)     *p++ = (char)('0' + m / 10 % 10);
+    *p++ = (char)('0' + m % 10);
+    *p = '\0';
+    text_draw_str(col, row, buf);
+}
+
+static void trainer_card_draw(void) {
+    text_fill_opaque();
+
+    // Upper box: NAME / MONEY / TIME — mirrors pokered TrainerInfo layout
+    trainer_card_draw_box(0, 0, 19, 11);
+
+    text_draw_str(2, 2,  "NAME/");
+    text_draw_str(8, 2,  s_player_name);
+
+    text_draw_str(2, 4,  "MONEY/");
+    text_draw_char(9, 4, '$');
+    trainer_card_draw_money(10, 4);
+
+    text_draw_str(2, 6,  "TIME/");
+    text_draw_str(8, 6,  "0:00");
+
+    // Lower box: BADGES placeholder
+    trainer_card_draw_box(0, 12, 29, 19);
+    text_draw_str(2, 14, "BADGES");
+
+    // Press A/B hint
+    text_draw_str(21, 9, "A/B:BACK");
+}
+
+static void trainer_card_update(void) {
+    // Submit player sprite (standing, facing down = tile 0) each frame.
+    // Position it in the upper-right corner of the trainer card.
+    render_clear_sprites();
+    RenderCmd cmd = {
+        .type  = RCMD_DRAW_SPRITE,
+        .id    = 0,
+        .x     = 180,
+        .y     = 20,
+        .param = 0,
+    };
+    render_submit(cmd);
+
+    if (input_pressed(KEY_A) || input_pressed(KEY_B) || input_pressed(KEY_START)) {
+        s_trainer_card_active = FALSE;
+        pause_menu_draw();
+    }
+}
+
+// ─── Key Item menu ────────────────────────────────────────────────────────────
+
+static void key_item_menu_draw(void) {
+    text_clear();
+    title_draw_menu_box(0, 0, 29, 19);
+    text_draw_str(2, 1, "KEY ITEMS");
+
+    u8 ki = 0;
+    for (u8 i = 0; i < g_bag.count && ki < 7; i++) {
+        if (!item_is_key_item((ItemId)g_bag.slots[i].id)) continue;
+        text_draw_str(3, (u8)(3 + ki * 2), item_get_name((ItemId)g_bag.slots[i].id));
+        ki++;
+    }
+    text_draw_str(3, 17, "CANCEL");
+
+    u8 cursor_row = (s_key_item_cursor < ki) ? (u8)(3 + s_key_item_cursor * 2) : 17;
+    text_draw_char(1, cursor_row, '>');
+}
+
+static void key_item_menu_update(void) {
+    if (dialog_is_open()) {
+        if (dialog_update()) pause_menu_draw();
+        s_pause_key_item_active = FALSE;
+        return;
+    }
+    u8 ki = 0;
+    for (u8 i = 0; i < g_bag.count; i++)
+        if (item_is_key_item((ItemId)g_bag.slots[i].id)) ki++;
+    if (ki > 7) ki = 7;
+    u8 total = (u8)(ki + 1);
+
+    if (input_pressed(KEY_UP)) {
+        s_key_item_cursor = s_key_item_cursor == 0 ? (u8)(total - 1) : (u8)(s_key_item_cursor - 1);
+        key_item_menu_draw();
+        audio_sfx_play(AUDIO_SFX_SELECT);
+        return;
+    }
+    if (input_pressed(KEY_DOWN)) {
+        s_key_item_cursor = s_key_item_cursor >= (u8)(total - 1) ? 0 : (u8)(s_key_item_cursor + 1);
+        key_item_menu_draw();
+        audio_sfx_play(AUDIO_SFX_SELECT);
+        return;
+    }
+    if (input_pressed(KEY_B)) {
+        s_pause_key_item_active = FALSE;
+        pause_menu_draw();
+        audio_sfx_play(AUDIO_SFX_PAUSE_CLOSE);
+        return;
+    }
+    if (input_pressed(KEY_A)) {
+        audio_sfx_play(AUDIO_SFX_CONFIRM);
+        if (s_key_item_cursor >= ki) {
+            s_pause_key_item_active = FALSE;
+            pause_menu_draw();
+            return;
+        }
+        u8 found = 0;
+        for (u8 i = 0; i < g_bag.count; i++) {
+            if (!item_is_key_item((ItemId)g_bag.slots[i].id)) continue;
+            if (found == s_key_item_cursor) {
+                ItemId id = (ItemId)g_bag.slots[i].id;
+                if (id == ITEM_TOWN_MAP) {
+                    pause_menu_message("It's a MAP of\nthe KANTO region.");
+                } else {
+                    pause_menu_message("OAK: This isn't\nthe time to use\nthat!");
+                }
+                s_pause_key_item_active = FALSE;
+                return;
+            }
+            found++;
+        }
+    }
+}
+
 static void state_menu_update(void) {
     if (s_pause_pokedex_active) {
-        if (pokedex_update()) {
-            pokedex_close();
+        if (pokedex_list_update()) {
+            pokedex_list_close();
             s_pause_pokedex_active = FALSE;
             pause_menu_draw();
         }
@@ -658,6 +857,18 @@ static void state_menu_update(void) {
         }
         return;
     }
+    if (s_pause_item_active) {
+        item_menu_update();
+        return;
+    }
+    if (s_pause_key_item_active) {
+        key_item_menu_update();
+        return;
+    }
+    if (s_trainer_card_active) {
+        trainer_card_update();
+        return;
+    }
     if (s_options_from_pause)
         title_options_update();
     else
@@ -665,7 +876,7 @@ static void state_menu_update(void) {
 }
 
 static u8 pause_menu_count(void) {
-    return flags_get(FLAG_GOT_POKEDEX) ? 7 : 6;
+    return flags_get(FLAG_GOT_POKEDEX) ? 8 : 7;
 }
 
 static void pause_menu_draw(void) {
@@ -679,6 +890,7 @@ static void pause_menu_draw(void) {
     }
     text_draw_str(16, row, "POKeMON"); row = (u8)(row + 2);
     text_draw_str(16, row, "ITEM");    row = (u8)(row + 2);
+    text_draw_str(16, row, "KEY ITEM"); row = (u8)(row + 2);
     text_draw_str(16, row, s_player_name); row = (u8)(row + 2);
     text_draw_str(16, row, "SAVE");    row = (u8)(row + 2);
     text_draw_str(16, row, "OPTION");  row = (u8)(row + 2);
@@ -696,10 +908,7 @@ static void pause_menu_select(void) {
     u8 selected = s_pause_menu_cursor;
     if (flags_get(FLAG_GOT_POKEDEX)) {
         if (selected == 0) {
-            // The current Pokédex module displays a species page. Until the
-            // full owned/seen database exists, use Bulbasaur as the first
-            // registered entry, matching pokered's initial ordering.
-            pokedex_open(POKEDEX_BULBASAUR);
+            pokedex_list_open();
             s_pause_pokedex_active = TRUE;
             return;
         }
@@ -715,19 +924,43 @@ static void pause_menu_select(void) {
             pause_menu_message("No POKeMON!");
         }
         break;
-    case 1:
-        pause_menu_message("No items!");
+    case 1: {
+        bool8 has_regular = FALSE;
+        for (u8 i = 0; i < g_bag.count; i++)
+            if (!item_is_key_item((ItemId)g_bag.slots[i].id)) { has_regular = TRUE; break; }
+        if (has_regular) {
+            s_item_cursor = 0;
+            s_pause_item_active = TRUE;
+            item_menu_draw();
+        } else {
+            pause_menu_message("No items!");
+        }
         break;
-    case 2:
-        pause_menu_message("ASH: [NAME]");
+    }
+    case 2: {
+        bool8 has_key = FALSE;
+        for (u8 i = 0; i < g_bag.count; i++)
+            if (item_is_key_item((ItemId)g_bag.slots[i].id)) { has_key = TRUE; break; }
+        if (has_key) {
+            s_key_item_cursor = 0;
+            s_pause_key_item_active = TRUE;
+            key_item_menu_draw();
+        } else {
+            pause_menu_message("No KEY ITEMS!");
+        }
         break;
-    case 3: {
+    }
+    case 3:
+        s_trainer_card_active = TRUE;
+        trainer_card_draw();
+        break;
+    case 4: {
         SaveData data;
         save_capture(&data);
         pause_menu_message(save_write(&data) ? "Game saved!" : "Save failed!");
         break;
     }
-    case 4:
+    case 5:
         s_options_from_pause = TRUE;
         s_title_option_cursor = 0;
         title_options_draw();
@@ -769,6 +1002,107 @@ static void pause_menu_update(void) {
     if (input_pressed(KEY_A)) {
         audio_sfx_play(AUDIO_SFX_CONFIRM);
         pause_menu_select();
+    }
+}
+
+// ─── Item menu ───────────────────────────────────────────────────────────────
+
+static void item_menu_draw(void) {
+    text_clear();
+    title_draw_menu_box(0, 0, 29, 19);
+    text_draw_str(2, 1, "ITEM");
+
+    u8 ni = 0;
+    for (u8 i = 0; i < g_bag.count && ni < 7; i++) {
+        if (item_is_key_item((ItemId)g_bag.slots[i].id)) continue;
+        u8 row = (u8)(3 + ni * 2);
+        text_draw_str(3, row, item_get_name((ItemId)g_bag.slots[i].id));
+        char qty[5] = "x";
+        u8 q = g_bag.slots[i].quantity;
+        u8 p = 1;
+        if (q >= 10) qty[p++] = (char)('0' + q / 10);
+        qty[p++] = (char)('0' + q % 10);
+        qty[p] = '\0';
+        text_draw_str(20, row, qty);
+        ni++;
+    }
+    text_draw_str(3, 17, "CANCEL");
+
+    u8 cursor_row = (s_item_cursor < ni) ? (u8)(3 + s_item_cursor * 2) : 17;
+    text_draw_char(1, cursor_row, '>');
+}
+
+static void item_use_potion(void) {
+    PartyPokemon *mon = party_get_active();
+    if (!mon || mon->current_hp >= mon->max_hp) {
+        pause_menu_message("It won't have any\neffect.");
+        s_pause_item_active = FALSE;
+        return;
+    }
+    bag_remove(ITEM_POTION, 1);
+    u16 heal = 20;
+    if (mon->current_hp + heal > mon->max_hp)
+        mon->current_hp = mon->max_hp;
+    else
+        mon->current_hp += heal;
+    pause_menu_message("HP was restored.");
+    s_pause_item_active = FALSE;
+}
+
+static void item_menu_update(void) {
+    if (dialog_is_open()) {
+        if (dialog_update()) pause_menu_draw();
+        s_pause_item_active = FALSE;
+        return;
+    }
+    u8 ni = 0;
+    for (u8 i = 0; i < g_bag.count; i++)
+        if (!item_is_key_item((ItemId)g_bag.slots[i].id)) ni++;
+    if (ni > 7) ni = 7;
+    u8 total = (u8)(ni + 1);
+    if (input_pressed(KEY_UP)) {
+        s_item_cursor = s_item_cursor == 0 ? (u8)(total - 1) : (u8)(s_item_cursor - 1);
+        item_menu_draw();
+        audio_sfx_play(AUDIO_SFX_SELECT);
+        return;
+    }
+    if (input_pressed(KEY_DOWN)) {
+        s_item_cursor = s_item_cursor >= (u8)(total - 1) ? 0 : (u8)(s_item_cursor + 1);
+        item_menu_draw();
+        audio_sfx_play(AUDIO_SFX_SELECT);
+        return;
+    }
+    if (input_pressed(KEY_B)) {
+        s_pause_item_active = FALSE;
+        pause_menu_draw();
+        audio_sfx_play(AUDIO_SFX_PAUSE_CLOSE);
+        return;
+    }
+    if (input_pressed(KEY_A)) {
+        audio_sfx_play(AUDIO_SFX_CONFIRM);
+        if (s_item_cursor >= ni) {
+            s_pause_item_active = FALSE;
+            pause_menu_draw();
+            return;
+        }
+        // Find the s_item_cursor-th non-key item in the bag
+        u8 found = 0;
+        ItemId id = ITEM_NONE;
+        for (u8 i = 0; i < g_bag.count; i++) {
+            if (item_is_key_item((ItemId)g_bag.slots[i].id)) continue;
+            if (found == s_item_cursor) { id = (ItemId)g_bag.slots[i].id; break; }
+            found++;
+        }
+        if (id == ITEM_POTION) {
+            item_use_potion();
+        } else if (id == ITEM_ANTIDOTE || id == ITEM_PARLYZ_HEAL ||
+                   id == ITEM_BURN_HEAL) {
+            pause_menu_message("Can't use that here.");
+            s_pause_item_active = FALSE;
+        } else {
+            pause_menu_message("Can't use that here.");
+            s_pause_item_active = FALSE;
+        }
     }
 }
 

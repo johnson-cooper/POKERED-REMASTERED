@@ -2,7 +2,7 @@
 #include "experience.h"
 #include <stddef.h>
 
-#define SAVE_VERSION 3
+#define SAVE_VERSION 4
 #define SAVE_MAGIC_0 'R'
 #define SAVE_MAGIC_1 'R'
 #define SAVE_MAGIC_2 'M'
@@ -84,6 +84,33 @@ typedef struct {
     u8 checksum;
 } LegacyV2SaveData;
 
+typedef struct {
+    u8 magic[4];
+    u8 version;
+    u8 map_id;
+    u8 last_map_id;
+    u8 player_x;
+    u8 player_y;
+    u8 player_facing;
+    u8 player_name[SAVE_NAME_LENGTH];
+    u8 rival_name[SAVE_NAME_LENGTH];
+    u32 flags[4];
+    u8 option_fast_text;
+    u8 option_battle_animation;
+    u8 option_battle_style;
+    PartyState party;
+    HealingPoint last_healing_point;
+    u8 checksum;
+} LegacyV3SaveData;
+
+static u8 legacy_v3_checksum(const LegacyV3SaveData *data) {
+    const u8 *bytes = (const u8 *)data;
+    u8 sum = 0;
+    for (u32 i = 4; i < offsetof(LegacyV3SaveData, checksum); i++)
+        sum = (u8)(sum + bytes[i]);
+    return sum;
+}
+
 static u8 legacy_checksum(const LegacySaveData *data) {
     const u8 *bytes = (const u8 *)data;
     u8 sum = 0;
@@ -107,7 +134,7 @@ static bool8 save_header_valid(void) {
            GBA_SRAM[1] == SAVE_MAGIC_1 &&
            GBA_SRAM[2] == SAVE_MAGIC_2 &&
            GBA_SRAM[3] == SAVE_MAGIC_3 &&
-           (GBA_SRAM[4] == 1 || GBA_SRAM[4] == 2 || GBA_SRAM[4] == SAVE_VERSION);
+           (GBA_SRAM[4] >= 1 && GBA_SRAM[4] <= SAVE_VERSION);
 }
 
 bool8 save_exists(void) {
@@ -125,6 +152,12 @@ bool8 save_exists(void) {
         for (u32 i = 0; i < sizeof(LegacyV2SaveData); i++)
             ((u8 *)&data)[i] = GBA_SRAM[i];
         return data.checksum == legacy_v2_checksum(&data);
+    }
+    if (GBA_SRAM[4] == 3) {
+        LegacyV3SaveData data;
+        for (u32 i = 0; i < sizeof(LegacyV3SaveData); i++)
+            ((u8 *)&data)[i] = GBA_SRAM[i];
+        return data.checksum == legacy_v3_checksum(&data);
     }
     SaveData data;
     for (u32 i = 0; i < sizeof(SaveData); i++)
@@ -206,6 +239,36 @@ bool8 save_read(SaveData *out) {
         }
         out->last_healing_point = legacy.last_healing_point;
         out->checksum = legacy.checksum;
+    } else if (GBA_SRAM[4] == 3) {
+        LegacyV3SaveData legacy;
+        for (u32 i = 0; i < sizeof(LegacyV3SaveData); i++)
+            ((u8 *)&legacy)[i] = GBA_SRAM[i];
+        out->magic[0] = legacy.magic[0];
+        out->magic[1] = legacy.magic[1];
+        out->magic[2] = legacy.magic[2];
+        out->magic[3] = legacy.magic[3];
+        out->version = legacy.version;
+        out->map_id = legacy.map_id;
+        out->last_map_id = legacy.last_map_id;
+        out->player_x = legacy.player_x;
+        out->player_y = legacy.player_y;
+        out->player_facing = legacy.player_facing;
+        for (u8 i = 0; i < SAVE_NAME_LENGTH; i++) {
+            out->player_name[i] = legacy.player_name[i];
+            out->rival_name[i] = legacy.rival_name[i];
+        }
+        for (u8 i = 0; i < 4; i++) out->flags[i] = legacy.flags[i];
+        out->option_fast_text = legacy.option_fast_text;
+        out->option_battle_animation = legacy.option_battle_animation;
+        out->option_battle_style = legacy.option_battle_style;
+        out->party = legacy.party;
+        out->last_healing_point = legacy.last_healing_point;
+        out->money = 0;
+        out->bag.count = 0;
+        for (u8 i = 0; i < POKEDEX_BYTES; i++) {
+            out->pokedex_seen[i] = 0;
+            out->pokedex_owned[i] = 0;
+        }
     } else {
         for (u32 i = 0; i < sizeof(SaveData); i++)
             ((u8 *)out)[i] = GBA_SRAM[i];

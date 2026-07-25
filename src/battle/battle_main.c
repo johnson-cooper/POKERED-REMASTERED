@@ -18,7 +18,9 @@
 #include "world.h"
 #include "map_ids.h"
 #include "irq.h"
+#include "pokedex.h"
 #include "flags.h"
+#include "item.h"
 
 typedef enum {
     BS_INIT = 0,
@@ -42,12 +44,14 @@ typedef enum {
     BS_NEXT_ATTACKER,
     BS_VICTORY,
     BS_VICTORY_WAIT,
+    BS_MONEY,
     BS_EXP,
     BS_EXP_WAIT,
     BS_LEVEL_UP,
     BS_LEVEL_UP_WAIT,
     BS_DEFEAT,
     BS_DEFEAT_WAIT,
+    BS_SWITCH_IN,
     BS_END,
 } BattleState;
 
@@ -74,11 +78,18 @@ typedef struct {
     u8 enemy_level;
     bool8 is_wild;
     bool8 run_ends_battle;
+    bool8 ball_caught;
     const char *player_nickname;
 } BattleCtx;
 
 static BattleCtx s_battle;
 static bool8 s_blackout;
+static u8 s_active_party_slot;
+static bool8 s_force_switch;
+static u8 s_battle_party_cursor;
+static BattleState s_after_msg_state;
+static PartyPokemon s_caught_mon;
+static bool8 s_caught_pending;
 
 #define TRANSITION_SCREEN_W 30
 #define TRANSITION_SCREEN_H 20
@@ -94,6 +105,7 @@ static u16 s_transition_count;
 static u16 s_transition_cursor;
 static bool8 s_transition_active;
 static s16 s_player_slide_x;
+static u8 s_battle_item_cursor;
 static bool8 s_trainer_visible;
 static bool8 s_player_is_trainer;
 
@@ -497,28 +509,118 @@ static void draw_action_menu(void) {
     }
 }
 
+static void battle_write_back_player_mon(void) {
+    PartyPokemon updated = {0};
+    updated.species = s_battle.player_mon.species;
+    updated.level   = s_battle.player_mon.level;
+    updated.dv      = s_battle.player_mon.dv;
+    updated.max_hp  = s_battle.player_mon.max_hp;
+    updated.current_hp = s_battle.player_mon.current_hp;
+    updated.attack  = s_battle.player_mon.attack;
+    updated.defense = s_battle.player_mon.defense;
+    updated.speed   = s_battle.player_mon.speed;
+    updated.special = s_battle.player_mon.special;
+    for (u8 i = 0; i < 4; i++) {
+        updated.moves[i] = s_battle.player_mon.moves[i];
+        updated.pp[i]    = s_battle.player_mon.pp[i];
+    }
+    updated.status = s_battle.player_mon.status;
+    updated.experience = s_battle.player_experience;
+    const PartyPokemon *old = party_get_slot(s_active_party_slot);
+    if (old)
+        for (u8 i = 0; i < PARTY_NICKNAME_LENGTH; i++)
+            updated.nickname[i] = old->nickname[i];
+    party_update_slot(s_active_party_slot, &updated);
+}
+
+static void battle_load_player_mon(u8 slot) {
+    const PartyPokemon *mon = party_get_slot(slot);
+    if (!mon) return;
+    s_battle.player_mon.species = mon->species;
+    s_battle.player_mon.level   = mon->level;
+    s_battle.player_mon.dv      = mon->dv;
+    s_battle.player_mon.max_hp  = mon->max_hp;
+    s_battle.player_mon.current_hp = mon->current_hp;
+    s_battle.player_mon.attack  = mon->attack;
+    s_battle.player_mon.defense = mon->defense;
+    s_battle.player_mon.speed   = mon->speed;
+    s_battle.player_mon.special = mon->special;
+    for (u8 i = 0; i < 4; i++) {
+        s_battle.player_mon.moves[i] = mon->moves[i];
+        s_battle.player_mon.pp[i]    = mon->pp[i];
+    }
+    s_battle.player_mon.status = mon->status;
+    s_battle.player_experience = mon->experience;
+    s_battle.player_species    = mon->species;
+    s_battle.player_mon.nickname = mon->nickname[0] ? mon->nickname : NULL;
+    for (u8 i = 0; i < 6; i++) s_battle.player_mon.stages[i] = 0;
+    s_active_party_slot = slot;
+}
+
 static void draw_party_menu(void) {
-    const BattlePokemon *pl = &s_battle.player_mon;
-    draw_box(0, 14, 30, 6);
-    text_draw_str(1, 15, "Choose a POKeMON");
-    text_draw_char(1, 17, '>');
-    text_draw_str(2, 17, mon_display_name(pl));
-    text_draw_str(2, 18, "HP");
-    text_draw_str(6, 18, "        ");
-    char hp_text[16];
-    char *p = str_append_num(hp_text, pl->current_hp);
-    p = str_append(p, "/");
-    p = str_append_num(p, pl->max_hp);
-    *p = '\0';
-    text_draw_str(6, 18, hp_text);
-    text_draw_str(20, 18, "B: CANCEL");
+    for (u8 r = 14; r < 20; r++)
+        for (u8 c = 0; c < 30; c++)
+            text_draw_tile(c, r, TEXT_BLANK_TILE);
+
+    for (u8 i = 0; i < g_party.count && i < PARTY_SIZE; i++) {
+        const PartyPokemon *mon = &g_party.mons[i];
+        u8 row = (u8)(14 + i);
+        text_draw_char(0, row, i == s_battle_party_cursor ? '>' : ' ');
+        const char *nm = mon->nickname[0] ? mon->nickname : species_name(mon->species);
+        text_draw_str_n(1, row, nm, 10);
+        if (i == s_active_party_slot) {
+            text_draw_str(12, row, "(out)   ");
+        } else if (mon->current_hp == 0) {
+            text_draw_str(12, row, "FNT     ");
+        } else {
+            char hp_buf[12];
+            char *p = str_append_num(hp_buf, mon->current_hp);
+            p = str_append(p, "/");
+            p = str_append_num(p, mon->max_hp);
+            *p = '\0';
+            text_draw_str(12, row, "HP:     ");
+            text_draw_str(15, row, hp_buf);
+        }
+    }
+    if (!s_force_switch)
+        text_draw_str(20, 19, "B:CANCEL");
+}
+
+static u8 battle_usable_item_count(void) {
+    u8 n = 0;
+    for (u8 i = 0; i < g_bag.count; i++)
+        if (!item_is_key_item((ItemId)g_bag.slots[i].id)) n++;
+    return n > 3 ? 3 : n;
 }
 
 static void draw_item_menu(void) {
     draw_box(0, 14, 30, 6);
-    text_draw_str(1, 15, "Choose an ITEM");
-    text_draw_str(2, 17, "No items");
-    text_draw_str(20, 18, "B: CANCEL");
+    u8 visible = battle_usable_item_count();
+
+    if (visible == 0) {
+        text_draw_str(2, 16, "No items!");
+        text_draw_str(19, 18, "B:CANCEL");
+        return;
+    }
+
+    u8 ni = 0;
+    for (u8 i = 0; i < g_bag.count && ni < 3; i++) {
+        if (item_is_key_item((ItemId)g_bag.slots[i].id)) continue;
+        u8 row = (u8)(15 + ni);
+        text_draw_str(2, row, item_get_name((ItemId)g_bag.slots[i].id));
+        char qty[4] = "x";
+        u8 q = g_bag.slots[i].quantity, p = 1;
+        if (q >= 10) qty[p++] = (char)('0' + q / 10);
+        qty[p++] = (char)('0' + q % 10);
+        qty[p] = '\0';
+        text_draw_str(24, row, qty);
+        ni++;
+    }
+    text_draw_str(2, 18, "CANCEL");
+    text_draw_str(19, 18, "B:CANCEL");
+
+    u8 row = (s_battle_item_cursor < visible) ? (u8)(15 + s_battle_item_cursor) : 18;
+    text_draw_char(1, row, '>');
 }
 
 static void draw_move_menu(void) {
@@ -707,6 +809,11 @@ bool8 battle_is_blackout(void) {
 void battle_init(void) {
     battle_rng_seed(g_vblank_count);
     s_blackout = FALSE;
+    s_active_party_slot = 0;
+    s_force_switch = FALSE;
+    s_battle_party_cursor = 0;
+    s_after_msg_state = BS_PLAYER_MENU;
+    s_caught_pending = FALSE;
 
     s_battle.saved_dispcnt = REG_DISPCNT;
     s_battle.state = BS_INIT;
@@ -765,6 +872,9 @@ void battle_init(void) {
                         rival_dv, s_starter_moves[s_battle.enemy_species], 2);
     s_battle.player_mon.nickname = s_battle.player_nickname &&
         s_battle.player_nickname[0] ? s_battle.player_nickname : NULL;
+
+    pokedex_set_seen(s_battle.enemy_species);
+    pokedex_set_owned(s_battle.player_species);
 
     text_clear();
 
@@ -898,6 +1008,8 @@ void battle_update(void) {
                 clear_lower_ui();
                 draw_move_menu();
             } else if (s_battle.menu_cursor == 1) {
+                s_force_switch = FALSE;
+                s_battle_party_cursor = 0;
                 s_battle.state = BS_PARTY_MENU;
                 clear_lower_ui();
                 draw_party_menu();
@@ -924,33 +1036,175 @@ void battle_update(void) {
         break;
 
     case BS_PARTY_MENU:
-        if (input_pressed(KEY_B)) {
+        if (input_pressed(KEY_UP)) {
+            s_battle_party_cursor = s_battle_party_cursor
+                ? (u8)(s_battle_party_cursor - 1)
+                : (u8)(g_party.count - 1);
+            draw_party_menu();
+            audio_sfx_play(AUDIO_SFX_BATTLE_SELECT);
+        }
+        if (input_pressed(KEY_DOWN)) {
+            s_battle_party_cursor = (u8)((s_battle_party_cursor + 1) % g_party.count);
+            draw_party_menu();
+            audio_sfx_play(AUDIO_SFX_BATTLE_SELECT);
+        }
+        if (!s_force_switch && input_pressed(KEY_B)) {
             audio_sfx_play(AUDIO_SFX_CANCEL);
             clear_lower_ui();
             s_battle.state = BS_PLAYER_MENU;
             draw_action_menu();
             draw_turn_prompt();
-        } else if (input_pressed(KEY_A)) {
+        }
+        if (input_pressed(KEY_A)) {
             audio_sfx_play(AUDIO_SFX_BATTLE_CONFIRM);
-            clear_lower_ui();
-            battle_msg("No other POKeMON!");
-            s_battle.state = BS_ACTION_MSG_WAIT;
+            u8 sel = s_battle_party_cursor;
+            if (sel == s_active_party_slot) {
+                clear_lower_ui();
+                battle_msg("That POKeMON is\nalready out!");
+                s_after_msg_state = BS_PARTY_MENU;
+                s_battle.state = BS_ACTION_MSG_WAIT;
+            } else if (g_party.mons[sel].current_hp == 0) {
+                clear_lower_ui();
+                battle_msg("That POKeMON\nhas fainted!");
+                s_after_msg_state = BS_PARTY_MENU;
+                s_battle.state = BS_ACTION_MSG_WAIT;
+            } else {
+                battle_write_back_player_mon();
+                battle_load_player_mon(sel);
+                battle_sprite_load_back(s_battle.player_mon.species,
+                                        s_player_sprite_buf);
+                vu32 *obj_vram = (vu32 *)(MEM_VRAM + 0x10000);
+                for (u32 i = 0; i < BATTLE_SPRITE_WORDS; i++)
+                    obj_vram[i] = s_player_sprite_buf[i];
+                setup_palettes();
+                bool8 was_forced = s_force_switch;
+                s_force_switch = FALSE;
+                clear_lower_ui();
+                char *p = str_append(s_msg_buf, "Go! ");
+                const PartyPokemon *np = party_get_slot(sel);
+                const char *nm = (np && np->nickname[0])
+                    ? np->nickname : species_name(s_battle.player_mon.species);
+                p = str_append(p, nm);
+                p = str_append(p, "!");
+                *p = '\0';
+                battle_msg(s_msg_buf);
+                // Store whether this was a forced or voluntary switch so
+                // BS_SWITCH_IN knows what to do afterward.
+                s_battle.player_goes_first = was_forced ? FALSE : TRUE;
+                s_battle.state = BS_SWITCH_IN;
+            }
         }
         break;
 
-    case BS_ITEM_MENU:
+    case BS_ITEM_MENU: {
+        u8 visible = battle_usable_item_count();
+        u8 total = (u8)(visible + 1);
+        if (input_pressed(KEY_UP)) {
+            s_battle_item_cursor = s_battle_item_cursor == 0
+                ? (u8)(total - 1) : (u8)(s_battle_item_cursor - 1);
+            draw_item_menu();
+            audio_sfx_play(AUDIO_SFX_BATTLE_SELECT);
+        }
+        if (input_pressed(KEY_DOWN)) {
+            s_battle_item_cursor = s_battle_item_cursor >= (u8)(total - 1)
+                ? 0 : (u8)(s_battle_item_cursor + 1);
+            draw_item_menu();
+            audio_sfx_play(AUDIO_SFX_BATTLE_SELECT);
+        }
         if (input_pressed(KEY_B)) {
+            audio_sfx_play(AUDIO_SFX_CANCEL);
+            s_battle_item_cursor = 0;
             clear_lower_ui();
             s_battle.state = BS_PLAYER_MENU;
             draw_action_menu();
             draw_turn_prompt();
-        } else if (input_pressed(KEY_A)) {
+        }
+        if (input_pressed(KEY_A)) {
             audio_sfx_play(AUDIO_SFX_BATTLE_CONFIRM);
             clear_lower_ui();
-            battle_msg("No items!");
-            s_battle.state = BS_ACTION_MSG_WAIT;
+            if (s_battle_item_cursor >= visible || visible == 0) {
+                // CANCEL selected
+                s_battle_item_cursor = 0;
+                s_battle.state = BS_PLAYER_MENU;
+                draw_action_menu();
+                draw_turn_prompt();
+                break;
+            }
+            u8 ni = 0;
+            ItemId sel = ITEM_NONE;
+            for (u8 i = 0; i < g_bag.count; i++) {
+                if (item_is_key_item((ItemId)g_bag.slots[i].id)) continue;
+                if (ni == s_battle_item_cursor) { sel = (ItemId)g_bag.slots[i].id; break; }
+                ni++;
+            }
+            s_battle_item_cursor = 0;
+            if (sel == ITEM_POTION) {
+                BattlePokemon *pl = &s_battle.player_mon;
+                if (pl->current_hp >= pl->max_hp) {
+                    battle_msg("It won't have\nany effect.");
+                } else {
+                    bag_remove(ITEM_POTION, 1);
+                    u16 heal = 20;
+                    u16 new_hp = (u16)pl->current_hp + heal;
+                    pl->current_hp = new_hp > pl->max_hp ? pl->max_hp : (u16)new_hp;
+                    redraw_huds();
+                    char *p = s_msg_buf;
+                    p = str_append(p, mon_display_name(pl));
+                    p = str_append(p, "\nregained HP!");
+                    *p = '\0';
+                    battle_msg(s_msg_buf);
+                }
+                s_battle.state = BS_ACTION_MSG_WAIT;
+            } else if (sel == ITEM_POKE_BALL && s_battle.is_wild) {
+                bag_remove(ITEM_POKE_BALL, 1);
+                bool8 caught = ((u8)battle_random() < 128);
+                char *p = s_msg_buf;
+                if (caught) {
+                    pokedex_set_owned(s_battle.enemy_species);
+                    s_battle.ball_caught = TRUE;
+                    // Snapshot the enemy mon now; BS_END will add it to party.
+                    s_caught_mon.species = s_battle.enemy_species;
+                    s_caught_mon.level   = s_battle.enemy_mon.level;
+                    s_caught_mon.dv      = s_battle.enemy_mon.dv;
+                    s_caught_mon.max_hp  = s_battle.enemy_mon.max_hp;
+                    s_caught_mon.current_hp = s_battle.enemy_mon.current_hp;
+                    s_caught_mon.attack  = s_battle.enemy_mon.attack;
+                    s_caught_mon.defense = s_battle.enemy_mon.defense;
+                    s_caught_mon.speed   = s_battle.enemy_mon.speed;
+                    s_caught_mon.special = s_battle.enemy_mon.special;
+                    for (u8 ci = 0; ci < 4; ci++) {
+                        s_caught_mon.moves[ci] = s_battle.enemy_mon.moves[ci];
+                        s_caught_mon.pp[ci]    = s_battle.enemy_mon.pp[ci];
+                    }
+                    s_caught_mon.status = s_battle.enemy_mon.status;
+                    s_caught_mon.experience =
+                        pokemon_exp_for_level(s_battle.enemy_species,
+                                              s_battle.enemy_mon.level);
+                    // Use species name as default nickname.
+                    const char *sp = species_name(s_battle.enemy_species);
+                    u8 ni = 0;
+                    while (ni < PARTY_NICKNAME_LENGTH - 1 && sp[ni]) {
+                        s_caught_mon.nickname[ni] = sp[ni]; ni++;
+                    }
+                    s_caught_mon.nickname[ni] = '\0';
+                    s_caught_pending = TRUE;
+                    p = str_append(p, "Gotcha!\n");
+                    p = str_append(p, species_name(s_battle.enemy_species));
+                    p = str_append(p, " was\ncaught!");
+                } else {
+                    p = str_append(p, species_name(s_battle.enemy_species));
+                    p = str_append(p, "\nbroke free!");
+                }
+                *p = '\0';
+                battle_msg(s_msg_buf);
+                s_battle.state = BS_ACTION_MSG_WAIT;
+            } else {
+                battle_msg("Can't use\nthat here!");
+                s_battle.state = BS_ACTION_MSG_WAIT;
+            }
         }
         break;
+    }
 
     case BS_ACTION_MSG_WAIT:
         if (dialog_update()) {
@@ -958,10 +1212,19 @@ void battle_update(void) {
             if (s_battle.run_ends_battle) {
                 s_battle.run_ends_battle = FALSE;
                 s_battle.state = BS_END;
+            } else if (s_battle.ball_caught) {
+                s_battle.ball_caught = FALSE;
+                s_battle.state = BS_END;
             } else {
-                s_battle.state = BS_PLAYER_MENU;
-                draw_action_menu();
-                draw_turn_prompt();
+                BattleState next = s_after_msg_state;
+                s_after_msg_state = BS_PLAYER_MENU;
+                s_battle.state = next;
+                if (next == BS_PARTY_MENU) {
+                    draw_party_menu();
+                } else {
+                    draw_action_menu();
+                    draw_turn_prompt();
+                }
             }
         }
         break;
@@ -1157,6 +1420,8 @@ void battle_update(void) {
             battle_msg(s_msg_buf);
             s_battle.state = BS_FAINT_MSG;
         } else if (s_battle.player_mon.current_hp == 0) {
+            // Write fainted mon back to party so party_has_usable_mon is accurate.
+            battle_write_back_player_mon();
             clear_lower_ui();
             char *p = str_append(s_msg_buf, mon_display_name(&s_battle.player_mon));
             p = str_append(p, "\nfainted!");
@@ -1224,14 +1489,41 @@ void battle_update(void) {
 
     case BS_VICTORY:
         if (dialog_update()) {
+            if (!s_battle.is_wild) {
+                u32 prize = (u32)35 * s_battle.enemy_mon.level;
+                game_add_money(prize);
+                clear_lower_ui();
+                char *p = str_append(s_msg_buf, "[NAME] got $");
+                p = str_append_num(p, (u16)prize);
+                p = str_append(p, "\nfor winning!");
+                *p = '\0';
+                battle_msg(s_msg_buf);
+                s_battle.state = BS_MONEY;
+            } else {
+                s_battle.state = BS_EXP;
+                const PokemonBaseStats *ebase0 = &g_pokemon_base_stats[s_battle.enemy_species];
+                u32 exp0 = (u32)ebase0->base_exp * s_battle.enemy_mon.level / 7;
+                s_battle.exp_gained = (u16)(exp0 ? exp0 : 1);
+                s_battle.player_experience += s_battle.exp_gained;
+                clear_lower_ui();
+                char *p = str_append(s_msg_buf, mon_display_name(&s_battle.player_mon));
+                p = str_append(p, " gained\n");
+                p = str_append_num(p, s_battle.exp_gained);
+                p = str_append(p, " EXP. Points!");
+                *p = '\0';
+                battle_msg(s_msg_buf);
+            }
+        }
+        break;
+
+    case BS_MONEY:
+        if (dialog_update()) {
             s_battle.state = BS_EXP;
             const PokemonBaseStats *ebase = &g_pokemon_base_stats[s_battle.enemy_species];
             u32 exp = (u32)ebase->base_exp * s_battle.enemy_mon.level / 7;
-            if (!s_battle.is_wild) exp = exp * 3 / 2;
-            s_battle.exp_gained = (u16)exp;
-            if (s_battle.exp_gained == 0) s_battle.exp_gained = 1;
+            exp = exp * 3 / 2;
+            s_battle.exp_gained = (u16)(exp ? exp : 1);
             s_battle.player_experience += s_battle.exp_gained;
-
             clear_lower_ui();
             char *p = str_append(s_msg_buf, mon_display_name(&s_battle.player_mon));
             p = str_append(p, " gained\n");
@@ -1281,8 +1573,23 @@ void battle_update(void) {
     case BS_DEFEAT:
         if (dialog_update()) {
             clear_lower_ui();
-            battle_msg("[NAME] is out of\nusable POKeMON!\f[NAME] blacked out!");
-            s_battle.state = BS_DEFEAT_WAIT;
+            if (party_has_usable_mon(s_active_party_slot)) {
+                // Player still has usable mons — force a switch.
+                s_force_switch = TRUE;
+                s_battle_party_cursor = 0;
+                for (u8 i = 0; i < g_party.count; i++) {
+                    if (i != s_active_party_slot &&
+                        g_party.mons[i].current_hp > 0) {
+                        s_battle_party_cursor = i;
+                        break;
+                    }
+                }
+                draw_party_menu();
+                s_battle.state = BS_PARTY_MENU;
+            } else {
+                battle_msg("[NAME] is out of\nusable POKeMON!\f[NAME] blacked out!");
+                s_battle.state = BS_DEFEAT_WAIT;
+            }
         }
         break;
 
@@ -1290,6 +1597,51 @@ void battle_update(void) {
         if (dialog_update()) {
             s_blackout = TRUE;
             s_battle.state = BS_END;
+        }
+        break;
+
+    case BS_SWITCH_IN:
+        if (dialog_update()) {
+            redraw_huds();
+            // player_goes_first is repurposed here: FALSE = forced faint switch
+            // (go straight to next turn), TRUE = voluntary switch (enemy attacks).
+            if (s_battle.player_goes_first) {
+                // Voluntary switch: enemy gets to attack.
+                s_battle.enemy_move = battle_ai_choose_move(&s_battle.enemy_mon);
+                s_battle.player_goes_first = FALSE; // enemy goes first this turn
+                s_battle.turn_phase = 0;
+                s_battle.state = BS_EXECUTE_MOVE;
+                clear_lower_ui();
+                const MoveData *md = &g_move_data[s_battle.enemy_move];
+                char *p = str_append(s_msg_buf, "FOE's ");
+                p = str_append(p, mon_display_name(&s_battle.enemy_mon));
+                p = str_append(p, "\nused ");
+                p = str_append(p, md->name);
+                p = str_append(p, "!");
+                *p = '\0';
+                s_battle.last_hit = battle_check_hit(&s_battle.enemy_mon,
+                                                      &s_battle.player_mon,
+                                                      s_battle.enemy_move);
+                if (s_battle.last_hit && md->power > 0) {
+                    s_battle.crit_flag = battle_check_critical(
+                        &s_battle.enemy_mon, s_battle.enemy_move);
+                    s_battle.last_damage = battle_calc_damage(
+                        &s_battle.enemy_mon, &s_battle.player_mon,
+                        s_battle.enemy_move, s_battle.crit_flag);
+                    const PokemonBaseStats *def_base =
+                        &g_pokemon_base_stats[s_battle.player_mon.species];
+                    s_battle.last_effectiveness = type_effectiveness(
+                        md->type, def_base->type1, def_base->type2);
+                } else {
+                    s_battle.crit_flag = FALSE;
+                    s_battle.last_damage = 0;
+                    s_battle.last_effectiveness = TYPE_MUL_NEUTRAL;
+                }
+                battle_msg(s_msg_buf);
+            } else {
+                // Forced switch after faint — new turn, enemy doesn't get free hit.
+                s_battle.state = BS_TURN_START;
+            }
         }
         break;
 
@@ -1311,8 +1663,9 @@ void battle_update(void) {
             restored.defense = s_battle.player_mon.defense;
             restored.speed = s_battle.player_mon.speed;
             restored.special = s_battle.player_mon.special;
-            party_update_active(&restored);
+            party_update_slot(s_active_party_slot, &restored);
         } else {
+            // Write back the currently active battler to its party slot.
             PartyPokemon updated = {0};
             updated.species = s_battle.player_mon.species;
             updated.level = s_battle.player_mon.level;
@@ -1329,12 +1682,16 @@ void battle_update(void) {
             }
             updated.status = s_battle.player_mon.status;
             updated.experience = s_battle.player_experience;
-            PartyPokemon *old = party_get_active();
-            if (old) {
+            const PartyPokemon *old = party_get_slot(s_active_party_slot);
+            if (old)
                 for (u8 i = 0; i < PARTY_NICKNAME_LENGTH; i++)
                     updated.nickname[i] = old->nickname[i];
-            }
-            party_update_active(&updated);
+            party_update_slot(s_active_party_slot, &updated);
+        }
+        // Add caught Pokémon to party (or notify party full).
+        if (s_caught_pending) {
+            s_caught_pending = FALSE;
+            party_add(&s_caught_mon);
         }
         if (s_blackout && party_all_fainted() && !scripted_rival_battle) {
             const MapHeader *recovery_map = map_get_by_id(g_last_healing_point.map_id);

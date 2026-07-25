@@ -241,7 +241,10 @@ static void draw_list(void) {
     party_fill();
     party_box(0, 13, 29, 19);
     text_draw_str(2, 15, "CHOOSE A POKEMON.");
-    text_draw_str(2, 18, "A:STATUS   B:BACK");
+    if (s_cursor == 0)
+        text_draw_str(2, 18, "A:STATUS   B:BACK");
+    else
+        text_draw_str(2, 18, "A:MOVE FRONT B:BACK");
 
     if (!g_party.count) {
         text_draw_str(2, 1, "NO POKEMON");
@@ -358,8 +361,15 @@ bool8 party_menu_update(void) {
         }
         if (input_pressed(KEY_A)) {
             audio_sfx_play(AUDIO_SFX_CONFIRM);
-            s_mode = PARTY_MENU_STATUS;
-            draw_status();
+            if (s_cursor == 0) {
+                s_mode = PARTY_MENU_STATUS;
+                draw_status();
+            } else {
+                // Move selected mon to slot 0 (front of party).
+                party_swap_slots(0, s_cursor);
+                s_cursor = 0;
+                draw_list();
+            }
         }
     }
     return FALSE;

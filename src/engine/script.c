@@ -9,6 +9,8 @@
 #include "game.h"
 #include "audio.h"
 #include "party.h"
+#include "item.h"
+#include "text.h"
 
 // ─── Global script state ────────────────────────────────────────────────────
 
@@ -70,6 +72,215 @@ static const char *const s_npc_texts[] = {
 
 static u8 s_viridian_mart_state = 0;
 static bool8 s_oak_pokedex_pending = FALSE;
+
+// ─── Shop system ────────────────────────────────────────────────────────────
+
+typedef enum {
+    SHOP_IDLE = 0,
+    SHOP_WELCOME,
+    SHOP_MENU,
+    SHOP_BUY_SELECT,
+    SHOP_BUY_CONFIRM,
+    SHOP_BUY_DONE,
+    SHOP_GOODBYE,
+} ShopState;
+
+static ShopState s_shop_state = SHOP_IDLE;
+static u8 s_shop_cursor = 0;
+
+typedef struct {
+    ItemId id;
+    u16 price;
+} ShopItem;
+
+static const ShopItem s_viridian_shop[] = {
+    { ITEM_POKE_BALL,   200 },
+    { ITEM_ANTIDOTE,    100 },
+    { ITEM_PARLYZ_HEAL, 200 },
+    { ITEM_BURN_HEAL,   250 },
+};
+#define VIRIDIAN_SHOP_COUNT 4
+
+static void shop_draw_box(u8 left, u8 top, u8 right, u8 bottom) {
+    for (u8 y = top; y <= bottom; y++) {
+        for (u8 x = left; x <= right; x++) {
+            u8 tile = BOX_FILL;
+            if (x == left && y == top) tile = BOX_TL;
+            else if (x == right && y == top) tile = BOX_TR;
+            else if (x == left && y == bottom) tile = BOX_BL;
+            else if (x == right && y == bottom) tile = BOX_BR;
+            else if (y == top) tile = BOX_TE;
+            else if (y == bottom) tile = BOX_BE;
+            else if (x == left) tile = BOX_LE;
+            else if (x == right) tile = BOX_RE;
+            text_draw_tile(x, y, tile);
+        }
+    }
+}
+
+static void shop_draw_money(void) {
+    shop_draw_box(0, 0, 10, 2);
+    char buf[12] = "$";
+    u32 m = g_player_money;
+    char *p = buf + 1;
+    if (m >= 100000) *p++ = (char)('0' + m / 100000 % 10);
+    if (m >= 10000) *p++ = (char)('0' + m / 10000 % 10);
+    if (m >= 1000) *p++ = (char)('0' + m / 1000 % 10);
+    if (m >= 100) *p++ = (char)('0' + m / 100 % 10);
+    if (m >= 10) *p++ = (char)('0' + m / 10 % 10);
+    *p++ = (char)('0' + m % 10);
+    *p = '\0';
+    text_draw_str(1, 1, buf);
+}
+
+static void shop_draw_menu(void) {
+    text_clear();
+    shop_draw_money();
+    shop_draw_box(14, 0, 29, 4);
+    text_draw_str(16, 1, "BUY");
+    text_draw_str(16, 3, "SEE YA!");
+    text_draw_char(15, (u8)(1 + s_shop_cursor * 2), '>');
+}
+
+static void shop_draw_items(void) {
+    text_clear();
+    shop_draw_money();
+    shop_draw_box(0, 3, 29, 19);
+    for (u8 i = 0; i < VIRIDIAN_SHOP_COUNT; i++) {
+        u8 row = (u8)(5 + i * 2);
+        text_draw_str(3, row, item_get_name(s_viridian_shop[i].id));
+        char price[8] = "$";
+        char *p = price + 1;
+        u16 pr = s_viridian_shop[i].price;
+        if (pr >= 1000) *p++ = (char)('0' + pr / 1000 % 10);
+        if (pr >= 100) *p++ = (char)('0' + pr / 100 % 10);
+        if (pr >= 10) *p++ = (char)('0' + pr / 10 % 10);
+        *p++ = (char)('0' + pr % 10);
+        *p = '\0';
+        text_draw_str(20, row, price);
+    }
+    u8 cancel_row = (u8)(5 + VIRIDIAN_SHOP_COUNT * 2);
+    text_draw_str(3, cancel_row, "CANCEL");
+
+    u8 cursor_row;
+    if (s_shop_cursor < VIRIDIAN_SHOP_COUNT)
+        cursor_row = (u8)(5 + s_shop_cursor * 2);
+    else
+        cursor_row = cancel_row;
+    text_draw_char(1, cursor_row, '>');
+}
+
+static void shop_update(void) {
+    switch (s_shop_state) {
+    case SHOP_IDLE:
+        break;
+
+    case SHOP_WELCOME:
+        if (dialog_update()) {
+            s_shop_cursor = 0;
+            shop_draw_menu();
+            s_shop_state = SHOP_MENU;
+        }
+        break;
+
+    case SHOP_MENU:
+        if (input_pressed(KEY_UP)) {
+            s_shop_cursor = s_shop_cursor == 0 ? 1 : 0;
+            shop_draw_menu();
+            audio_sfx_play(AUDIO_SFX_SELECT);
+        } else if (input_pressed(KEY_DOWN)) {
+            s_shop_cursor = s_shop_cursor >= 1 ? 0 : 1;
+            shop_draw_menu();
+            audio_sfx_play(AUDIO_SFX_SELECT);
+        } else if (input_pressed(KEY_A)) {
+            audio_sfx_play(AUDIO_SFX_CONFIRM);
+            if (s_shop_cursor == 0) {
+                s_shop_cursor = 0;
+                shop_draw_items();
+                s_shop_state = SHOP_BUY_SELECT;
+            } else {
+                dialog_open();
+                dialog_set_text("Thank you!\nCome again!");
+                s_shop_state = SHOP_GOODBYE;
+            }
+        } else if (input_pressed(KEY_B)) {
+            audio_sfx_play(AUDIO_SFX_PAUSE_CLOSE);
+            dialog_open();
+            dialog_set_text("Thank you!\nCome again!");
+            s_shop_state = SHOP_GOODBYE;
+        }
+        break;
+
+    case SHOP_BUY_SELECT: {
+        u8 total = (u8)(VIRIDIAN_SHOP_COUNT + 1);
+        if (input_pressed(KEY_UP)) {
+            s_shop_cursor = s_shop_cursor == 0 ? (u8)(total - 1) : (u8)(s_shop_cursor - 1);
+            shop_draw_items();
+            audio_sfx_play(AUDIO_SFX_SELECT);
+        } else if (input_pressed(KEY_DOWN)) {
+            s_shop_cursor = s_shop_cursor >= (u8)(total - 1) ? 0 : (u8)(s_shop_cursor + 1);
+            shop_draw_items();
+            audio_sfx_play(AUDIO_SFX_SELECT);
+        } else if (input_pressed(KEY_A)) {
+            audio_sfx_play(AUDIO_SFX_CONFIRM);
+            if (s_shop_cursor >= VIRIDIAN_SHOP_COUNT) {
+                s_shop_cursor = 0;
+                shop_draw_menu();
+                s_shop_state = SHOP_MENU;
+            } else {
+                u16 price = s_viridian_shop[s_shop_cursor].price;
+                ItemId id = s_viridian_shop[s_shop_cursor].id;
+                if (g_player_money < price) {
+                    dialog_open();
+                    dialog_set_text("You don't have\nenough money.");
+                    s_shop_state = SHOP_BUY_DONE;
+                } else if (!bag_add(id, 1)) {
+                    dialog_open();
+                    dialog_set_text("You can't carry\nany more items.");
+                    s_shop_state = SHOP_BUY_DONE;
+                } else {
+                    game_subtract_money(price);
+                    dialog_open();
+                    static char buy_msg[48];
+                    char *p = buy_msg;
+                    p[0]='H';p[1]='e';p[2]='r';p[3]='e';p[4]=' ';
+                    p[5]='y';p[6]='o';p[7]='u';p[8]=' ';p[9]='a';
+                    p[10]='r';p[11]='e';p[12]='!';p[13]='\0';
+                    dialog_set_text(buy_msg);
+                    s_shop_state = SHOP_BUY_DONE;
+                }
+            }
+        } else if (input_pressed(KEY_B)) {
+            audio_sfx_play(AUDIO_SFX_PAUSE_CLOSE);
+            s_shop_cursor = 0;
+            shop_draw_menu();
+            s_shop_state = SHOP_MENU;
+        }
+        break;
+    }
+
+    case SHOP_BUY_DONE:
+        if (dialog_update()) {
+            s_shop_cursor = 0;
+            shop_draw_items();
+            s_shop_state = SHOP_BUY_SELECT;
+        }
+        break;
+
+    case SHOP_GOODBYE:
+        if (dialog_update()) {
+            s_shop_state = SHOP_IDLE;
+            s_blocks_input = FALSE;
+            s_active_script_id = 0;
+            text_clear();
+        }
+        break;
+    }
+}
+
+bool8 script_shop_active(void) {
+    return s_shop_state != SHOP_IDLE;
+}
 
 bool8 script_viridian_old_man_blocks(s32 x, s32 y) {
     if (!g_world.map || g_world.map->map_id != MAP_VIRIDIAN_CITY ||
@@ -148,6 +359,17 @@ void script_viridian_mart(void) {
 void script_trigger_npc(u16 script_id, u8 npc_index) {
     if (s_blocks_input) return;
     if (dialog_is_open()) return;
+
+    if (script_id == 22 && flags_get(FLAG_GOT_POKEDEX) &&
+        g_world.map && g_world.map->map_id == MAP_VIRIDIAN_MART) {
+        s_active_script_id = script_id;
+        s_active_npc_index = npc_index;
+        s_blocks_input = TRUE;
+        dialog_open();
+        dialog_set_text("How may I help you?");
+        s_shop_state = SHOP_WELCOME;
+        return;
+    }
 
     // Viridian's nurse uses pokered's DisplayPokemonCenterDialogue_ flow.
     // The reference sets the blackout/respawn point only after the player
@@ -365,6 +587,10 @@ static bool8 npc_script_tick(void) {
 }
 
 void script_update(void) {
+    if (s_shop_state != SHOP_IDLE) {
+        shop_update();
+        return;
+    }
     // Map-owned cutscenes use ids >= ACTIVE_MAP_SCRIPT and are advanced by
     // their map script. Generic NPC dialogs must be serviced globally so
     // indoor maps without a map script work the same way as Pallet Town.
@@ -647,12 +873,15 @@ typedef enum {
     OAKSLAB_POST_BATTLE_WAIT, // pause before Rival's exit line
     OAKSLAB_POST_BATTLE_TEXT, // Rival delivers his complete exit dialogue
     OAKSLAB_POST_BATTLE_EXIT, // Rival walks out of the lab
+    OAKSLAB_POKEDEX_GRAMPS,       // "Gramps!" text before rival walks in
+    OAKSLAB_POKEDEX_RIVAL_WALKIN, // Rival walks UP from lab entrance to Oak
     OAKSLAB_POKEDEX_RIVAL,
     OAKSLAB_POKEDEX_REQUEST,
     OAKSLAB_POKEDEX_INVENTION,
     OAKSLAB_POKEDEX_GOT,
     OAKSLAB_POKEDEX_DREAM,
     OAKSLAB_POKEDEX_RIVAL_LEAVE,
+    OAKSLAB_POKEDEX_RIVAL_EXIT,   // Rival walks out of lab after Pokedex scene
     OAKSLAB_DONE,
 } OaksLabScriptState;
 
@@ -780,6 +1009,8 @@ void script_reset_runtime(void) {
     s_oakslab_battle_row_armed = FALSE;
     s_oakslab_post_battle_step = 0;
     s_oakslab_post_battle_started = FALSE;
+    s_shop_state = SHOP_IDLE;
+    s_shop_cursor = 0;
 }
 
 static void oaks_lab_start_rival_choice(void) {
@@ -864,11 +1095,9 @@ void script_oaks_lab(void) {
         s_oak_pokedex_pending = FALSE;
         s_blocks_input = TRUE;
         s_active_script_id = ACTIVE_MAP_SCRIPT;
-        g_world.npcs[0].facing = DIR_UP;
-        g_world.npcs[1].facing = DIR_DOWN;
         dialog_open();
-        dialog_set_text("RIVAL: What did\nyou call me for?");
-        s_oakslab_state = OAKSLAB_POKEDEX_RIVAL;
+        dialog_set_text("[RIVAL]: Gramps!");
+        s_oakslab_state = OAKSLAB_POKEDEX_GRAMPS;
     }
 
     // NPC dialog ticking. Poké Ball ids 10-12 belong to the starter state
@@ -993,6 +1222,35 @@ void script_oaks_lab(void) {
         }
         break;
 
+    case OAKSLAB_POKEDEX_GRAMPS:
+        if (dialog_update()) {
+            NpcState *rival = &g_world.npcs[0];
+            rival->flags &= (u8)~NPCF_HIDDEN;
+            rival->x = 5;
+            rival->y = 11;
+            rival->px = 5 * 16;
+            rival->py = 11 * 16;
+            rival->facing = DIR_UP;
+            rival->walking = FALSE;
+            s_oakslab_post_battle_step = 0;
+            s_oakslab_state = OAKSLAB_POKEDEX_RIVAL_WALKIN;
+        }
+        break;
+
+    case OAKSLAB_POKEDEX_RIVAL_WALKIN:
+        if (world_npc_is_moving(0)) break;
+        if (s_oakslab_post_battle_step < 7) {
+            world_npc_start_step(0, DIR_UP);
+            s_oakslab_post_battle_step++;
+            break;
+        }
+        g_world.npcs[0].facing = DIR_UP;
+        g_world.npcs[1].facing = DIR_DOWN;
+        dialog_open();
+        dialog_set_text("[RIVAL]: What did\nyou call me for?");
+        s_oakslab_state = OAKSLAB_POKEDEX_RIVAL;
+        break;
+
     case OAKSLAB_POKEDEX_RIVAL:
         if (dialog_update()) {
             dialog_open();
@@ -1027,24 +1285,37 @@ void script_oaks_lab(void) {
 
     case OAKSLAB_POKEDEX_DREAM:
         if (dialog_update()) {
+            g_world.npcs[0].facing = DIR_RIGHT;
             dialog_open();
-            dialog_set_text("RIVAL: Alright\nGramps! Leave it\nall to me!");
+            dialog_set_text("[RIVAL]: Alright\nGramps! Leave it\nall to me!\f[NAME], I hate to\nsay it, but I\ndon't need you!\fI know! I'll\nborrow a TOWN MAP\nfrom my sis!\fI'll tell her not\nto lend you one,\n[NAME]! Hahaha!");
             s_oakslab_state = OAKSLAB_POKEDEX_RIVAL_LEAVE;
         }
         break;
 
     case OAKSLAB_POKEDEX_RIVAL_LEAVE:
         if (dialog_update()) {
-            // pokered commits EVENT_GOT_POKEDEX only after Oak's final
-            // request and Rival's response, so the Viridian gate remains
-            // closed until the entire handoff is complete.
             flags_set(FLAG_GOT_POKEDEX);
-            s_active_script_id = 0;
-            s_blocks_input = FALSE;
-            g_world.player.move_state = MOVE_STATE_IDLE;
-            s_oakslab_state = OAKSLAB_DONE;
+            s_oakslab_post_battle_step = 0;
+            s_oakslab_state = OAKSLAB_POKEDEX_RIVAL_EXIT;
         }
         break;
+
+    case OAKSLAB_POKEDEX_RIVAL_EXIT: {
+        NpcState *rival = &g_world.npcs[0];
+        if (world_npc_is_moving(0)) break;
+        if (s_oakslab_post_battle_step < 7) {
+            world_npc_start_step(0, DIR_DOWN);
+            s_oakslab_post_battle_step++;
+            break;
+        }
+        rival->flags |= NPCF_HIDDEN;
+        rival->walking = FALSE;
+        s_active_script_id = 0;
+        s_blocks_input = FALSE;
+        g_world.player.move_state = MOVE_STATE_IDLE;
+        s_oakslab_state = OAKSLAB_DONE;
+        break;
+    }
 
     case OAKSLAB_POKEDEX_WAIT:
         if (pokedex_update()) {

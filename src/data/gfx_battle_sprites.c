@@ -552,6 +552,8 @@ static const u32 *back_sprite(PokemonId species) {
     switch (species) {
     case MON_CHARMANDER: return g_battle_charmander_back;
     case MON_SQUIRTLE: return g_battle_squirtle_back;
+    case MON_PIDGEY:   return g_battle_pidgey_front;
+    case MON_RATTATA:  return g_battle_rattata_front;
     default: return g_battle_bulbasaur_back;
     }
 }

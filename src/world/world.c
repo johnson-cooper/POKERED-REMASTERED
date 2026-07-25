@@ -97,9 +97,9 @@ void world_init(const MapHeader *map, u8 start_x, u8 start_y) {
     }
 
     tilemap_init();
+    camera_update();
     tilemap_rebuild();
     tilemap_load_player_sprite();
-    camera_update();
     tilemap_update_scroll();
 
     // Clear the UI layer (BG0) when loading a new map

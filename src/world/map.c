@@ -137,7 +137,7 @@ bool8 map_is_subtile_passable(s32 x, s32 y) {
         (mtid == 0x02 || mtid == 0x03 || mtid == 0x0C ||
          mtid == 0x0D || mtid == 0x0E || mtid == 0x11 ||
          mtid == 0x12 || mtid == 0x20 || mtid == 0x21 ||
-         mtid == 0x6C || mtid == 0x72 || mtid == 0x73 ||
+         mtid == 0x72 || mtid == 0x73 ||
          mtid == 0x7C || mtid == 0x7D || mtid == 0x7E ||
          mtid == 0x7F))
         return FALSE;
@@ -195,6 +195,14 @@ bool8 map_is_subtile_passable(s32 x, s32 y) {
     // overlay variants are solid; other top-layer decorations remain normal.
     if (mtid == MT_GRASS_STEP)
         return TRUE;
+
+    // Viridian perimeter border blocks are solid. On other maps these same
+    // metatile IDs may be reused for walkable terrain (e.g. 0x0B = grass on Route 1).
+    if (g_world.map->map_id == MAP_VIRIDIAN_CITY &&
+        (mtid == MT_BORDER_L  || mtid == MT_BORDER_R  ||
+         mtid == MT_BORDER_TL || mtid == MT_BORDER_TR ||
+         mtid == MT_BORDER_BL))
+        return FALSE;
 
     return (overworld_tile_is_passable(mt->bottom[left]) ||
             overworld_tile_is_flower(mt->bottom[left], mtid)) &&

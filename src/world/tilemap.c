@@ -406,6 +406,9 @@ void tilemap_init(void) {
                   DCNT_BG1 | DCNT_BG2 | DCNT_OBJ;
 }
 
+static s32 s_last_cam_tx = -9999;
+static s32 s_last_cam_ty = -9999;
+
 void tilemap_rebuild(void) {
     const MapLayout *layout = g_world.map->layout;
     if (!layout)
@@ -421,14 +424,28 @@ void tilemap_rebuild(void) {
     if (g_world.map)
         tilemap_apply_roof_palette(g_world.map->roof_palette);
 
-    for (s32 y = 0; y < layout->height; y++) {
-        for (s32 x = 0; x < layout->width; x++)
+    // The 2×2 screenblock grid is 64×64 tiles (512×512 px).  Writing map
+    // blocks outside the current camera window wraps sbb_set() back and
+    // corrupts the visible area.  Fill only the viewport-sized window centred
+    // on the initial camera block; the incremental scroll updater streams new
+    // columns/rows in as the camera moves.
+    //
+    // camera_update() is called before tilemap_rebuild() in world_init(), so
+    // g_world.camera already holds the correct initial position.
+    s32 cam_bx = g_world.camera.x / 32;
+    s32 cam_by = g_world.camera.y / 32;
+
+    // Screen is 8 blocks wide × 5 blocks tall; write 11×8 with margin.
+    for (s32 y = cam_by - 1; y <= cam_by + 6; y++) {
+        for (s32 x = cam_bx - 1; x <= cam_bx + 9; x++)
             write_metatile(x, y);
     }
-}
 
-static s32 s_last_cam_tx = -9999;
-static s32 s_last_cam_ty = -9999;
+    // Seed the scroll cache at the current position so the first
+    // tilemap_update_scroll() only writes the leading edges.
+    s_last_cam_tx = cam_bx;
+    s_last_cam_ty = cam_by;
+}
 
 void tilemap_update_scroll(void) {
     Camera *cam = &g_world.camera;

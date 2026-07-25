@@ -179,6 +179,21 @@ static bool8 player_check_npc_interact(void) {
         }
     }
 
+    // Viridian Mart clerk is behind the left counter at (0,5). The player
+    // stands at x=2 facing LEFT (counter-side interaction, matching pokered's
+    // counter NPC mechanic where the player talks across an impassable tile).
+    if (map->map_id == MAP_VIRIDIAN_MART &&
+        p->tile_x == 2 && p->facing == DIR_LEFT) {
+        for (u8 i = 0; i < g_world.npc_count; i++) {
+            const NpcState *npc = &g_world.npcs[i];
+            if (!(npc->flags & NPCF_HIDDEN) && npc->script_id == 22 &&
+                (s16)npc->y == (s16)p->tile_y) {
+                script_trigger_npc(npc->script_id, i);
+                return TRUE;
+            }
+        }
+    }
+
     return FALSE;
 }
 

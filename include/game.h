@@ -18,12 +18,17 @@ typedef struct {
 } GameContext;
 
 extern GameContext g_game;
+extern u32 g_player_money;
+
+#define STARTING_MONEY 3000
 
 void game_init(void);
 void game_update(void);
 void game_change_state(GameState new_state);
 const char *game_get_player_name(void);
 const char *game_get_rival_name(void);
+void game_add_money(u32 amount);
+void game_subtract_money(u32 amount);
 
 // Pokémon nickname screen used by starter selection.
 void game_nickname_open(const char *default_name);
