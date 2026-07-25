@@ -463,6 +463,51 @@ static bool8 s_oakslab_battle_row_armed = FALSE;
 static u8 s_oakslab_post_battle_step = 0;
 static bool8 s_oakslab_post_battle_started = FALSE;
 
+static void oaks_lab_resume_after_starter_save(void) {
+    PartyPokemon *starter = party_get_active();
+
+    // Script runtime is rebuilt after loading a save. Persistent flags tell
+    // us that the starter sequence reached its handoff to the rival, so
+    // reconstruct the fields that would normally be populated in memory.
+    if (flags_get(FLAG_STARTER_CHARMANDER)) {
+        s_chosen_ball = 10;
+        s_rival_target_npc = 4;
+    } else if (flags_get(FLAG_STARTER_SQUIRTLE)) {
+        s_chosen_ball = 11;
+        s_rival_target_npc = 3;
+    } else {
+        s_chosen_ball = 12;
+        s_rival_target_npc = 2;
+    }
+
+    if (starter) {
+        for (u8 i = 0; i < sizeof(s_starter_nickname) - 1; i++) {
+            s_starter_nickname[i] = starter->nickname[i];
+            if (!starter->nickname[i]) break;
+        }
+        s_starter_nickname[sizeof(s_starter_nickname) - 1] = '\0';
+    }
+
+    // The selected starter and the rival's selected ball were already taken
+    // before the save became available. Restore the rival's staging position,
+    // then make the player re-enter the battle row instead of starting the
+    // fight merely because the map was reloaded.
+    g_world.npcs[1].flags &= (u8)~NPCF_HIDDEN;
+    g_world.npcs[5].flags |= NPCF_HIDDEN;
+    g_world.npcs[s_chosen_ball - 8].flags |= NPCF_HIDDEN;
+    g_world.npcs[s_rival_target_npc].flags |= NPCF_HIDDEN;
+    g_world.npcs[0].x = g_world.npcs[s_rival_target_npc].x;
+    g_world.npcs[0].y = (u8)(g_world.npcs[s_rival_target_npc].y + 1);
+    g_world.npcs[0].px = (s16)g_world.npcs[0].x * 16;
+    g_world.npcs[0].py = (s16)g_world.npcs[0].y * 16;
+    g_world.npcs[0].walking = FALSE;
+    g_world.npcs[0].facing = DIR_UP;
+    s_oakslab_battle_row_armed = FALSE;
+    s_blocks_input = FALSE;
+    s_active_script_id = 0;
+    s_oakslab_state = OAKSLAB_WAIT_BATTLE_TRIGGER;
+}
+
 bool8 script_oaks_lab_blocks_exit(u8 dir) {
     if (!g_world.map || g_world.map->map_id != MAP_OAKS_LAB)
         return FALSE;
@@ -610,6 +655,11 @@ void script_oaks_lab(void) {
     case OAKSLAB_IDLE:
         if (!flags_get(FLAG_FOLLOWED_OAK_INTO_LAB)) break;
         if (flags_get(FLAG_OAK_ASKED_TO_CHOOSE_MON)) {
+            if (flags_get(FLAG_GOT_STARTER) &&
+                !flags_get(FLAG_BATTLED_RIVAL_IN_OAKS_LAB)) {
+                oaks_lab_resume_after_starter_save();
+                break;
+            }
             // Re-entry after first time: Oak2 already walked in, fix NPC visibility
             g_world.npcs[5].flags |= NPCF_HIDDEN;
             g_world.npcs[1].flags &= (u8)~NPCF_HIDDEN;
