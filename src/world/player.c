@@ -253,6 +253,19 @@ bool8 player_script_start_step(Direction dir) {
         return FALSE;
     }
 
+    // Pokered's Viridian Old Man is a map-script gate, not merely a solid
+    // NPC. Trying to step onto his tile displays the private-property text
+    // and leaves the player on the approach tile until the Pokédex flag is
+    // earned.
+    if (script_viridian_old_man_blocks(nx, ny)) {
+        script_trigger_npc(19, 4);
+        p->move_state = MOVE_STATE_TURNING;
+        p->step_frame = 4;
+        p->step_dx = 0;
+        p->step_dy = 0;
+        return FALSE;
+    }
+
     if (player_tile_occupied_by_npc(nx, ny)) {
         p->move_state = MOVE_STATE_TURNING;
         p->step_frame = 4;

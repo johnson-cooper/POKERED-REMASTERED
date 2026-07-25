@@ -2,6 +2,7 @@
 #include "gba.h"
 #include "map_ids.h"
 #include "metatile_ids.h"
+#include "gfx_overworld.h"
 
 WorldContext g_world;
 
@@ -38,6 +39,13 @@ static bool8 overworld_tile_is_flower(u16 tile_id, u16 metatile_id) {
            (metatile_id == MT_ROAD_H && tile_id == 0x03);
 }
 
+static bool8 overworld_tile_is_fence_overlay(u16 tile_id) {
+    return tile_id == (0x0E + OVERWORLD_OVERLAY_EDGE_MASK_BASE) ||
+           tile_id == (0x55 + OVERWORLD_OVERLAY_EDGE_MASK_BASE) ||
+           tile_id == (0x0E + OVERWORLD_OVERLAY_SOLID_BASE) ||
+           tile_id == (0x55 + OVERWORLD_OVERLAY_SOLID_BASE);
+}
+
 static bool8 indoor_tile_is_passable(const Tileset *ts, u16 tile) {
     for (u8 i = 0; i < ts->collision_tile_count; i++) {
         if (tile == ts->collision_tiles[i])
@@ -63,6 +71,7 @@ u16 map_get_subtile_tile_id(s32 x, s32 y) {
 
     MapCell cell = map_get_cell(block_x, block_y);
     u16 mtid = MAPCELL_METATILE(cell);
+
     if (!layout->tileset || mtid >= layout->tileset->metatile_count)
         return 0xFFFF;
 
@@ -122,21 +131,20 @@ bool8 map_is_subtile_passable(s32 x, s32 y) {
 
     u16 mtid = MAPCELL_METATILE(cell);
 
-    // Viridian City uses block 0x0F for its dense tree walls. Those blocks
-    // are authored as ordinary map cells so their edge graphics can blend
-    // with the surrounding grass, but the tree area itself is solid.
+    // Viridian buildings use ordinary P() map cells, so their collision
+    // must be supplied explicitly rather than inferred from MAPCELL_W().
     if (g_world.map->map_id == MAP_VIRIDIAN_CITY &&
         (mtid == 0x02 || mtid == 0x03 || mtid == 0x0C ||
-         mtid == 0x0D || mtid == 0x0E || mtid == 0x0F ||
-         mtid == 0x10 || mtid == 0x11 || mtid == 0x12 ||
-         mtid == 0x20 || mtid == 0x21 || mtid == 0x6C ||
-         mtid == 0x72 || mtid == 0x73 || mtid == 0x7C ||
-         mtid == 0x7D || mtid == 0x7E || mtid == 0x7F))
+         mtid == 0x0D || mtid == 0x0E || mtid == 0x11 ||
+         mtid == 0x12 || mtid == 0x20 || mtid == 0x21 ||
+         mtid == 0x6C || mtid == 0x72 || mtid == 0x73 ||
+         mtid == 0x7C || mtid == 0x7D || mtid == 0x7E ||
+         mtid == 0x7F))
         return FALSE;
 
-    // 0x77 renders a fence only in the lower half of its 2x2 block; keep
-    // the grass strip above it walkable so the fence does not occupy two
-    // movement rows.
+    // 0x77 renders the Viridian fence in the lower half of its 2x2 block;
+    // keep the grass strip above it walkable so the fence occupies one
+    // movement row rather than two.
     if (g_world.map->map_id == MAP_VIRIDIAN_CITY && mtid == 0x77 &&
         (y & 1) != 0)
         return FALSE;
@@ -171,13 +179,22 @@ bool8 map_is_subtile_passable(s32 x, s32 y) {
 
     const Metatile *mt = &layout->tileset->metatiles[mtid];
 
-    if (mtid == MT_GRASS_STEP)
-        return TRUE;
-
     u32 local_col = (u32)((x & 1) * 2);
     u32 local_row = (u32)((y & 1) * 2 + 1);
     u32 left  = local_row * 4 + local_col;
     u32 right  = left + 1;
+
+    // Collide only on the subtile containing the visible fence overlay;
+    // leave the surrounding grass in the same map cell walkable.
+    if (g_world.map->map_id == MAP_VIRIDIAN_CITY &&
+        (overworld_tile_is_fence_overlay(mt->top[left]) ||
+         overworld_tile_is_fence_overlay(mt->top[right])))
+        return FALSE;
+
+    // Some Viridian fences are top-layer objects over grass. Only the fence
+    // overlay variants are solid; other top-layer decorations remain normal.
+    if (mtid == MT_GRASS_STEP)
+        return TRUE;
 
     return (overworld_tile_is_passable(mt->bottom[left]) ||
             overworld_tile_is_flower(mt->bottom[left], mtid)) &&

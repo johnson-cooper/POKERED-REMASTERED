@@ -69,6 +69,17 @@ static const char *const s_npc_texts[] = {
 };
 
 static u8 s_viridian_mart_state = 0;
+static bool8 s_oak_pokedex_pending = FALSE;
+
+bool8 script_viridian_old_man_blocks(s32 x, s32 y) {
+    if (!g_world.map || g_world.map->map_id != MAP_VIRIDIAN_CITY ||
+        flags_get(FLAG_GOT_POKEDEX))
+        return FALSE;
+
+    // Close both approach tiles and the gap beside the sleepy Old Man until
+    // the parcel/Pokédex sequence is complete.
+    return y == 9 && (x == 18 || x == 19);
+}
 
 // Pokered's Pokécenter nurse interaction is a small multi-step script rather
 // than ordinary NPC text: welcome, yes/no choice, healing, and farewell.
@@ -84,16 +95,34 @@ enum {
 static u8 s_pokecenter_state = POKECENTER_IDLE;
 
 void script_viridian_city(void) {
-    // After the player receives the Pokedex, the Old Man (NPC 6) steps
-    // aside so the north road to Route 2 is passable.
-    if (flags_get(FLAG_GOT_POKEDEX) && g_world.npc_count > 6) {
+    if (!flags_get(FLAG_GOT_POKEDEX) && g_world.npc_count > 6) {
+        // Keep the sleeping gate visible and keep the later Old Man hidden.
+        g_world.npcs[4].flags &= (u8)~NPCF_HIDDEN;
+        g_world.npcs[4].movement = NPC_MOVE_STAY;
+        g_world.npcs[6].flags |= NPCF_HIDDEN;
         NpcState *old_man = &g_world.npcs[6];
-        if (old_man->x == 17 && old_man->y == 5) {
-            old_man->x = 16;
-            old_man->px = 16 * 16;
-            old_man->movement = NPC_MOVE_STAY;
-            old_man->facing = DIR_RIGHT;
-        }
+        // Restore the gate if a save was made while the old movement script
+        // was still active in an earlier build.
+        old_man->x = 17;
+        old_man->y = 5;
+        old_man->px = 17 * 16;
+        old_man->py = 5 * 16;
+        old_man->walking = FALSE;
+        old_man->movement = NPC_MOVE_STAY;
+    }
+
+    // After the player receives the Pokedex, the sleepy gate is removed and
+    // the awake Old Man becomes visible, matching pokered's toggle objects.
+    if (flags_get(FLAG_GOT_POKEDEX) && g_world.npc_count > 6) {
+        g_world.npcs[4].flags |= NPCF_HIDDEN;
+        NpcState *old_man = &g_world.npcs[6];
+        old_man->flags &= (u8)~NPCF_HIDDEN;
+        old_man->x = 17;
+        old_man->y = 5;
+        old_man->px = 17 * 16;
+        old_man->py = 5 * 16;
+        old_man->walking = FALSE;
+        old_man->movement = NPC_MOVE_STAY;
     }
 }
 
@@ -211,7 +240,7 @@ void script_trigger_npc(u16 script_id, u8 npc_index) {
         s_active_script_id = script_id;
         s_active_npc_index = npc_index;
         dialog_open();
-        dialog_set_text("I haven't had my\ncoffee yet.\fDon't talk to me!");
+        dialog_set_text("Ahh, I've had my\ncoffee now and I\nfeel great!");
         s_npc_script_state = 1;
         s_blocks_input = TRUE;
         return;
@@ -311,8 +340,16 @@ static bool8 npc_script_tick(void) {
 
     if (s_npc_script_state == 1) {
         if (dialog_update()) {
-            if (s_active_script_id == 34)
+            if (s_active_script_id == 34) {
                 flags_set(FLAG_OAK_GOT_PARCEL);
+                // The parcel handoff immediately leads into Oak's reference
+                // Pokédex presentation. Keep the map script in control so
+                // the entire exchange remains one atomic cutscene.
+                s_oak_pokedex_pending = TRUE;
+                s_active_script_id = ACTIVE_MAP_SCRIPT;
+                s_npc_script_state = 0;
+                return FALSE;
+            }
             // Stay blocked for one more frame so the A press that closed the
             // dialog isn't seen by player_update() as a fresh NPC interaction.
             s_npc_script_state = 2;
@@ -610,6 +647,12 @@ typedef enum {
     OAKSLAB_POST_BATTLE_WAIT, // pause before Rival's exit line
     OAKSLAB_POST_BATTLE_TEXT, // Rival delivers his complete exit dialogue
     OAKSLAB_POST_BATTLE_EXIT, // Rival walks out of the lab
+    OAKSLAB_POKEDEX_RIVAL,
+    OAKSLAB_POKEDEX_REQUEST,
+    OAKSLAB_POKEDEX_INVENTION,
+    OAKSLAB_POKEDEX_GOT,
+    OAKSLAB_POKEDEX_DREAM,
+    OAKSLAB_POKEDEX_RIVAL_LEAVE,
     OAKSLAB_DONE,
 } OaksLabScriptState;
 
@@ -728,6 +771,7 @@ void script_reset_runtime(void) {
     s_viridian_mart_state = 0;
     s_pokecenter_state = POKECENTER_IDLE;
     s_oakslab_state = OAKSLAB_IDLE;
+    s_oak_pokedex_pending = FALSE;
     s_chosen_ball = 0;
     s_oakslab_oak_step = 0;
     s_oakslab_player_step = 0;
@@ -816,6 +860,17 @@ static bool8 oaks_lab_find_rival_step(s16 start_x, s16 start_y,
 }
 
 void script_oaks_lab(void) {
+    if (s_oak_pokedex_pending) {
+        s_oak_pokedex_pending = FALSE;
+        s_blocks_input = TRUE;
+        s_active_script_id = ACTIVE_MAP_SCRIPT;
+        g_world.npcs[0].facing = DIR_UP;
+        g_world.npcs[1].facing = DIR_DOWN;
+        dialog_open();
+        dialog_set_text("RIVAL: What did\nyou call me for?");
+        s_oakslab_state = OAKSLAB_POKEDEX_RIVAL;
+    }
+
     // NPC dialog ticking. Poké Ball ids 10-12 belong to the starter state
     // machine; every other active NPC id is a normal conversation and must
     // be serviced here, including the lab scientists (13 and 14).
@@ -935,6 +990,59 @@ void script_oaks_lab(void) {
             s_blocks_input = FALSE;
             s_active_script_id = 0;
             s_oakslab_state = OAKSLAB_WAIT_CHOOSE;
+        }
+        break;
+
+    case OAKSLAB_POKEDEX_RIVAL:
+        if (dialog_update()) {
+            dialog_open();
+            dialog_set_text("OAK: Oh right! I\nhave a request\nof you two.");
+            s_oakslab_state = OAKSLAB_POKEDEX_REQUEST;
+        }
+        break;
+
+    case OAKSLAB_POKEDEX_REQUEST:
+        if (dialog_update()) {
+            dialog_open();
+            dialog_set_text("On the desk there\nis my invention,\nPOKeDEX!\fIt automatically\nrecords data on\nPOKeMON you've\nseen or caught!\fIt's a hi-tech\nencyclopedia!");
+            s_oakslab_state = OAKSLAB_POKEDEX_INVENTION;
+        }
+        break;
+
+    case OAKSLAB_POKEDEX_INVENTION:
+        if (dialog_update()) {
+            dialog_open();
+            dialog_set_text("OAK: [NAME] and\n[RIVAL]! Take\nthese with you!\f[NAME] got\nPOKeDEX from OAK!");
+            s_oakslab_state = OAKSLAB_POKEDEX_GOT;
+        }
+        break;
+
+    case OAKSLAB_POKEDEX_GOT:
+        if (dialog_update()) {
+            dialog_open();
+            dialog_set_text("To make a complete\nguide on all the\nPOKeMON in the\nworld...\fThat was my dream!\fBut, I'm too old!\nI can't do it!\fSo, I want you two\nto fulfill my\ndream for me!\fGet moving, you\ntwo!\fThis is a great\nundertaking in\nPOKeMON history!");
+            s_oakslab_state = OAKSLAB_POKEDEX_DREAM;
+        }
+        break;
+
+    case OAKSLAB_POKEDEX_DREAM:
+        if (dialog_update()) {
+            dialog_open();
+            dialog_set_text("RIVAL: Alright\nGramps! Leave it\nall to me!");
+            s_oakslab_state = OAKSLAB_POKEDEX_RIVAL_LEAVE;
+        }
+        break;
+
+    case OAKSLAB_POKEDEX_RIVAL_LEAVE:
+        if (dialog_update()) {
+            // pokered commits EVENT_GOT_POKEDEX only after Oak's final
+            // request and Rival's response, so the Viridian gate remains
+            // closed until the entire handoff is complete.
+            flags_set(FLAG_GOT_POKEDEX);
+            s_active_script_id = 0;
+            s_blocks_input = FALSE;
+            g_world.player.move_state = MOVE_STATE_IDLE;
+            s_oakslab_state = OAKSLAB_DONE;
         }
         break;
 

@@ -11,6 +11,7 @@
 // NPC A-press interaction: called from player_update when player presses A
 // facing an NPC at the adjacent subtile.
 void script_trigger_npc(u16 script_id, u8 npc_index);
+bool8 script_viridian_old_man_blocks(s32 x, s32 y);
 
 // Advances generic NPC dialogs on every map, including maps without a
 // dedicated map-script callback.

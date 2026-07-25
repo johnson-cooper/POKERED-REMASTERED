@@ -38,11 +38,10 @@ static const MapLayout s_layout = {
 };
 
 static const WarpEvent s_warps[] = {
-    // The Route 1 entrance is the two-tile opening at x=20-21. Keep both
-    // tiles active; warp[0] is also the spawn point used when arriving from
-    // either Route 1 tile.
-    { .x = 20, .y = 35, .dest_map = MAP_ROUTE_1, .dest_warp = 1 },
-    { .x = 21, .y = 35, .dest_map = MAP_ROUTE_1, .dest_warp = 1 },
+    // The Route 1 entrance is the two-tile opening at x=20-21. Route 1's
+    // north connection is warp index 2 (the south connection is index 0/1).
+    { .x = 20, .y = 35, .dest_map = MAP_ROUTE_1, .dest_warp = 2 },
+    { .x = 21, .y = 35, .dest_map = MAP_ROUTE_1, .dest_warp = 2 },
     { .x = 23, .y = 25, .dest_map = MAP_VIRIDIAN_POKECENTER, .dest_warp = 0 },
     { .x = 29, .y = 19, .dest_map = MAP_VIRIDIAN_MART, .dest_warp = 0 },
     { .x = 21, .y = 15, .dest_map = MAP_VIRIDIAN_SCHOOL_HOUSE, .dest_warp = 0 },
@@ -57,7 +56,9 @@ static const NpcDef s_npcs[] = {
     { .x = 17, .y =  9, .sprite_tile = GFX_GIRL_TILE_BASE,   .facing = DIR_RIGHT, .script_id = 18, .movement = NPC_MOVE_STAY },
     { .x = 18, .y =  9, .sprite_tile = GFX_FISHER_TILE_BASE, .facing = DIR_DOWN,  .script_id = 19, .movement = NPC_MOVE_STAY },
     { .x =  6, .y = 23, .sprite_tile = GFX_FISHER_TILE_BASE, .facing = DIR_DOWN,  .script_id = 20, .movement = NPC_MOVE_STAY },
-    { .x = 17, .y =  5, .sprite_tile = GFX_FISHER_TILE_BASE, .facing = DIR_DOWN,  .script_id = 21, .movement = NPC_MOVE_LEFT_RIGHT },
+    // The Old Man is a fixed story gate. He must not wander off the tile
+    // before the player has received the Pokédex.
+    { .x = 17, .y =  5, .sprite_tile = GFX_FISHER_TILE_BASE, .facing = DIR_DOWN,  .script_id = 21, .movement = NPC_MOVE_STAY },
 };
 
 const MapHeader g_map_viridian_city = {
