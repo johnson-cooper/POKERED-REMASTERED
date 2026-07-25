@@ -40,7 +40,7 @@ bool8 route1_try_wild_encounter(void) {
 
     u8 level;
     PokemonId species = route1_random_species(&level);
-    PartyPokemon *active = party_get_active();
+    PartyPokemon *active = party_get_lead();
     PokemonId player_species = active ? active->species : MON_BULBASAUR;
     const char *player_nickname = active ? (active->nickname[0] ? active->nickname : NULL) : NULL;
     battle_setup_wild(species, level, player_species, player_nickname);

@@ -68,6 +68,14 @@ PartyPokemon *party_get_active(void) {
     return g_party.count ? &g_party.mons[0] : NULL;
 }
 
+PartyPokemon *party_get_lead(void) {
+    for (u8 i = 0; i < g_party.count && i < PARTY_SIZE; i++) {
+        if (g_party.mons[i].current_hp > 0)
+            return &g_party.mons[i];
+    }
+    return party_get_active();
+}
+
 PartyPokemon *party_get_slot(u8 slot) {
     return (slot < g_party.count) ? &g_party.mons[slot] : NULL;
 }

@@ -43,6 +43,7 @@ void party_clear(void);
 void party_set_starter(PokemonId species, const char *nickname);
 void party_set_active_nickname(const char *nickname);
 PartyPokemon *party_get_active(void);
+PartyPokemon *party_get_lead(void);
 PartyPokemon *party_get_slot(u8 slot);
 void party_export(PartyState *out);
 void party_import(const PartyState *in);
