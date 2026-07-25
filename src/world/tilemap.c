@@ -265,8 +265,10 @@ void tilemap_load_tileset(const Tileset *ts) {
 
     // Tile 0 is the blank tile used by cleared screenblocks and the unused
     // top layer. Keep it blank so small interior maps do not repeat artwork
-    // outside their room during a transition.
-    dma_fill32((void*)MEM_VRAM, 0, 8);
+    // outside their room during a transition.  Indoor tilesets use tile 0
+    // for wall graphics, so skip the blanking for them.
+    if (!ts->use_cell_collision)
+        dma_fill32((void*)MEM_VRAM, 0, 8);
 
     // Build overlays from the original source graphics, not generated color
     // tiles, so transparent color ID 0 remains tied to the original masks.

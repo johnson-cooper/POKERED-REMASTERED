@@ -1,5 +1,6 @@
 #include "world.h"
 #include "gfx_house_general.h"
+#include "indoor_palette.h"
 
 #define ZERO16 {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0}
 
@@ -45,7 +46,8 @@ static const u8 s_house_general_collision[] = { 0x01,0x12,0x14,0x28,0x32,0x37,0x
 
 const Tileset g_tileset_house_general = {
     .tiles=(const u32 *)g_house_general_tiles, .tile_count=96,
-    .palettes=g_house_general_pal, .palette_count=1,
+    .palette_profile=&g_indoor_palette_profile,
+    .tile_palette_map=g_house_tile_palette_map,
     .metatiles=s_house_general_metatiles, .metatile_count=35,
     .use_cell_collision=TRUE, .collision_tiles=s_house_general_collision,
     .collision_tile_count=ARRAY_COUNT(s_house_general_collision),

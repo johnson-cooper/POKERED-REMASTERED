@@ -4,6 +4,7 @@
 #include "world.h"
 #include "gba.h"
 #include "gfx_gym.h"
+#include "indoor_palette.h"
 
 #define P0 0
 
@@ -91,8 +92,8 @@ static const u8 s_collision_tiles[] = {
 const Tileset g_tileset_gym = {
     .tiles               = (const u32 *)gfx_gymTiles,
     .tile_count          = gfx_gymTilesLen / 32,
-    .palettes            = gfx_gymPal,
-    .palette_count       = 1,
+    .palette_profile     = &g_indoor_palette_profile,
+    .tile_palette_map    = g_gym_tile_palette_map,
     .metatiles           = s_metatiles,
     .metatile_count      = ARRAY_COUNT(s_metatiles),
     .use_cell_collision  = TRUE,

@@ -5,6 +5,7 @@
 #include "world.h"
 #include "gba.h"
 #include "gfx_house.h"
+#include "indoor_palette.h"
 
 // Helper: simple flat 4x4 block using one palette.
 #define P0 0
@@ -127,8 +128,8 @@ static const u8 s_collision_tiles[] = {
 const Tileset g_tileset_house = {
     .tiles               = (const u32 *)gfx_houseTiles,
     .tile_count          = gfx_houseTilesLen / 32,
-    .palettes            = gfx_housePal,
-    .palette_count       = 1,
+    .palette_profile     = &g_indoor_palette_profile,
+    .tile_palette_map    = g_reds_house_tile_palette_map,
     .metatiles           = s_metatiles,
     .metatile_count      = ARRAY_COUNT(s_metatiles),
     .use_cell_collision  = TRUE,
