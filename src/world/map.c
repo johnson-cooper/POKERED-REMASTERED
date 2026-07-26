@@ -171,6 +171,13 @@ bool8 map_is_subtile_passable(s32 x, s32 y) {
         block_x == 7 && block_y == 5)
         return FALSE;
 
+    // Route 22's walkway uses the dedicated path metatiles. Do not make the
+    // adjacent 0x3E/0x62 rock-edge blocks globally walkable: those are the
+    // wall tiles that close the false road entrance in the reference map.
+    if (g_world.map->map_id == MAP_ROUTE_22 &&
+        (mtid == MT_WALKWAY_L || mtid == MT_WALKWAY_R))
+        return TRUE;
+
     if (!layout->tileset || mtid >= layout->tileset->metatile_count)
         return FALSE;
 
@@ -223,6 +230,9 @@ extern const MapHeader g_map_viridian_pokecenter;
 extern const MapHeader g_map_viridian_school_house;
 extern const MapHeader g_map_viridian_nickname_house;
 extern const MapHeader g_map_viridian_gym;
+extern const MapHeader g_map_route_2;
+extern const MapHeader g_map_route_22;
+extern const MapHeader g_map_route_22_gate;
 
 static const MapHeader * const s_map_table[MAP_COUNT] = {
     [MAP_PALLET_TOWN]        = &g_map_pallet_town,
@@ -237,6 +247,9 @@ static const MapHeader * const s_map_table[MAP_COUNT] = {
     [MAP_VIRIDIAN_SCHOOL_HOUSE] = &g_map_viridian_school_house,
     [MAP_VIRIDIAN_NICKNAME_HOUSE] = &g_map_viridian_nickname_house,
     [MAP_VIRIDIAN_GYM]           = &g_map_viridian_gym,
+    [MAP_ROUTE_2]                = &g_map_route_2,
+    [MAP_ROUTE_22]               = &g_map_route_22,
+    [MAP_ROUTE_22_GATE]          = &g_map_route_22_gate,
 };
 
 const MapHeader *map_get_by_id(u8 map_id) {

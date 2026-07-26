@@ -73,6 +73,7 @@ static const char *const s_npc_texts[] = {
     /* 36 */ "",
     /* 37 */ "",
     /* 38 */ "I just saw your\nPOKeMON! They look\nreally strong!",
+    /* 39 */ "You need all eight\nBADGEs to get\nthrough here.\fCome back when\nyou have them!",
 };
 
 static u8 s_viridian_mart_state = 0;
@@ -1079,6 +1080,124 @@ static const char *s_received_starter_text[] = {
     "[NAME] received a\nBULBASAUR!\fThis POKeMON is\nreally energetic!",
 };
 
+// ─── Route 22 rival script ─────────────────────────────────────────────────
+
+typedef enum {
+    R22_IDLE = 0,
+    R22_RIVAL_WALK,
+    R22_RIVAL_DIALOG,
+    R22_BATTLE,
+    R22_POST_BATTLE_DIALOG,
+    R22_RIVAL_EXIT,
+    R22_DONE,
+} Route22ScriptState;
+
+static Route22ScriptState s_route22_state = R22_IDLE;
+static u8 s_route22_walk_steps = 0;
+
+void script_route_22(void) {
+    PlayerState *p = &g_world.player;
+
+    switch (s_route22_state) {
+    case R22_IDLE:
+        if (!flags_get(FLAG_ROUTE22_RIVAL_WANTS_BATTLE)) break;
+        if (flags_get(FLAG_BEAT_ROUTE22_RIVAL)) break;
+        if (g_world.npc_count < 1) break;
+        // pokered's two Route 22 Rival objects are both at (25, 5).  Arm
+        // the encounter as the player reaches that object, rather than at
+        // the eastern edge of the map.
+        if (p->tile_x < 24 || p->tile_x > 26) break;
+        if (p->tile_y < 4 || p->tile_y > 6) break;
+        if (p->move_state != MOVE_STATE_IDLE) break;
+
+        p->move_state = MOVE_STATE_FROZEN;
+        s_blocks_input = TRUE;
+        s_active_script_id = ACTIVE_MAP_SCRIPT;
+
+        g_world.npcs[0].flags &= (u8)~NPCF_HIDDEN;
+        g_world.npcs[0].x = 25;
+        g_world.npcs[0].y = (u8)p->tile_y;
+        g_world.npcs[0].px = (s16)(25 * 16);
+        g_world.npcs[0].py = (s16)(p->tile_y * 16);
+        g_world.npcs[0].facing = DIR_LEFT;
+        g_world.npcs[0].walking = FALSE;
+
+        audio_music_play(AUDIO_MUSIC_MEET_PROF_OAK);
+        s_route22_walk_steps = 0;
+        s_route22_state = R22_RIVAL_WALK;
+        break;
+
+    case R22_RIVAL_WALK:
+        if (world_npc_is_moving(0)) break;
+        if (g_world.npcs[0].x > p->tile_x + 2) {
+            world_npc_start_step(0, DIR_LEFT);
+        } else {
+            g_world.npcs[0].facing = DIR_LEFT;
+            p->facing = DIR_RIGHT;
+            dialog_open();
+            dialog_set_text(
+                "[RIVAL]: Hey!\n[NAME]!\fYou're going to\nPOKeMON LEAGUE?\fForget it! You\nprobably don't\nhave any BADGEs!\fThe guard won't\nlet you through!\fBy the way, did\nyour POKeMON get\nany stronger?");
+            s_route22_state = R22_RIVAL_DIALOG;
+        }
+        break;
+
+    case R22_RIVAL_DIALOG:
+        if (dialog_update()) {
+            PartyPokemon *lead = party_get_lead();
+            const char *nick = (lead && lead->nickname[0]) ? lead->nickname : NULL;
+            battle_setup_route22_rival(nick);
+            audio_music_play(AUDIO_MUSIC_TRAINER_BATTLE);
+            battle_transition_start();
+            game_change_state(GAME_STATE_BATTLE);
+            s_route22_state = R22_BATTLE;
+        }
+        break;
+
+    case R22_BATTLE:
+        if (g_game.state != GAME_STATE_OVERWORLD) break;
+        if (battle_is_blackout()) {
+            s_route22_state = R22_DONE;
+            s_blocks_input = FALSE;
+            s_active_script_id = 0;
+            break;
+        }
+        flags_set(FLAG_BEAT_ROUTE22_RIVAL);
+        flags_clear(FLAG_ROUTE22_RIVAL_WANTS_BATTLE);
+        p->move_state = MOVE_STATE_FROZEN;
+        s_blocks_input = TRUE;
+        audio_music_play(AUDIO_MUSIC_MEET_PROF_OAK);
+        dialog_open();
+        dialog_set_text(
+            "[RIVAL]: Awww!\nYou just lucked\nout!\fI heard POKeMON\nLEAGUE has many\ntough trainers!\fI have to figure\nout how to get\npast them!\fYou should quit\ndawdling and get\na move on!");
+        s_route22_state = R22_POST_BATTLE_DIALOG;
+        break;
+
+    case R22_POST_BATTLE_DIALOG:
+        if (dialog_update()) {
+            s_route22_state = R22_RIVAL_EXIT;
+            s_route22_walk_steps = 0;
+        }
+        break;
+
+    case R22_RIVAL_EXIT:
+        if (world_npc_is_moving(0)) break;
+        if (g_world.npcs[0].x < 39) {
+            world_npc_start_step(0, DIR_RIGHT);
+        } else {
+            g_world.npcs[0].flags |= NPCF_HIDDEN;
+            audio_music_play(g_world.map->music_id);
+            p->move_state = MOVE_STATE_IDLE;
+            s_blocks_input = FALSE;
+            s_active_script_id = 0;
+            s_route22_state = R22_DONE;
+        }
+        break;
+
+    case R22_DONE:
+        break;
+    }
+}
+
 void script_reset_runtime(void) {
     s_blocks_input = FALSE;
     s_npc_script_state = 0;
@@ -1107,6 +1226,8 @@ void script_reset_runtime(void) {
     s_oakslab_post_battle_started = FALSE;
     s_shop_state = SHOP_IDLE;
     s_shop_cursor = 0;
+    s_route22_state = R22_IDLE;
+    s_route22_walk_steps = 0;
 }
 
 static void oaks_lab_start_rival_choice(void) {
@@ -1450,6 +1571,7 @@ void script_oaks_lab(void) {
         else if (s_chosen_ball == 11) flags_set(FLAG_OAKSLAB_SQUIRTLE_TAKEN);
         else flags_set(FLAG_OAKSLAB_BULBASAUR_TAKEN);
         flags_set(FLAG_GOT_STARTER);
+        flags_set(FLAG_ROUTE22_RIVAL_WANTS_BATTLE);
         if (s_chosen_ball == 10) flags_set(FLAG_STARTER_CHARMANDER);
         else if (s_chosen_ball == 11) flags_set(FLAG_STARTER_SQUIRTLE);
         else flags_set(FLAG_STARTER_BULBASAUR);

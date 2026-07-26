@@ -4,6 +4,8 @@
 #include "script.h"
 #include "audio.h"
 #include "route1.h"
+#include "route2.h"
+#include "route22.h"
 #include "map_ids.h"
 #include "flags.h"
 
@@ -345,6 +347,8 @@ void player_update(void) {
                 // If warp fired, world_init() reset player to IDLE — bail out
                 if (p->move_state == MOVE_STATE_IDLE) return;
                 route1_try_wild_encounter();
+                route2_try_wild_encounter();
+                route22_try_wild_encounter();
             }
             p->move_state = MOVE_STATE_IDLE;
         }

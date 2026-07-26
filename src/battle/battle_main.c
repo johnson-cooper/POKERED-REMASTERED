@@ -59,6 +59,8 @@ typedef enum {
     BS_BALL_RESULT,
     BS_CATCH_POKEDEX,
     BS_CATCH_NICKNAME,
+    BS_ENEMY_SEND_NEXT,
+    BS_ENEMY_SEND_NEXT_WAIT,
     BS_END,
 } BattleState;
 
@@ -91,11 +93,22 @@ typedef struct {
 
 static BattleCtx s_battle;
 static bool8 s_blackout;
+
+#define ENEMY_PARTY_MAX 6
+typedef struct {
+    PokemonId species;
+    u8 level;
+} EnemyPartyEntry;
+static EnemyPartyEntry s_enemy_party[ENEMY_PARTY_MAX];
+static u8 s_enemy_party_count;
+static u8 s_enemy_party_index;
+
 static u8 s_active_party_slot;
 static bool8 s_force_switch;
 static bool8 s_skip_player_turn;
 static u8 s_battle_party_cursor;
 static BattleState s_after_msg_state;
+static BattleState s_after_exp_state;
 static PartyPokemon s_caught_mon;
 static bool8 s_caught_pending;
 
@@ -207,8 +220,12 @@ static const MoveId s_starter_moves[][2] = {
     [MON_BULBASAUR]  = { MOVE_TACKLE, MOVE_GROWL },
     [MON_CHARMANDER] = { MOVE_SCRATCH, MOVE_GROWL },
     [MON_SQUIRTLE]   = { MOVE_TACKLE, MOVE_TAIL_WHIP },
+    [MON_WEEDLE]     = { MOVE_POISON_STING, MOVE_STRING_SHOT },
     [MON_PIDGEY]     = { MOVE_GUST, MOVE_SAND_ATTACK },
     [MON_RATTATA]    = { MOVE_TACKLE, MOVE_TAIL_WHIP },
+    [MON_SPEAROW]    = { MOVE_PECK, MOVE_GROWL },
+    [MON_NIDORAN_F]  = { MOVE_TACKLE, MOVE_GROWL },
+    [MON_NIDORAN_M]  = { MOVE_LEER, MOVE_TACKLE },
 };
 
 static const char *species_name(PokemonId id) {
@@ -216,6 +233,10 @@ static const char *species_name(PokemonId id) {
     case MON_BULBASAUR:  return "BULBASAUR";
     case MON_CHARMANDER: return "CHARMANDER";
     case MON_SQUIRTLE:   return "SQUIRTLE";
+    case MON_WEEDLE:     return "WEEDLE";
+    case MON_SPEAROW:    return "SPEAROW";
+    case MON_NIDORAN_F:  return "NIDORAN F";
+    case MON_NIDORAN_M:  return "NIDORAN M";
     case MON_PIDGEY:     return "PIDGEY";
     case MON_RATTATA:    return "RATTATA";
     default:             return "POKeMON";
@@ -279,6 +300,15 @@ static void setup_species_obj_palette(vu16 *dst, PokemonId species) {
     case MON_RATTATA:
         dst[3] = RGB15(18, 9, 18);
         dst[4] = RGB15(29, 18, 27);
+        break;
+    case MON_NIDORINO:
+    case MON_NIDORAN_M:
+        dst[3] = RGB15(12, 10, 20);
+        dst[4] = RGB15(23, 20, 31);
+        break;
+    case MON_NIDORAN_F:
+        dst[3] = RGB15(18, 12, 20);
+        dst[4] = RGB15(31, 22, 29);
         break;
     default:
         dst[2] = RGB15(18, 18, 18);
@@ -814,6 +844,36 @@ void battle_setup_rival(u16 chosen_ball, const char *player_nickname) {
     }
 
     s_battle.player_nickname = player_nickname;
+    s_enemy_party[0].species = s_battle.enemy_species;
+    s_enemy_party[0].level = s_battle.enemy_level;
+    s_enemy_party_count = 1;
+    s_enemy_party_index = 0;
+}
+
+void battle_setup_route22_rival(const char *player_nickname) {
+    s_battle.is_wild = FALSE;
+
+    PartyPokemon *lead = party_get_lead();
+    s_battle.player_species = lead ? lead->species : MON_BULBASAUR;
+    s_battle.player_nickname = player_nickname;
+
+    PokemonId rival_starter;
+    if (flags_get(FLAG_STARTER_CHARMANDER))
+        rival_starter = MON_SQUIRTLE;
+    else if (flags_get(FLAG_STARTER_SQUIRTLE))
+        rival_starter = MON_BULBASAUR;
+    else
+        rival_starter = MON_CHARMANDER;
+
+    s_enemy_party[0].species = MON_PIDGEY;
+    s_enemy_party[0].level = 9;
+    s_enemy_party[1].species = rival_starter;
+    s_enemy_party[1].level = 8;
+    s_enemy_party_count = 2;
+    s_enemy_party_index = 0;
+
+    s_battle.enemy_species = s_enemy_party[0].species;
+    s_battle.enemy_level = s_enemy_party[0].level;
 }
 
 void battle_setup_wild(PokemonId species, u8 level, PokemonId player_species,
@@ -823,6 +883,10 @@ void battle_setup_wild(PokemonId species, u8 level, PokemonId player_species,
     s_battle.enemy_level = level;
     s_battle.player_species = player_species;
     s_battle.player_nickname = player_nickname;
+    s_enemy_party[0].species = species;
+    s_enemy_party[0].level = level;
+    s_enemy_party_count = 1;
+    s_enemy_party_index = 0;
 }
 
 bool8 battle_is_wild(void) {
@@ -841,6 +905,7 @@ void battle_init(void) {
     s_skip_player_turn = FALSE;
     s_battle_party_cursor = 0;
     s_after_msg_state = BS_PLAYER_MENU;
+    s_after_exp_state = BS_END;
     s_caught_pending = FALSE;
     s_enemy_hidden = FALSE;
     s_catch_nickname_active = FALSE;
@@ -1521,12 +1586,54 @@ void battle_update(void) {
 
     case BS_FAINT_MSG:
         if (dialog_update()) {
-            s_battle.state = BS_VICTORY;
-            audio_music_play(AUDIO_MUSIC_DEFEATED_TRAINER);
-            clear_lower_ui();
-            char *p = str_append(s_msg_buf, "[NAME] defeated\n[RIVAL]!");
-            *p = '\0';
-            battle_msg(s_msg_buf);
+            s_enemy_party_index++;
+            if (s_enemy_party_index < s_enemy_party_count) {
+                const PokemonBaseStats *ebase = &g_pokemon_base_stats[s_battle.enemy_species];
+                u32 exp = (u32)ebase->base_exp * s_battle.enemy_mon.level / 7;
+                exp = exp * 3 / 2;
+                s_battle.exp_gained = (u16)(exp ? exp : 1);
+                s_battle.player_experience += s_battle.exp_gained;
+                clear_lower_ui();
+                char *p = str_append(s_msg_buf, mon_display_name(&s_battle.player_mon));
+                p = str_append(p, " gained\n");
+                p = str_append_num(p, s_battle.exp_gained);
+                p = str_append(p, " EXP. Points!");
+                *p = '\0';
+                battle_msg(s_msg_buf);
+                s_after_exp_state = BS_ENEMY_SEND_NEXT;
+                s_battle.state = BS_EXP;
+            } else {
+                s_battle.state = BS_VICTORY;
+                audio_music_play(AUDIO_MUSIC_DEFEATED_TRAINER);
+                clear_lower_ui();
+                char *p = str_append(s_msg_buf, "[NAME] defeated\n[RIVAL]!");
+                *p = '\0';
+                battle_msg(s_msg_buf);
+            }
+        }
+        break;
+
+    case BS_ENEMY_SEND_NEXT: {
+        s_battle.enemy_species = s_enemy_party[s_enemy_party_index].species;
+        s_battle.enemy_level = s_enemy_party[s_enemy_party_index].level;
+        u16 rival_dv = 0x9888;
+        battle_pokemon_init(&s_battle.enemy_mon, s_battle.enemy_species,
+                            s_battle.enemy_level, rival_dv,
+                            s_starter_moves[s_battle.enemy_species], 2);
+        s_battle.enemy_mon.nickname = NULL;
+        clear_lower_ui();
+        char *p = str_append(s_msg_buf, "[RIVAL] sent out\n");
+        p = str_append(p, species_name(s_battle.enemy_species));
+        p = str_append(p, "!");
+        *p = '\0';
+        battle_msg(s_msg_buf);
+        s_battle.state = BS_ENEMY_SEND_NEXT_WAIT;
+        break;
+    }
+
+    case BS_ENEMY_SEND_NEXT_WAIT:
+        if (dialog_update()) {
+            s_battle.state = BS_TURN_START;
         }
         break;
 
@@ -1582,6 +1689,7 @@ void battle_update(void) {
 
     case BS_VICTORY:
         if (dialog_update()) {
+            s_after_exp_state = BS_END;
             if (!s_battle.is_wild) {
                 u32 prize = (u32)35 * s_battle.enemy_mon.level;
                 game_add_money(prize);
@@ -1652,14 +1760,14 @@ void battle_update(void) {
                 battle_msg(s_msg_buf);
                 s_battle.state = BS_LEVEL_UP;
             } else {
-                s_battle.state = BS_END;
+                s_battle.state = s_after_exp_state;
             }
         }
         break;
 
     case BS_LEVEL_UP:
         if (dialog_update()) {
-            s_battle.state = BS_END;
+            s_battle.state = s_after_exp_state;
         }
         break;
 

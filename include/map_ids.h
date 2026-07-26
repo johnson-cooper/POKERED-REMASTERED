@@ -14,6 +14,7 @@ typedef enum {
     // routes
     MAP_ROUTE_1 = 20,
     MAP_ROUTE_2,
+    MAP_ROUTE_22 = 30,
     // buildings
     MAP_OAKS_LAB = 40,
     MAP_PLAYERS_HOUSE_1F,
@@ -24,5 +25,6 @@ typedef enum {
     MAP_VIRIDIAN_SCHOOL_HOUSE,
     MAP_VIRIDIAN_NICKNAME_HOUSE,
     MAP_VIRIDIAN_GYM,
+    MAP_ROUTE_22_GATE,
     MAP_COUNT,
 } MapId;

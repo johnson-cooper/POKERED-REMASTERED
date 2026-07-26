@@ -9,11 +9,17 @@ $sprites = @(
     @{ Symbol = "squirtle_front"; File = (Join-Path $ReferenceDir "front\squirtle.png"); Width = 40; Height = 40 },
     @{ Symbol = "pidgey_front"; File = (Join-Path $ReferenceDir "front\pidgey.png"); Width = 40; Height = 40 },
     @{ Symbol = "rattata_front"; File = (Join-Path $ReferenceDir "front\rattata.png"); Width = 40; Height = 40 },
+    @{ Symbol = "nidorino_front"; File = (Join-Path $ReferenceDir "front\nidorino.png"); Width = 40; Height = 40 },
+    @{ Symbol = "nidoran_m_front"; File = (Join-Path $ReferenceDir "front\nidoranm.png"); Width = 40; Height = 40 },
+    @{ Symbol = "nidoran_f_front"; File = (Join-Path $ReferenceDir "front\nidoranf.png"); Width = 40; Height = 40 },
     @{ Symbol = "bulbasaur_back"; File = (Join-Path $ReferenceDir "back\bulbasaurb.png"); Width = 32; Height = 32 },
     @{ Symbol = "charmander_back"; File = (Join-Path $ReferenceDir "back\charmanderb.png"); Width = 32; Height = 32 },
     @{ Symbol = "squirtle_back"; File = (Join-Path $ReferenceDir "back\squirtleb.png"); Width = 32; Height = 32 },
     @{ Symbol = "pidgey_back"; File = (Join-Path $ReferenceDir "back\pidgeyb.png"); Width = 32; Height = 32 },
     @{ Symbol = "rattata_back"; File = (Join-Path $ReferenceDir "back\rattatab.png"); Width = 32; Height = 32 }
+    ,@{ Symbol = "nidorino_back"; File = (Join-Path $ReferenceDir "back\nidorinob.png"); Width = 32; Height = 32 }
+    ,@{ Symbol = "nidoran_m_back"; File = (Join-Path $ReferenceDir "back\nidoranmb.png"); Width = 32; Height = 32 }
+    ,@{ Symbol = "nidoran_f_back"; File = (Join-Path $ReferenceDir "back\nidoranfb.png"); Width = 32; Height = 32 }
 )
 
 $tempDir = Join-Path ([IO.Path]::GetTempPath()) "pokered-battle-sprites"
@@ -73,7 +79,10 @@ $lines.Add('    switch (species) {')
 $lines.Add('    case MON_CHARMANDER: return g_battle_charmander_front;')
 $lines.Add('    case MON_SQUIRTLE: return g_battle_squirtle_front;')
  $lines.Add('    case MON_PIDGEY: return g_battle_pidgey_front;')
- $lines.Add('    case MON_RATTATA: return g_battle_rattata_front;')
+$lines.Add('    case MON_RATTATA: return g_battle_rattata_front;')
+$lines.Add('    case MON_NIDORINO: return g_battle_nidorino_front;')
+$lines.Add('    case MON_NIDORAN_M: return g_battle_nidoran_m_front;')
+$lines.Add('    case MON_NIDORAN_F: return g_battle_nidoran_f_front;')
 $lines.Add('    default: return g_battle_bulbasaur_front;')
 $lines.Add('    }')
 $lines.Add('}')
@@ -84,6 +93,9 @@ $lines.Add('    case MON_CHARMANDER: return g_battle_charmander_back;')
 $lines.Add('    case MON_SQUIRTLE: return g_battle_squirtle_back;')
 $lines.Add('    case MON_PIDGEY: return g_battle_pidgey_back;')
 $lines.Add('    case MON_RATTATA: return g_battle_rattata_back;')
+$lines.Add('    case MON_NIDORINO: return g_battle_nidorino_back;')
+$lines.Add('    case MON_NIDORAN_M: return g_battle_nidoran_m_back;')
+$lines.Add('    case MON_NIDORAN_F: return g_battle_nidoran_f_back;')
 $lines.Add('    default: return g_battle_bulbasaur_back;')
 $lines.Add('    }')
 $lines.Add('}')
