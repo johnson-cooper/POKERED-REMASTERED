@@ -105,7 +105,7 @@ YOUR FILE IS NEVER UPLOADED.
 <div id="drop" onclick="document.getElementById('f').click()">
 <div class="framed neutral no-hd" id="drop-in">
 &#127918; CLICK OR DROP YOUR POKEMON RED .GB ROM HERE
-<input id="f" type="file" accept=".gb,.bin" style="display:none">
+<input id="f" type="file" accept="*/*" style="display:none">
 </div>
 </div>
 <div class="framed neutral no-hd" id="sf"><div id="st"></div></div>
