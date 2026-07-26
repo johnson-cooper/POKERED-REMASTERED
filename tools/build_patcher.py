@@ -111,7 +111,7 @@ YOUR FILE IS NEVER UPLOADED.
 <div class="framed neutral no-hd" id="sf"><div id="st"></div></div>
 <div id="dl-wrap">
 <ul class="buttons">
-<li><a id="dl" class="button">&#11015; DOWNLOAD POKERED_REMASTER.GBA</a></li>
+<li><a id="dl" class="button">&#11015; DOWNLOAD GBA ROM</a></li>
 </ul>
 </div>
 <div class="framed neutral no-hd" style="font-size:.45rem">
