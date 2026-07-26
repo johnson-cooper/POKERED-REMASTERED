@@ -45,6 +45,7 @@ void party_set_active_nickname(const char *nickname);
 PartyPokemon *party_get_active(void);
 PartyPokemon *party_get_lead(void);
 PartyPokemon *party_get_slot(u8 slot);
+const char    *party_mon_display_name(const PartyPokemon *mon);
 void party_export(PartyState *out);
 void party_import(const PartyState *in);
 void party_update_active(const PartyPokemon *mon);

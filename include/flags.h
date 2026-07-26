@@ -19,6 +19,7 @@ typedef enum {
     FLAG_STARTER_BULBASAUR,
     FLAG_GOT_OAKS_PARCEL,
     FLAG_OAK_GOT_PARCEL,
+    FLAG_GOT_TOWN_MAP,
     FLAG_COUNT,
 } GameFlag;
 

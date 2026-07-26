@@ -11,6 +11,7 @@
 #include "party.h"
 #include "item.h"
 #include "text.h"
+#include "pc.h"
 
 // ─── Global script state ────────────────────────────────────────────────────
 
@@ -68,6 +69,7 @@ static const char *const s_npc_texts[] = {
     /* 33 */ "SPEARY: Tetweet!",
     /* 34 */ "",
     /* 35 */ "Yo! Champ in making!\fThis GYM's door is\nlocked right now.",
+    /* 36 */ "",
 };
 
 static u8 s_viridian_mart_state = 0;
@@ -478,6 +480,33 @@ void script_trigger_npc(u16 script_id, u8 npc_index) {
         return;
     }
 
+    // PC interaction: opens the full PC menu.
+    if (script_id == 36) {
+        s_active_script_id = script_id;
+        s_active_npc_index = npc_index;
+        s_blocks_input = TRUE;
+        pc_menu_open();
+        return;
+    }
+
+    // Daisy gives the Town Map after the player has the Pokédex.
+    if (script_id == 5 && g_world.map &&
+        g_world.map->map_id == MAP_RIVALS_HOUSE) {
+        if (flags_get(FLAG_GOT_TOWN_MAP)) {
+            dialog_open();
+            dialog_set_text("Use the TOWN MAP\nto find out where\nyou are!");
+            s_npc_script_state = 1;
+            s_blocks_input = TRUE;
+            return;
+        } else if (flags_get(FLAG_GOT_POKEDEX)) {
+            dialog_open();
+            dialog_set_text("Grandpa asked you\nto run an errand?\fHere, this will\nhelp you!\f[NAME] got a\nTOWN MAP!");
+            s_npc_script_state = 1;
+            s_blocks_input = TRUE;
+            return;
+        }
+    }
+
     if (script_id < ARRAY_COUNT(s_npc_texts)) {
         const char *text = s_npc_texts[script_id];
         if (text[0]) {
@@ -555,6 +584,16 @@ static bool8 npc_script_tick(void) {
         }
     }
 
+    if (s_active_script_id == 36) {
+        if (pc_menu_update()) {
+            pc_menu_close();
+            s_active_script_id = 0;
+            s_blocks_input = FALSE;
+            return TRUE;
+        }
+        return FALSE;
+    }
+
     if (s_active_script_id >= 10 && s_active_script_id <= 12) {
         // Pokéball: handled by oaks_lab script — it clears s_blocks_input
         return FALSE;
@@ -564,16 +603,21 @@ static bool8 npc_script_tick(void) {
         if (dialog_update()) {
             if (s_active_script_id == 34) {
                 flags_set(FLAG_OAK_GOT_PARCEL);
-                // The parcel handoff immediately leads into Oak's reference
-                // Pokédex presentation. Keep the map script in control so
-                // the entire exchange remains one atomic cutscene.
                 s_oak_pokedex_pending = TRUE;
                 s_active_script_id = ACTIVE_MAP_SCRIPT;
                 s_npc_script_state = 0;
                 return FALSE;
             }
-            // Stay blocked for one more frame so the A press that closed the
-            // dialog isn't seen by player_update() as a fresh NPC interaction.
+            // Daisy gives Town Map after dialog about the errand finishes.
+            if (s_active_script_id == 5 && g_world.map &&
+                g_world.map->map_id == MAP_RIVALS_HOUSE &&
+                !flags_get(FLAG_GOT_TOWN_MAP) && flags_get(FLAG_GOT_POKEDEX)) {
+                flags_set(FLAG_GOT_TOWN_MAP);
+                bag_add(ITEM_TOWN_MAP, 1);
+                // Hide the Town Map background object on the table.
+                if (g_world.npc_count > 1)
+                    g_world.npcs[1].flags |= NPCF_HIDDEN;
+            }
             s_npc_script_state = 2;
         }
         return FALSE;

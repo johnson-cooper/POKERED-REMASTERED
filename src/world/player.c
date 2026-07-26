@@ -65,7 +65,7 @@ static bool8 player_try_ledge_jump(Direction dir) {
 static bool8 player_tile_occupied_by_npc(s32 x, s32 y) {
     for (u8 i = 0; i < g_world.npc_count; i++) {
         const NpcState *npc = &g_world.npcs[i];
-        if (npc->flags & NPCF_HIDDEN) continue;
+        if (npc->flags & (NPCF_HIDDEN | NPCF_NO_SPRITE)) continue;
         if ((s32)npc->x == x && (s32)npc->y == y) return TRUE;
     }
     return FALSE;

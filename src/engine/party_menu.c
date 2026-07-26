@@ -169,7 +169,7 @@ static u32 party_exp_to_next_level(const PartyPokemon *mon) {
     return mon->experience < required ? required - mon->experience : 0;
 }
 
-static const char *party_mon_display_name(const PartyPokemon *mon) {
+const char *party_mon_display_name(const PartyPokemon *mon) {
     if (mon->nickname[0]) return mon->nickname;
     return party_species_name(mon->species);
 }

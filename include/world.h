@@ -97,7 +97,8 @@ typedef struct {
     u16 move_timer;
 } NpcState;
 
-#define NPCF_HIDDEN  0x01  // not rendered or interactive
+#define NPCF_HIDDEN     0x01  // not rendered or interactive
+#define NPCF_NO_SPRITE  0x02  // tile provides the visual; NPC is still interactive
 
 typedef enum {
     NPC_MOVE_STAY = 0,

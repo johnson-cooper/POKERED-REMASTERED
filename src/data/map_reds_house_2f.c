@@ -4,6 +4,7 @@
 #include "world.h"
 #include "audio.h"
 #include "map_ids.h"
+#include "gfx_npcs.h"
 
 extern const Tileset g_tileset_house;
 
@@ -37,14 +38,21 @@ static const WarpEvent s_warps[] = {
     { .x = 7, .y = 1, .dest_map = MAP_PLAYERS_HOUSE_1F, .dest_warp = 2 },
 };
 
+// PC on the desk at block (3,0); the desk tile provides the visual.
+// Player at (1,3) facing up interacts with the west-side computer at (1,2).
+static const NpcDef s_npcs[] = {
+    { .x=1, .y=2, .sprite_tile=0, .facing=DIR_DOWN,
+      .script_id=36, .movement=NPC_MOVE_STAY, .flags=NPCF_NO_SPRITE },
+};
+
 const MapHeader g_map_reds_house_2f = {
     .map_id     = MAP_PLAYERS_HOUSE_2F,
     .name       = "Red's House 2F",
     .layout     = &s_layout,
     .warps      = s_warps,
     .warp_count = 1,
-    .npcs       = NULL,
-    .npc_count  = 0,
+    .npcs       = s_npcs,
+    .npc_count  = 1,
     .script     = NULL,
     .music_id   = AUDIO_MUSIC_PALLET_TOWN,
 };

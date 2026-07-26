@@ -15,6 +15,8 @@
 #include "party.h"
 #include "party_menu.h"
 #include "item.h"
+#include "town_map.h"
+#include "pc.h"
 
 GameContext g_game = {
     .state      = GAME_STATE_BOOT,
@@ -106,6 +108,7 @@ static bool8 s_pause_party_active;
 static bool8 s_pause_item_active;
 static bool8 s_pause_key_item_active;
 static bool8 s_trainer_card_active;
+static bool8 s_pause_town_map_active;
 static u8 s_key_item_cursor;
 static bool8 s_continue_load;
 
@@ -139,48 +142,55 @@ static void save_capture(SaveData *data) {
     data->money = g_player_money;
     bag_export(&data->bag);
     pokedex_tracking_export(data->pokedex_seen, data->pokedex_owned);
+    pc_export(&data->pc);
 }
 
 static bool8 game_load_saved(void) {
-    SaveData data;
+    // Use the shared EWRAM buffer from save.c to avoid a 10KB stack frame.
+    SaveData *data = save_get_buffer();
     const MapHeader *map;
     const MapHeader *last_map;
 
-    if (!save_read(&data)) return FALSE;
-    map = map_get_by_id(data.map_id);
-    last_map = map_get_by_id(data.last_map_id);
+    if (!save_read(data)) return FALSE;
+    map = map_get_by_id(data->map_id);
+    last_map = map_get_by_id(data->last_map_id);
     if (!map) return FALSE;
 
     for (u8 i = 0; i < SAVE_NAME_LENGTH; i++) {
-        s_player_name[i] = (char)data.player_name[i];
-        s_rival_name[i] = (char)data.rival_name[i];
+        s_player_name[i] = (char)data->player_name[i];
+        s_rival_name[i] = (char)data->rival_name[i];
     }
     s_player_name[SAVE_NAME_LENGTH - 1] = '\0';
     s_rival_name[SAVE_NAME_LENGTH - 1] = '\0';
-    s_option_fast_text = data.option_fast_text;
-    s_option_battle_animation = data.option_battle_animation;
-    s_option_battle_style = data.option_battle_style;
+    s_option_fast_text = data->option_fast_text;
+    s_option_battle_animation = data->option_battle_animation;
+    s_option_battle_style = data->option_battle_style;
 
     // Import flags before rebuilding the map so persistent Oak's Lab objects
     // (taken Poké Balls and the departed rival) are hidden during world_init.
-    flags_import(data.flags);
-    world_init(map, data.player_x, data.player_y);
-    g_world.player.facing = (Direction)data.player_facing;
+    flags_import(data->flags);
+    world_init(map, data->player_x, data->player_y);
+    g_world.player.facing = (Direction)data->player_facing;
     g_world.last_map = last_map;
-    party_import(&data.party);
-    g_last_healing_point = data.last_healing_point;
-    if (data.version < 2 || g_last_healing_point.map_id >= MAP_COUNT)
+    party_import(&data->party);
+    g_last_healing_point = data->last_healing_point;
+    if (data->version < 2 || g_last_healing_point.map_id >= MAP_COUNT)
         party_set_healing_point(MAP_PLAYERS_HOUSE_1F, 4, 3, DIR_RIGHT);
     if (!party_get_active() && flags_get(FLAG_GOT_STARTER))
         party_set_starter(script_get_starter_species(), NULL);
-    if (data.version >= 4) {
-        g_player_money = data.money;
-        bag_import(&data.bag);
-        pokedex_tracking_import(data.pokedex_seen, data.pokedex_owned);
+    if (data->version >= 4) {
+        g_player_money = data->money;
+        bag_import(&data->bag);
+        pokedex_tracking_import(data->pokedex_seen, data->pokedex_owned);
     } else {
         g_player_money = STARTING_MONEY;
         bag_init();
         pokedex_tracking_clear();
+    }
+    if (data->version >= 5) {
+        pc_import(&data->pc);
+    } else {
+        pc_init();
     }
     return TRUE;
 }
@@ -275,6 +285,7 @@ void game_update(void) {
                 party_clear();
                 g_player_money = STARTING_MONEY;
                 bag_init();
+                pc_init();
                 pokedex_tracking_clear();
                 // Spawn in Red's House 2F, center of room.
                 world_init(&g_map_reds_house_2f, 3, 3);
@@ -829,7 +840,10 @@ static void key_item_menu_update(void) {
             if (found == s_key_item_cursor) {
                 ItemId id = (ItemId)g_bag.slots[i].id;
                 if (id == ITEM_TOWN_MAP) {
-                    pause_menu_message("It's a MAP of\nthe KANTO region.");
+                    town_map_open();
+                    s_pause_town_map_active = TRUE;
+                    s_pause_key_item_active = FALSE;
+                    return;
                 } else {
                     pause_menu_message("OAK: This isn't\nthe time to use\nthat!");
                 }
@@ -863,6 +877,14 @@ static void state_menu_update(void) {
     }
     if (s_pause_key_item_active) {
         key_item_menu_update();
+        return;
+    }
+    if (s_pause_town_map_active) {
+        if (town_map_update()) {
+            town_map_close();
+            s_pause_town_map_active = FALSE;
+            pause_menu_draw();
+        }
         return;
     }
     if (s_trainer_card_active) {
@@ -955,9 +977,9 @@ static void pause_menu_select(void) {
         trainer_card_draw();
         break;
     case 4: {
-        SaveData data;
-        save_capture(&data);
-        pause_menu_message(save_write(&data) ? "Game saved!" : "Save failed!");
+        SaveData *data = save_get_buffer();
+        save_capture(data);
+        pause_menu_message(save_write(data) ? "Game saved!" : "Save failed!");
         break;
     }
     case 5:

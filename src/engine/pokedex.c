@@ -25,26 +25,40 @@ typedef struct {
 } PokedexEntry;
 
 static const PokedexEntry s_entries[] = {
-    {
+    [POKEDEX_BULBASAUR] = {
         "BULBASAUR", "SEED", "HT 2'4", "WT 15.2LB", "NO. 001",
         { "A STRANGE SEED WAS", "PLANTED ON ITS", "BACK AT BIRTH." },
         { "THE PLANT SPROUTS", "AND GROWS WITH", "THIS POKEMON" },
         g_pokedex_bulbasaur_tiles,
         11,
     },
-    {
+    [POKEDEX_CHARMANDER] = {
         "CHARMANDER", "LIZARD", "HT 2'0", "WT 19.0LB", "NO. 004",
         { "OBVIOUSLY PREFERS", "HOT PLACES. WHEN", "IT RAINS, STEAM" },
         { "IS SAID TO SPOUT", "FROM THE TIP OF", "ITS TAIL" },
         g_pokedex_charmander_tiles,
         12,
     },
-    {
+    [POKEDEX_SQUIRTLE] = {
         "SQUIRTLE", "TURTLE", "HT 1'8", "WT 20.0LB", "NO. 007",
         { "AFTER BIRTH, ITS", "BACK SWELLS AND", "HARDENS INTO A" },
         { "SHELL. POWERFULLY", "SPRAYS FOAM FROM", "ITS MOUTH" },
         g_pokedex_squirtle_tiles,
         13,
+    },
+    [POKEDEX_PIDGEY] = {
+        "PIDGEY", "TINY BIRD", "HT 1'0", "WT 4.0LB", "NO. 016",
+        { "A COMMON SIGHT IN", "FORESTS AND WOODS.", "IT FLAPS ITS WINGS" },
+        { "AT GROUND LEVEL TO", "KICK UP BLINDING", "SAND." },
+        g_pokedex_pidgey_tiles,
+        8,
+    },
+    [POKEDEX_RATTATA] = {
+        "RATTATA", "RAT", "HT 1'0", "WT 7.7LB", "NO. 019",
+        { "BITES ANYTHING WHEN", "IT ATTACKS. SMALL", "AND VERY QUICK, IT" },
+        { "IS A COMMON SIGHT", "IN MANY PLACES.", "" },
+        g_pokedex_rattata_tiles,
+        9,
     },
 };
 
@@ -62,24 +76,24 @@ static void prepare_pokedex_palettes(void) {
     vu16 *bulba = (vu16 *)MEM_PAL + 11 * 16;
     vu16 *charm = (vu16 *)MEM_PAL + 12 * 16;
     vu16 *squirt = (vu16 *)MEM_PAL + 13 * 16;
+    vu16 *pidgey = (vu16 *)MEM_PAL + 8 * 16;
+    vu16 *rattata = (vu16 *)MEM_PAL + 9 * 16;
 
     for (u8 i = 0; i < 16; i++) {
         paper[i] = 0x7FFF;
         bulba[i] = 0x7FFF;
         charm[i] = 0x7FFF;
         squirt[i] = 0x7FFF;
+        pidgey[i] = 0x7FFF;
+        rattata[i] = 0x7FFF;
     }
 
     paper[1] = RGB15(2, 1, 2);
-    // Use a true white paper so sprite transparency resolves to the same
-    // background as the rest of the menu screens.
     paper[2] = RGB15(31, 31, 31);
     paper[3] = RGB15(8, 18, 8);
     paper[4] = RGB15(20, 25, 20);
 
     bulba[1] = charm[1] = squirt[1] = RGB15(2, 1, 2);
-    // Sprite background/transparent pixels use index 2 in the species
-    // palettes. Keep it identical to the white Pokédex paper.
     bulba[2] = charm[2] = squirt[2] = RGB15(31, 31, 31);
     bulba[3] = RGB15(5, 15, 4);
     bulba[4] = RGB15(18, 28, 12);
@@ -87,6 +101,13 @@ static void prepare_pokedex_palettes(void) {
     charm[4] = RGB15(31, 16, 4);
     squirt[3] = RGB15(3, 9, 22);
     squirt[4] = RGB15(13, 23, 31);
+
+    pidgey[1] = rattata[1] = RGB15(2, 1, 2);
+    pidgey[2] = rattata[2] = RGB15(31, 31, 31);
+    pidgey[3] = RGB15(16, 12, 6);
+    pidgey[4] = RGB15(26, 22, 14);
+    rattata[3] = RGB15(14, 8, 16);
+    rattata[4] = RGB15(24, 18, 26);
 }
 static u16 s_saved_palette[16];
 static bool8 s_palette_saved;
@@ -148,8 +169,19 @@ static void load_pokemon_picture(const u32 *tiles, u8 palette) {
                                palette);
 }
 
+bool8 pokedex_species_to_entry(PokemonId species, PokedexSpecies *out) {
+    switch (species) {
+    case MON_BULBASAUR:  *out = POKEDEX_BULBASAUR; return TRUE;
+    case MON_CHARMANDER: *out = POKEDEX_CHARMANDER; return TRUE;
+    case MON_SQUIRTLE:   *out = POKEDEX_SQUIRTLE; return TRUE;
+    case MON_PIDGEY:     *out = POKEDEX_PIDGEY; return TRUE;
+    case MON_RATTATA:    *out = POKEDEX_RATTATA; return TRUE;
+    default: return FALSE;
+    }
+}
+
 void pokedex_open(PokedexSpecies species) {
-    if (species >= ARRAY_COUNT(s_entries)) species = POKEDEX_BULBASAUR;
+    if (species >= POKEDEX_ENTRY_COUNT) species = POKEDEX_BULBASAUR;
     const PokedexEntry *entry = &s_entries[species];
     s_entry = entry;
     s_page = 0;
@@ -159,6 +191,8 @@ void pokedex_open(PokedexSpecies species) {
         audio_sfx_play(AUDIO_SFX_CRY_CHARMANDER);
     else if (species == POKEDEX_SQUIRTLE)
         audio_sfx_play(AUDIO_SFX_CRY_SQUIRTLE);
+    else
+        audio_sfx_play(AUDIO_SFX_CRY_WILD);
 
     text_clear();
     prepare_pokedex_palettes();
@@ -460,18 +494,15 @@ bool8 pokedex_list_update(void) {
 
     if (input_pressed(KEY_A)) {
         u8 dex_num = (u8)(s_list_scroll + s_list_cursor + 1);
-        if (dex_num <= NUM_POKEMON && pokedex_is_seen((PokemonId)dex_num)) {
+        if (dex_num <= NUM_POKEMON && pokedex_is_owned((PokemonId)dex_num)) {
             PokedexSpecies sp;
-            if (dex_num == MON_BULBASAUR) sp = POKEDEX_BULBASAUR;
-            else if (dex_num == MON_CHARMANDER) sp = POKEDEX_CHARMANDER;
-            else if (dex_num == MON_SQUIRTLE) sp = POKEDEX_SQUIRTLE;
-            else {
+            if (pokedex_species_to_entry((PokemonId)dex_num, &sp)) {
+                pokedex_open(sp);
+                s_list_detail_open = TRUE;
                 audio_sfx_play(AUDIO_SFX_CONFIRM);
-                return FALSE;
+            } else {
+                audio_sfx_play(AUDIO_SFX_CONFIRM);
             }
-            pokedex_open(sp);
-            s_list_detail_open = TRUE;
-            audio_sfx_play(AUDIO_SFX_CONFIRM);
             return FALSE;
         }
     }

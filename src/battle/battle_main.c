@@ -21,6 +21,7 @@
 #include "pokedex.h"
 #include "flags.h"
 #include "item.h"
+#include "pc.h"
 
 typedef enum {
     BS_INIT = 0,
@@ -53,6 +54,11 @@ typedef enum {
     BS_DEFEAT_WAIT,
     BS_SWITCH_IN,
     BS_FLEE_FAIL,
+    BS_BALL_THROW,
+    BS_BALL_SHAKE,
+    BS_BALL_RESULT,
+    BS_CATCH_POKEDEX,
+    BS_CATCH_NICKNAME,
     BS_END,
 } BattleState;
 
@@ -92,6 +98,14 @@ static u8 s_battle_party_cursor;
 static BattleState s_after_msg_state;
 static PartyPokemon s_caught_mon;
 static bool8 s_caught_pending;
+
+static u8 s_ball_shake_count;
+static u8 s_ball_shakes_done;
+static u8 s_ball_anim_phase;
+static u16 s_ball_anim_timer;
+static bool8 s_ball_caught_result;
+static bool8 s_catch_nickname_active;
+static bool8 s_enemy_hidden;
 
 #define TRANSITION_SCREEN_W 30
 #define TRANSITION_SCREEN_H 20
@@ -324,6 +338,12 @@ static void draw_battle_bg(void) {
 
 static void draw_sprites(void) {
     render_clear_sprites();
+
+    // The catch nickname screen replaces the battle scene. Keep the battle
+    // Pokémon sprites out of OAM while its text UI is being displayed.
+    if (s_catch_nickname_active || s_battle.state == BS_END)
+        return;
+
     RenderCmd cmd;
 
     if (s_player_slide_x > -64) {
@@ -335,11 +355,13 @@ static void draw_sprites(void) {
         render_submit(cmd);
     }
 
-    cmd.id = s_trainer_visible ? BATTLE_TRAINER_TILE : 64;
-    cmd.x = 176 - 32;
-    cmd.y = 40 - 32;
-    cmd.param = s_trainer_visible ? BATTLE_TRAINER_PAL : 1;
-    render_submit(cmd);
+    if (!s_enemy_hidden) {
+        cmd.id = s_trainer_visible ? BATTLE_TRAINER_TILE : 64;
+        cmd.x = 176 - 32;
+        cmd.y = 40 - 32;
+        cmd.param = s_trainer_visible ? BATTLE_TRAINER_PAL : 1;
+        render_submit(cmd);
+    }
 }
 
 static void update_player_slide(void) {
@@ -690,6 +712,9 @@ static void clear_lower_ui(void) {
             text_draw_tile(c, r, TEXT_BLANK_TILE);
 }
 
+static void hide_enemy_sprite(void) { s_enemy_hidden = TRUE; }
+static void show_enemy_sprite(void) { s_enemy_hidden = FALSE; }
+
 static BattlePokemon *cur_attacker(void) {
     if (s_battle.turn_phase == 0)
         return s_battle.player_goes_first ? &s_battle.player_mon : &s_battle.enemy_mon;
@@ -817,6 +842,8 @@ void battle_init(void) {
     s_battle_party_cursor = 0;
     s_after_msg_state = BS_PLAYER_MENU;
     s_caught_pending = FALSE;
+    s_enemy_hidden = FALSE;
+    s_catch_nickname_active = FALSE;
 
     s_battle.saved_dispcnt = REG_DISPCNT;
     s_battle.state = BS_INIT;
@@ -1186,12 +1213,51 @@ void battle_update(void) {
                 s_battle.state = BS_ACTION_MSG_WAIT;
             } else if (sel == ITEM_POKE_BALL && s_battle.is_wild) {
                 bag_remove(ITEM_POKE_BALL, 1);
-                bool8 caught = ((u8)battle_random() < 128);
-                char *p = s_msg_buf;
+                // Gen 1 catch formula (simplified):
+                // If rand < catch_rate/2, catch succeeds immediately (3 shakes).
+                // Otherwise compute shake count from formula.
+                const PokemonBaseStats *ebase = &g_pokemon_base_stats[s_battle.enemy_species];
+                u8 catch_rate = ebase->catch_rate;
+                u8 status_bonus = 0;
+                if (s_battle.enemy_mon.status & 0x04) status_bonus = 25; // sleep
+                else if (s_battle.enemy_mon.status & 0x03) status_bonus = 12; // burn/para/poison
+
+                u8 rand1 = (u8)battle_random();
+                bool8 caught = FALSE;
+                u8 shakes = 0;
+
+                if (rand1 < (u8)(catch_rate / 2 + status_bonus)) {
+                    caught = TRUE;
+                    shakes = 3;
+                } else {
+                    // W = (MaxHP * 255) / (BallFactor * max(HP/4,1))
+                    u16 hp4 = s_battle.enemy_mon.current_hp / 4;
+                    if (hp4 == 0) hp4 = 1;
+                    u32 w = ((u32)s_battle.enemy_mon.max_hp * 255) / (8 * hp4);
+                    if (w > 255) w = 255;
+                    u8 rand2 = (u8)battle_random();
+                    if (rand2 < (u8)w) {
+                        caught = TRUE;
+                        shakes = 3;
+                    } else {
+                        // Determine shakes: higher w = more shakes
+                        if (w < 10) shakes = 0;
+                        else if (w < 70) shakes = 1;
+                        else if (w < 150) shakes = 2;
+                        else shakes = 3;
+                        if (shakes == 3) caught = TRUE;
+                    }
+                }
+
+                s_ball_caught_result = caught;
+                s_ball_shake_count = shakes;
+                s_ball_shakes_done = 0;
+                s_ball_anim_phase = 0;
+                s_ball_anim_timer = 0;
+
                 if (caught) {
                     pokedex_set_owned(s_battle.enemy_species);
                     s_battle.ball_caught = TRUE;
-                    // Snapshot the enemy mon now; BS_END will add it to party.
                     s_caught_mon.species = s_battle.enemy_species;
                     s_caught_mon.level   = s_battle.enemy_mon.level;
                     s_caught_mon.dv      = s_battle.enemy_mon.dv;
@@ -1209,7 +1275,6 @@ void battle_update(void) {
                     s_caught_mon.experience =
                         pokemon_exp_for_level(s_battle.enemy_species,
                                               s_battle.enemy_mon.level);
-                    // Use species name as default nickname.
                     const char *sp = species_name(s_battle.enemy_species);
                     u8 ni = 0;
                     while (ni < PARTY_NICKNAME_LENGTH - 1 && sp[ni]) {
@@ -1217,16 +1282,11 @@ void battle_update(void) {
                     }
                     s_caught_mon.nickname[ni] = '\0';
                     s_caught_pending = TRUE;
-                    p = str_append(p, "Gotcha!\n");
-                    p = str_append(p, species_name(s_battle.enemy_species));
-                    p = str_append(p, " was\ncaught!");
-                } else {
-                    p = str_append(p, species_name(s_battle.enemy_species));
-                    p = str_append(p, "\nbroke free!");
                 }
-                *p = '\0';
-                battle_msg(s_msg_buf);
-                s_battle.state = BS_ACTION_MSG_WAIT;
+
+                clear_lower_ui();
+                battle_msg("[NAME] used\nPOKe BALL!");
+                s_battle.state = BS_BALL_THROW;
             } else {
                 battle_msg("Can't use\nthat here!");
                 s_battle.state = BS_ACTION_MSG_WAIT;
@@ -1240,9 +1300,6 @@ void battle_update(void) {
             clear_lower_ui();
             if (s_battle.run_ends_battle) {
                 s_battle.run_ends_battle = FALSE;
-                s_battle.state = BS_END;
-            } else if (s_battle.ball_caught) {
-                s_battle.ball_caught = FALSE;
                 s_battle.state = BS_END;
             } else {
                 BattleState next = s_after_msg_state;
@@ -1709,6 +1766,112 @@ void battle_update(void) {
         }
         break;
 
+    case BS_BALL_THROW:
+        // Phase 0: wait for "used POKe BALL!" message
+        // Phase 1: ball flies toward enemy (16 frames)
+        // Phase 2: enemy disappears (poof, 8 frames)
+        if (s_ball_anim_phase == 0) {
+            if (dialog_update()) {
+                clear_lower_ui();
+                s_ball_anim_phase = 1;
+                s_ball_anim_timer = 0;
+            }
+        } else if (s_ball_anim_phase == 1) {
+            s_ball_anim_timer++;
+            if (s_ball_anim_timer >= 16) {
+                // Hide enemy sprite to represent entering the ball
+                hide_enemy_sprite();
+                s_ball_anim_phase = 2;
+                s_ball_anim_timer = 0;
+            }
+        } else {
+            s_ball_anim_timer++;
+            if (s_ball_anim_timer >= 8) {
+                s_ball_anim_phase = 0;
+                s_ball_anim_timer = 0;
+                s_ball_shakes_done = 0;
+                if (s_ball_shake_count == 0) {
+                    // Immediate break free
+                    show_enemy_sprite();
+                    battle_msg("Oh no!\nThe POKeMON broke\nfree!");
+                    s_battle.state = BS_BALL_RESULT;
+                } else {
+                    s_battle.state = BS_BALL_SHAKE;
+                }
+            }
+        }
+        break;
+
+    case BS_BALL_SHAKE: {
+        // Each shake: 16 frames of wobble animation
+        s_ball_anim_timer++;
+        if (s_ball_anim_timer >= 16) {
+            s_ball_anim_timer = 0;
+            s_ball_shakes_done++;
+            audio_sfx_play(AUDIO_SFX_SELECT);
+            if (s_ball_caught_result && s_ball_shakes_done >= 3) {
+                // Caught! Show click message
+                audio_sfx_play(AUDIO_SFX_CONFIRM);
+                char *p = s_msg_buf;
+                p = str_append(p, "Gotcha!\n");
+                p = str_append(p, species_name(s_battle.enemy_species));
+                p = str_append(p, " was\ncaught!");
+                *p = '\0';
+                battle_msg(s_msg_buf);
+                s_battle.state = BS_BALL_RESULT;
+            } else if (!s_ball_caught_result && s_ball_shakes_done >= s_ball_shake_count) {
+                // Broke free after shaking
+                show_enemy_sprite();
+                char *p = s_msg_buf;
+                p = str_append(p, species_name(s_battle.enemy_species));
+                p = str_append(p, "\nbroke free!");
+                *p = '\0';
+                battle_msg(s_msg_buf);
+                s_battle.state = BS_BALL_RESULT;
+            }
+        }
+        break;
+    }
+
+    case BS_BALL_RESULT:
+        if (dialog_update()) {
+            clear_lower_ui();
+            if (s_ball_caught_result) {
+                PokedexSpecies dex_sp;
+                if (pokedex_species_to_entry(s_battle.enemy_species, &dex_sp)) {
+                    pokedex_open(dex_sp);
+                    s_battle.state = BS_CATCH_POKEDEX;
+                } else {
+                    game_nickname_open(species_name(s_battle.enemy_species));
+                    s_catch_nickname_active = TRUE;
+                    s_battle.state = BS_CATCH_NICKNAME;
+                }
+            } else {
+                s_battle.state = BS_TURN_START;
+            }
+        }
+        break;
+
+    case BS_CATCH_POKEDEX:
+        if (pokedex_update()) {
+            pokedex_close();
+            // Offer nickname
+            game_nickname_open(species_name(s_battle.enemy_species));
+            s_catch_nickname_active = TRUE;
+            s_battle.state = BS_CATCH_NICKNAME;
+        }
+        break;
+
+    case BS_CATCH_NICKNAME:
+        if (game_nickname_update(s_caught_mon.nickname, PARTY_NICKNAME_LENGTH)) {
+            s_catch_nickname_active = FALSE;
+            text_init();
+            tilemap_rebuild();
+            tilemap_update_scroll();
+            s_battle.state = BS_END;
+        }
+        break;
+
     case BS_END:
         if (dialog_is_open()) { dialog_update(); break; }
         bool8 scripted_rival_battle = !s_battle.is_wild;
@@ -1752,10 +1915,14 @@ void battle_update(void) {
                     updated.nickname[i] = old->nickname[i];
             party_update_slot(s_active_party_slot, &updated);
         }
-        // Add caught Pokémon to party (or notify party full).
         if (s_caught_pending) {
             s_caught_pending = FALSE;
-            party_add(&s_caught_mon);
+            if (!party_add(&s_caught_mon)) {
+                // Party full — send to current PC box.
+                PcBox *box = &g_pc.boxes[g_pc.current_box];
+                if (box->count < PC_BOX_SIZE)
+                    box->mons[box->count++] = s_caught_mon;
+            }
         }
         if (s_blackout && party_all_fainted() && !scripted_rival_battle) {
             const MapHeader *recovery_map = map_get_by_id(g_last_healing_point.map_id);

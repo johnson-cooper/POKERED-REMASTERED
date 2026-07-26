@@ -1,8 +1,9 @@
 #include "save.h"
+#include "pc.h"
 #include "experience.h"
 #include <stddef.h>
 
-#define SAVE_VERSION 4
+#define SAVE_VERSION 5
 #define SAVE_MAGIC_0 'R'
 #define SAVE_MAGIC_1 'R'
 #define SAVE_MAGIC_2 'M'
@@ -159,10 +160,19 @@ bool8 save_exists(void) {
             ((u8 *)&data)[i] = GBA_SRAM[i];
         return data.checksum == legacy_v3_checksum(&data);
     }
-    SaveData data;
-    for (u32 i = 0; i < sizeof(SaveData); i++)
-        ((u8 *)&data)[i] = GBA_SRAM[i];
-    return data.checksum == save_checksum(&data);
+    if (GBA_SRAM[4] == 4) {
+        // V4: same as current SaveData minus the PcState field.
+        u32 v4_payload_end = offsetof(SaveData, pc);
+        u8 sum = 0;
+        for (u32 i = 4; i < v4_payload_end; i++)
+            sum = (u8)(sum + GBA_SRAM[i]);
+        return GBA_SRAM[v4_payload_end] == sum;
+    }
+    // Compute the v5 checksum directly from SRAM bytes to avoid a 10KB stack frame.
+    u8 sum = 0;
+    for (u32 i = 4; i < offsetof(SaveData, checksum); i++)
+        sum = (u8)(sum + GBA_SRAM[i]);
+    return GBA_SRAM[offsetof(SaveData, checksum)] == sum;
 }
 
 bool8 save_read(SaveData *out) {
@@ -269,6 +279,19 @@ bool8 save_read(SaveData *out) {
             out->pokedex_seen[i] = 0;
             out->pokedex_owned[i] = 0;
         }
+    } else if (GBA_SRAM[4] == 4) {
+        // V4 save: same as v5 but without PcState. Read the fields
+        // that existed in v4 and zero the PC state.
+        // V4 layout is identical to v5 up to the pokedex_owned field,
+        // then checksum immediately follows (no pc field).
+        u32 v4_size = offsetof(SaveData, pc);
+        for (u32 i = 0; i < v4_size; i++)
+            ((u8 *)out)[i] = GBA_SRAM[i];
+        // Read the v4 checksum which is right after pokedex_owned.
+        out->checksum = GBA_SRAM[v4_size];
+        // Initialize PC to empty.
+        pc_init();
+        out->pc = g_pc;
     } else {
         for (u32 i = 0; i < sizeof(SaveData); i++)
             ((u8 *)out)[i] = GBA_SRAM[i];
@@ -276,26 +299,33 @@ bool8 save_read(SaveData *out) {
     return TRUE;
 }
 
+// Placed in EWRAM so it doesn't consume any IWRAM or stack budget.
+__attribute__((section(".ewram"))) static SaveData s_write_buf;
+
+SaveData *save_get_buffer(void) {
+    return &s_write_buf;
+}
+
 bool8 save_write(const SaveData *data) {
     if (!data) return FALSE;
 
     save_prepare_sram();
 
-    SaveData copy = *data;
-    copy.magic[0] = SAVE_MAGIC_0;
-    copy.magic[1] = SAVE_MAGIC_1;
-    copy.magic[2] = SAVE_MAGIC_2;
-    copy.magic[3] = SAVE_MAGIC_3;
-    copy.version = SAVE_VERSION;
-    copy.checksum = save_checksum(&copy);
+    s_write_buf = *data;
+    s_write_buf.magic[0] = SAVE_MAGIC_0;
+    s_write_buf.magic[1] = SAVE_MAGIC_1;
+    s_write_buf.magic[2] = SAVE_MAGIC_2;
+    s_write_buf.magic[3] = SAVE_MAGIC_3;
+    s_write_buf.version = SAVE_VERSION;
+    s_write_buf.checksum = save_checksum(&s_write_buf);
 
     // Write the payload first and the magic last. A reset during saving will
     // therefore leave the old file recognizable instead of a false new file.
     for (u32 i = 4; i < sizeof(SaveData); i++)
-        GBA_SRAM[i] = ((const u8 *)&copy)[i];
-    GBA_SRAM[0] = copy.magic[0];
-    GBA_SRAM[1] = copy.magic[1];
-    GBA_SRAM[2] = copy.magic[2];
-    GBA_SRAM[3] = copy.magic[3];
+        GBA_SRAM[i] = ((const u8 *)&s_write_buf)[i];
+    GBA_SRAM[0] = s_write_buf.magic[0];
+    GBA_SRAM[1] = s_write_buf.magic[1];
+    GBA_SRAM[2] = s_write_buf.magic[2];
+    GBA_SRAM[3] = s_write_buf.magic[3];
     return save_exists();
 }

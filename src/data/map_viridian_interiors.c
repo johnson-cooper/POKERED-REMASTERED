@@ -85,12 +85,16 @@ static const NpcDef s_mart_npcs[] = {
 };
 
 // Pokécenter: Nurse (3,1) DOWN, Gentleman (10,5) UP_DOWN,
-//             Cooltrainer_M (5,3) STAY, Link Receptionist (11,2) DOWN
+//             Cooltrainer_M (5,3) STAY, Link Receptionist (11,2) DOWN,
+//             PC (13,5) — the east-side 0x08 computer tile provides the visual;
+//             NPCF_NO_SPRITE keeps the trigger invisible.
 static const NpcDef s_center_npcs[] = {
     { .x=3,  .y=1, .sprite_tile=GFX_GIRL_TILE_BASE,      .facing=DIR_DOWN, .script_id=25 },
     { .x=10, .y=5, .sprite_tile=GFX_FISHER_TILE_BASE,    .facing=DIR_DOWN, .script_id=26, .movement=NPC_MOVE_UP_DOWN },
     { .x=5,  .y=3, .sprite_tile=GFX_BLUE_TILE_BASE,      .facing=DIR_DOWN, .script_id=27 },
     { .x=11, .y=2, .sprite_tile=GFX_SCIENTIST_TILE_BASE, .facing=DIR_DOWN, .script_id=28 },
+    { .x=13, .y=5, .sprite_tile=0,                       .facing=DIR_DOWN, .script_id=36,
+      .movement=NPC_MOVE_STAY, .flags=NPCF_NO_SPRITE },
 };
 
 // School: Brunette Girl (3,5) UP, Cooltrainer_F (4,1) DOWN

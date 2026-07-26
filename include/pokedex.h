@@ -7,11 +7,15 @@ typedef enum {
     POKEDEX_BULBASAUR = 0,
     POKEDEX_CHARMANDER,
     POKEDEX_SQUIRTLE,
+    POKEDEX_PIDGEY,
+    POKEDEX_RATTATA,
+    POKEDEX_ENTRY_COUNT,
 } PokedexSpecies;
 
 void  pokedex_open(PokedexSpecies species);
 bool8 pokedex_update(void);
 void  pokedex_close(void);
+bool8 pokedex_species_to_entry(PokemonId species, PokedexSpecies *out);
 
 void  pokedex_set_seen(PokemonId species);
 void  pokedex_set_owned(PokemonId species);

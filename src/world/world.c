@@ -95,6 +95,10 @@ void world_init(const MapHeader *map, u8 start_x, u8 start_y) {
         if (flags_get(FLAG_OAKSLAB_SQUIRTLE_TAKEN))
             g_world.npcs[4].flags |= NPCF_HIDDEN;
     }
+    if (map->map_id == MAP_RIVALS_HOUSE && flags_get(FLAG_GOT_TOWN_MAP)) {
+        if (g_world.npc_count > 1)
+            g_world.npcs[1].flags |= NPCF_HIDDEN;
+    }
 
     tilemap_init();
     camera_update();
@@ -285,7 +289,7 @@ void world_render(void) {
     if (g_world.npc_count) {
         for (u8 i = 0; i < g_world.npc_count; i++) {
             const NpcState *npc = &g_world.npcs[i];
-            if (npc->flags & NPCF_HIDDEN) continue;
+            if (npc->flags & (NPCF_HIDDEN | NPCF_NO_SPRITE)) continue;
 
             // Align the sprite with the logical tile used for interaction.
             // The former anchor placed NPC graphics left and nearly a tile
