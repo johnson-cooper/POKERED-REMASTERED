@@ -40,7 +40,7 @@ GBAFIX  := $(DEVKITPRO)/tools/bin/gbafix
 # ── Flags ─────────────────────────────────────────────────────────────────────
 ARCH    := -mthumb -mthumb-interwork -mcpu=arm7tdmi -mtune=arm7tdmi
 CFLAGS  := $(ARCH) -pipe \
-            -O2 \
+            -O2 -flto \
             -Wall -Wextra -Wno-unused-parameter \
             -ffunction-sections -fdata-sections \
             -Iinclude \
@@ -48,6 +48,7 @@ CFLAGS  := $(ARCH) -pipe \
             -I$(LIBGBAINC)
 
 LDFLAGS := $(ARCH) \
+            -O2 -flto \
             -specs=$(DEVKITARM)/arm-none-eabi/lib/gba.specs \
             -L$(LIBGBALIB) \
             -Wl,--gc-sections \
@@ -69,9 +70,14 @@ DFILES  := $(OFILES:.o=.d)
 .DEFAULT_GOAL := all
 -include $(DFILES)
 
-.PHONY: all clean
+PYTHON  ?= python
+
+.PHONY: all clean patcher
 
 all: $(TARGET).gba
+
+patcher: $(TARGET).gba
+	$(PYTHON) tools/build_patcher.py $(TARGET).gba patcher/index.html
 
 $(TARGET).gba: $(TARGET).elf
 	$(OBJCOPY) -O binary $< $@
