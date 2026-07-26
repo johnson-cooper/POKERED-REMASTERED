@@ -9,7 +9,7 @@
 html,body{margin:0;padding:0;min-height:100vh;transition:background .5s}
 *{font-family:'Pokemon GB',monospace}
 body{display:flex;align-items:center;justify-content:center;padding:20px}
-#screen{max-width:420px;width:100%;transition:background .5s,box-shadow .5s,border-radius .5s,padding .5s}
+#screen{max-width:680px;width:100%;transition:background .5s,box-shadow .5s,border-radius .5s,padding .5s}
 h1{font-size:1rem;text-align:center;line-height:1.8;margin:0}
 .sub{font-size:.5rem;text-align:center;display:block;margin-top:.25em}
 #drop{cursor:pointer;user-select:none}
@@ -19,27 +19,27 @@ h1{font-size:1rem;text-align:center;line-height:1.8;margin:0}
 #sf{display:none}
 
 html.gb body{background:#181010}
-html.gb #screen{background:#f8f3f8;padding:12px;border:4px solid #181010;box-shadow:0 0 0 4px #48a058,0 0 0 10px #181010}
+html.gb #screen{background:#f8f3f8;padding:20px;border:4px solid #181010;box-shadow:0 0 0 4px #48a058,0 0 0 10px #181010}
 html.gb h1 span{color:#48a058}
 html.gb .sub{color:#48a058}
 html.gb #drop.over #drop-in{background:#48a058!important;color:#f8f3f8!important}
 
-html.gba body{background:#0d0d1a}
-html.gba #screen{background:#16213e;padding:24px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.6)}
-html.gba h1 span{color:#e3000b}
-html.gba .sub{color:#9aa5b4}
-html.gba .framed.primary{background:#e3000b!important}
-html.gba .framed.neutral{background:#1e3a5f!important;color:#e8e8e8!important}
-html.gba .framed.danger{background:#7a0010!important;color:#f8f3f8!important}
-html.gba #drop.over #drop-in{background:#1e4a7f!important}
-html.gba a.button{color:#e8e8e8;background:#e3000b;display:block;padding:12px 16px;border-radius:6px;text-align:center;text-decoration:none}
-html.gba a.button:hover{background:#b8000a}
+html.gba body{background:#080808}
+html.gba #screen{background:#111111;padding:32px;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.9)}
+html.gba h1 span{color:#48a058}
+html.gba .sub{color:#606060}
+html.gba .framed.primary{background:#1a4d2e!important;color:#d0f0d8!important}
+html.gba .framed.neutral{background:#1c1c1c!important;color:#d8d8d8!important}
+html.gba .framed.danger{background:#3d0f0f!important;color:#f8c0c0!important}
+html.gba #drop.over #drop-in{background:#1a3a22!important}
+html.gba a.button{color:#d0f0d8;background:#1a4d2e;display:block;padding:14px 16px;border-radius:6px;text-align:center;text-decoration:none}
+html.gba a.button:hover{background:#113320}
 html.gba a.button:before{display:none}
 </style>
 </head>
 <body>
 <div id="screen">
-<div class="framed primary">
+<div class="framed neutral">
 <h1>POKEMON RED<br><span>GBA REMASTER</span></h1>
 <span class="sub">OWNERSHIP VERIFICATION PATCHER</span>
 </div>
