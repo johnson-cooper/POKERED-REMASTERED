@@ -5,6 +5,9 @@ param(
 )
 
 $sprites = @(
+    @{ Symbol = "youngster"; File = (Join-Path $ReferenceDir "youngster.png"); Width = 16; Height = 96; Frames = 6 },
+    @{ Symbol = "gambler"; File = (Join-Path $ReferenceDir "gambler.png"); Width = 16; Height = 96; Frames = 6 },
+    @{ Symbol = "gambler_asleep"; File = (Join-Path $ReferenceDir "gambler_asleep.png"); Width = 16; Height = 96; Frames = 6 },
     @{ Symbol = "girl";    File = (Join-Path $ReferenceDir "girl.png");    Width = 16; Height = 96; Frames = 6 },
     @{ Symbol = "fisher";  File = (Join-Path $ReferenceDir "fisher.png");  Width = 16; Height = 96; Frames = 6 },
     @{ Symbol = "daisy";   File = (Join-Path $ReferenceDir "daisy.png");   Width = 16; Height = 96; Frames = 6 },
@@ -61,6 +64,9 @@ $header = @(
     '#pragma once',
     '#include "types.h"',
     '',
+    'extern const u32 g_youngster_tiles[];',
+    'extern const u32 g_gambler_tiles[];',
+    'extern const u32 g_gambler_asleep_tiles[];',
     'extern const u32 g_girl_tiles[];',
     'extern const u32 g_fisher_tiles[];',
     'extern const u32 g_daisy_tiles[];',

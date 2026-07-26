@@ -20,6 +20,7 @@ typedef enum {
     FLAG_GOT_OAKS_PARCEL,
     FLAG_OAK_GOT_PARCEL,
     FLAG_GOT_TOWN_MAP,
+    FLAG_GOT_ROUTE1_POTION,
     FLAG_COUNT,
 } GameFlag;
 

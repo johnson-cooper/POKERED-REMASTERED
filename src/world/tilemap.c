@@ -372,6 +372,18 @@ void tilemap_load_player_sprite(void) {
     for (u32 i = 0; i < 24 * 8; i++)
         obj_vram[scientist_base + i] = remap_sprite_nibbles(g_scientist_tiles[i]);
 
+    u32 youngster_base = scientist_base + 24 * 8;
+    for (u32 i = 0; i < 24 * 8; i++)
+        obj_vram[youngster_base + i] = remap_sprite_nibbles(g_youngster_tiles[i]);
+
+    u32 gambler_base = youngster_base + 24 * 8;
+    for (u32 i = 0; i < 24 * 8; i++)
+        obj_vram[gambler_base + i] = remap_sprite_nibbles(g_gambler_tiles[i]);
+
+    u32 gambler_asleep_base = gambler_base + 24 * 8;
+    for (u32 i = 0; i < 4 * 8; i++)
+        obj_vram[gambler_asleep_base + i] = remap_sprite_nibbles(g_gambler_asleep_tiles[i]);
+
 
 
 

@@ -50,15 +50,15 @@ static const WarpEvent s_warps[] = {
 };
 
 static const NpcDef s_npcs[] = {
-    { .x = 13, .y = 20, .sprite_tile = GFX_BLUE_TILE_BASE,   .facing = DIR_DOWN,  .script_id = 15, .movement = NPC_MOVE_WALK_ANY },
-    { .x = 30, .y =  8, .sprite_tile = GFX_FISHER_TILE_BASE, .facing = DIR_DOWN,  .script_id = 16, .movement = NPC_MOVE_STAY },
-    { .x = 30, .y = 25, .sprite_tile = GFX_BLUE_TILE_BASE,   .facing = DIR_DOWN,  .script_id = 17, .movement = NPC_MOVE_WALK_ANY },
+    { .x = 13, .y = 20, .sprite_tile = GFX_YOUNGSTER_TILE_BASE, .facing = DIR_DOWN,  .script_id = 15, .movement = NPC_MOVE_WALK_ANY },
+    { .x = 30, .y =  8, .sprite_tile = GFX_GAMBLER_TILE_BASE,   .facing = DIR_DOWN,  .script_id = 16, .movement = NPC_MOVE_STAY },
+    { .x = 30, .y = 25, .sprite_tile = GFX_YOUNGSTER_TILE_BASE, .facing = DIR_DOWN,  .script_id = 17, .movement = NPC_MOVE_WALK_ANY },
     { .x = 17, .y =  9, .sprite_tile = GFX_GIRL_TILE_BASE,   .facing = DIR_RIGHT, .script_id = 18, .movement = NPC_MOVE_STAY },
-    { .x = 18, .y =  9, .sprite_tile = GFX_FISHER_TILE_BASE, .facing = DIR_DOWN,  .script_id = 19, .movement = NPC_MOVE_STAY },
+    { .x = 18, .y =  9, .sprite_tile = GFX_GAMBLER_ASLEEP_TILE_BASE, .facing = DIR_DOWN,  .script_id = 19, .movement = NPC_MOVE_STAY },
     { .x =  6, .y = 23, .sprite_tile = GFX_FISHER_TILE_BASE, .facing = DIR_DOWN,  .script_id = 20, .movement = NPC_MOVE_STAY },
     // The Old Man is a fixed story gate. He must not wander off the tile
     // before the player has received the Pokédex.
-    { .x = 17, .y =  5, .sprite_tile = GFX_FISHER_TILE_BASE, .facing = DIR_DOWN,  .script_id = 21, .movement = NPC_MOVE_STAY },
+    { .x = 17, .y =  5, .sprite_tile = GFX_GAMBLER_TILE_BASE, .facing = DIR_DOWN,  .script_id = 21, .movement = NPC_MOVE_LEFT_RIGHT },
 };
 
 const MapHeader g_map_viridian_city = {

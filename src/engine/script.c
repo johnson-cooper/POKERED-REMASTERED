@@ -27,6 +27,7 @@ bool8 script_blocks_input(void) { return s_blocks_input; }
 static u8 s_npc_script_state = 0;
 static u16 s_active_script_id = 0;
 static u8 s_active_npc_index  = 0;
+static u8 s_route1_youngster_state = 0;
 
 // Reserved script id for map-owned cutscenes. It prevents the generic NPC
 // dialog dispatcher from swallowing the map script's own dialog updates.
@@ -70,6 +71,8 @@ static const char *const s_npc_texts[] = {
     /* 34 */ "",
     /* 35 */ "Yo! Champ in making!\fThis GYM's door is\nlocked right now.",
     /* 36 */ "",
+    /* 37 */ "",
+    /* 38 */ "I just saw your\nPOKeMON! They look\nreally strong!",
 };
 
 static u8 s_viridian_mart_state = 0;
@@ -489,6 +492,21 @@ void script_trigger_npc(u16 script_id, u8 npc_index) {
         return;
     }
 
+    // Route 1's first Youngster gives the one-time Potion sample.
+    if (script_id == 37 && g_world.map &&
+        g_world.map->map_id == MAP_ROUTE_1) {
+        s_active_script_id = script_id;
+        s_active_npc_index = npc_index;
+        s_route1_youngster_state = 1;
+        s_blocks_input = TRUE;
+        dialog_open();
+        if (flags_get(FLAG_GOT_ROUTE1_POTION))
+            dialog_set_text("I hope that POTION\nhelped your POKeMON!");
+        else
+            dialog_set_text("Here, take this POTION.\nIt will help your POKeMON!");
+        return;
+    }
+
     // Daisy gives the Town Map after the player has the Pokédex.
     if (script_id == 5 && g_world.map &&
         g_world.map->map_id == MAP_RIVALS_HOUSE) {
@@ -587,6 +605,40 @@ static bool8 npc_script_tick(void) {
     if (s_active_script_id == 36) {
         if (pc_menu_update()) {
             pc_menu_close();
+            s_active_script_id = 0;
+            s_blocks_input = FALSE;
+            return TRUE;
+        }
+        return FALSE;
+    }
+
+    if (s_active_script_id == 37 &&
+        g_world.map && g_world.map->map_id == MAP_ROUTE_1) {
+        if (s_route1_youngster_state == 1 && dialog_update()) {
+            if (!flags_get(FLAG_GOT_ROUTE1_POTION)) {
+                if (bag_add(ITEM_POTION, 1)) {
+                    flags_set(FLAG_GOT_ROUTE1_POTION);
+                    dialog_open();
+                    dialog_set_text("[NAME] got a POTION!");
+                    s_route1_youngster_state = 2;
+                } else {
+                    dialog_open();
+                    dialog_set_text("You can't carry any\nmore items.");
+                    s_route1_youngster_state = 2;
+                }
+            } else {
+                s_route1_youngster_state = 2;
+            }
+            // Do not let the button press that closed this page retrigger
+            // the NPC in player_update on the same frame.
+            return FALSE;
+        }
+        if (s_route1_youngster_state == 2 && dialog_update()) {
+            s_route1_youngster_state = 3;
+            return FALSE;
+        }
+        if (s_route1_youngster_state == 3) {
+            s_route1_youngster_state = 0;
             s_active_script_id = 0;
             s_blocks_input = FALSE;
             return TRUE;

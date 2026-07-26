@@ -2,6 +2,7 @@
 #include "audio.h"
 #include "map_ids.h"
 #include "overworld_palette_map.h"
+#include "gfx_npcs.h"
 
 extern const Tileset g_tileset_route1;
 
@@ -54,8 +55,15 @@ const MapHeader g_map_route_1 = {
     .layout = &s_layout,
     .warps = s_warps,
     .warp_count = ARRAY_COUNT(s_warps),
-    .npcs = NULL,
-    .npc_count = 0,
+    .npcs = (const NpcDef[]) {
+        // Pokered Route 1 object events: Youngster 1 (5,24) UP_DOWN,
+        // Youngster 2 (15,13) LEFT_RIGHT.
+        { .x = 5,  .y = 24, .sprite_tile = GFX_YOUNGSTER_TILE_BASE,
+          .facing = DIR_UP, .script_id = 37, .movement = NPC_MOVE_UP_DOWN },
+        { .x = 15, .y = 13, .sprite_tile = GFX_YOUNGSTER_TILE_BASE,
+          .facing = DIR_LEFT, .script_id = 38, .movement = NPC_MOVE_LEFT_RIGHT },
+    },
+    .npc_count = 2,
     .script = NULL,
     .music_id = AUDIO_MUSIC_ROUTES_1,
     .roof_palette = &g_roof_pallet,

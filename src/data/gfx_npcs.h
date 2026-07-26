@@ -11,6 +11,9 @@
 #define GFX_POKEDEX_TILE_BASE 148
 #define GFX_MOM_TILE_BASE 152
 #define GFX_SCIENTIST_TILE_BASE 176
+#define GFX_YOUNGSTER_TILE_BASE 200
+#define GFX_GAMBLER_TILE_BASE 224
+#define GFX_GAMBLER_ASLEEP_TILE_BASE 248
 
 extern const u32 g_blue_tiles[];
 extern const u32 g_blue_tile_count;

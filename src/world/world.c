@@ -307,6 +307,8 @@ void world_render(void) {
             u16 sprite_id = npc->sprite_tile;
             u8 sprite_param = 0;
             if (npc->sprite_tile == GFX_BLUE_TILE_BASE ||
+                npc->sprite_tile == GFX_YOUNGSTER_TILE_BASE ||
+                npc->sprite_tile == GFX_GAMBLER_TILE_BASE ||
                 npc->sprite_tile == GFX_OAK_TILE_BASE ||
                 npc->sprite_tile == GFX_GIRL_TILE_BASE ||
                 npc->sprite_tile == GFX_SCIENTIST_TILE_BASE ||
