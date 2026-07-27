@@ -35,12 +35,17 @@ static void prepare_party_palettes(void) {
     vu16 *bulba  = (vu16 *)MEM_PAL + 11 * 16;
     vu16 *charm  = (vu16 *)MEM_PAL + 12 * 16;
     vu16 *squirt = (vu16 *)MEM_PAL + 13 * 16;
-    vu16 *pidgey = (vu16 *)MEM_PAL + 8 * 16;
-    vu16 *rattat = (vu16 *)MEM_PAL + 9 * 16;
+    vu16 *pidgey  = (vu16 *)MEM_PAL + 8 * 16;
+    vu16 *rattat  = (vu16 *)MEM_PAL + 9 * 16;
+    vu16 *nidof   = (vu16 *)MEM_PAL + 6 * 16;
+    vu16 *nidom   = (vu16 *)MEM_PAL + 7 * 16;
+    vu16 *nidorino = (vu16 *)MEM_PAL + 4 * 16;
+    vu16 *spearow = (vu16 *)MEM_PAL + 5 * 16;
 
     for (u8 i = 0; i < 16; i++) {
         ui[i] = bulba[i] = charm[i] = squirt[i] = 0x7FFF;
-        pidgey[i] = rattat[i] = 0x7FFF;
+        pidgey[i] = rattat[i] = nidof[i] = nidom[i] = 0x7FFF;
+        nidorino[i] = spearow[i] = 0x7FFF;
     }
     ui[1] = RGB15(2, 1, 2);
     ui[2] = RGB15(31, 31, 31);
@@ -66,10 +71,18 @@ static void prepare_party_palettes(void) {
     charm[4]  = RGB15(31, 16, 4);
     squirt[3] = RGB15(3, 9, 22);
     squirt[4] = RGB15(13, 23, 31);
-    pidgey[3] = RGB15(18, 12, 8);
-    pidgey[4] = RGB15(29, 24, 16);
-    rattat[3] = RGB15(18, 9, 18);
-    rattat[4] = RGB15(29, 18, 27);
+    pidgey[3]   = RGB15(18, 12, 8);
+    pidgey[4]   = RGB15(29, 24, 16);
+    rattat[3]   = RGB15(18, 9, 18);
+    rattat[4]   = RGB15(29, 18, 27);
+    nidof[3]    = RGB15(15, 5, 20);
+    nidof[4]    = RGB15(25, 15, 31);
+    nidom[3]    = RGB15(5, 8, 20);
+    nidom[4]    = RGB15(14, 16, 31);
+    nidorino[3] = RGB15(5, 8, 20);
+    nidorino[4] = RGB15(14, 16, 31);
+    spearow[3]  = RGB15(20, 10, 6);
+    spearow[4]  = RGB15(31, 22, 14);
 }
 
 static const u32 *party_sprite_tiles(PokemonId species) {
@@ -78,6 +91,10 @@ static const u32 *party_sprite_tiles(PokemonId species) {
     case MON_SQUIRTLE:   return g_pokedex_squirtle_tiles;
     case MON_PIDGEY:     return g_pokedex_pidgey_tiles;
     case MON_RATTATA:    return g_pokedex_rattata_tiles;
+    case MON_NIDORAN_F:  return g_pokedex_nidoran_f_tiles;
+    case MON_NIDORAN_M:  return g_pokedex_nidoran_m_tiles;
+    case MON_NIDORINO:   return g_pokedex_nidorino_tiles;
+    case MON_SPEAROW:    return g_pokedex_spearow_tiles;
     case MON_BULBASAUR:
     default:             return g_pokedex_bulbasaur_tiles;
     }
@@ -101,6 +118,10 @@ static u8 party_sprite_palette(PokemonId species) {
     case MON_SQUIRTLE:   return 13;
     case MON_PIDGEY:     return 8;
     case MON_RATTATA:    return 9;
+    case MON_NIDORAN_F:  return 6;
+    case MON_NIDORAN_M:  return 7;
+    case MON_NIDORINO:   return 4;
+    case MON_SPEAROW:    return 5;
     case MON_BULBASAUR:
     default:             return PARTY_SPRITE_PAL;
     }
@@ -108,11 +129,15 @@ static u8 party_sprite_palette(PokemonId species) {
 
 static const char *party_species_name(PokemonId species) {
     switch (species) {
-    case MON_BULBASAUR: return "BULBASAUR";
+    case MON_BULBASAUR:  return "BULBASAUR";
     case MON_CHARMANDER: return "CHARMANDER";
-    case MON_SQUIRTLE: return "SQUIRTLE";
-    case MON_PIDGEY: return "PIDGEY";
-    case MON_RATTATA: return "RATTATA";
+    case MON_SQUIRTLE:   return "SQUIRTLE";
+    case MON_PIDGEY:     return "PIDGEY";
+    case MON_RATTATA:    return "RATTATA";
+    case MON_NIDORAN_F:  return "NIDORAN\xf1"; // ♀
+    case MON_NIDORAN_M:  return "NIDORAN\xf0"; // ♂
+    case MON_NIDORINO:   return "NIDORINO";
+    case MON_SPEAROW:    return "SPEAROW";
     default: return "POKEMON";
     }
 }
@@ -131,15 +156,23 @@ static const char *party_status_name(u8 status) {
 static const char *party_type1(PokemonId species) {
     switch (species) {
     case MON_CHARMANDER: return "FIRE";
-    case MON_SQUIRTLE: return "WATER";
-    default: return "GRASS";
+    case MON_SQUIRTLE:   return "WATER";
+    case MON_PIDGEY:
+    case MON_RATTATA:
+    case MON_SPEAROW:    return "NORMAL";
+    case MON_NIDORAN_F:
+    case MON_NIDORAN_M:
+    case MON_NIDORINO:   return "POISON";
+    default:             return "GRASS";
     }
 }
 
 static const char *party_type2(PokemonId species) {
     switch (species) {
-    case MON_BULBASAUR: return "POISON";
-    default: return "";
+    case MON_BULBASAUR:  return "POISON";
+    case MON_PIDGEY:
+    case MON_SPEAROW:    return "FLYING";
+    default:             return "";
     }
 }
 
