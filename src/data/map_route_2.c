@@ -107,8 +107,8 @@ static const MapLayout s_layout = {
 static const WarpEvent s_warps[] = {
     // South connection to Viridian City (two tiles at bottom).
     // Viridian City's Route 2 warp will use this index.
-    { .x = 10, .y = 71, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 7 },
-    { .x = 11, .y = 71, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 7 },
+    { .x = 10, .y = 71, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 8 },
+    { .x = 11, .y = 71, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 8 },
 };
 
 const MapHeader g_map_route_2 = {

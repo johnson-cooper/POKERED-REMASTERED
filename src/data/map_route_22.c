@@ -44,11 +44,11 @@ static const MapLayout s_layout = {
 static const WarpEvent s_warps[] = {
     // East connection to Viridian City, shifted one tile east. The three
     // tiles directly north use the same Viridian City destination.
-    { .x = 39, .y = 9, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 8 },
-    { .x = 39, .y = 10, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 9 },
-    { .x = 39, .y = 6, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 8 },
-    { .x = 39, .y = 7, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 8 },
-    { .x = 39, .y = 8, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 8 },
+    { .x = 39, .y = 9, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 10 },
+    { .x = 39, .y = 10, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 11 },
+    { .x = 39, .y = 6, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 10 },
+    { .x = 39, .y = 7, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 10 },
+    { .x = 39, .y = 8, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 10 },
     // Route 22 Gate entrance (door at block 4,2 = subtile 8,5).
     { .x = 8, .y = 5, .dest_map = MAP_ROUTE_22_GATE, .dest_warp = 0 },
 };
