@@ -1319,39 +1319,49 @@ void battle_update(void) {
                 s_battle.state = BS_ACTION_MSG_WAIT;
             } else if (sel == ITEM_POKE_BALL && s_battle.is_wild) {
                 bag_remove(ITEM_POKE_BALL, 1);
-                // Gen 1 catch formula (simplified):
-                // If rand < catch_rate/2, catch succeeds immediately (3 shakes).
-                // Otherwise compute shake count from formula.
+                // Gen 1 catch formula (pokered item_effects.asm):
+                // Status subtraction: Sleep=25, Burn/Para/Poison=12, else 0.
+                // If Rand1 < Status, underflow → instant catch.
+                // If Rand1 - Status > CatchRate → fail (0 shakes).
+                // Otherwise W = (MaxHP*255) / (12 * max(CurHP/4,1)), BallFactor=12 for PokeBall.
+                // If Rand2 <= W → caught. Else shake count from Z=(W*Y/255)+Status2.
                 const PokemonBaseStats *ebase = &g_pokemon_base_stats[s_battle.enemy_species];
                 u8 catch_rate = ebase->catch_rate;
-                u8 status_bonus = 0;
-                if (s_battle.enemy_mon.status & 0x04) status_bonus = 25; // sleep
-                else if (s_battle.enemy_mon.status & 0x03) status_bonus = 12; // burn/para/poison
+                u8 status_sub = 0;
+                u8 status2 = 0;
+                if (s_battle.enemy_mon.status & 0x04) { status_sub = 25; status2 = 10; } // sleep
+                else if (s_battle.enemy_mon.status & 0x03) { status_sub = 12; status2 = 5; } // brn/par/psn
 
                 u8 rand1 = (u8)battle_random();
                 bool8 caught = FALSE;
                 u8 shakes = 0;
 
-                if (rand1 < (u8)(catch_rate / 2 + status_bonus)) {
+                if (rand1 < status_sub) {
                     caught = TRUE;
                     shakes = 3;
                 } else {
-                    // W = (MaxHP * 255) / (BallFactor * max(HP/4,1))
-                    u16 hp4 = s_battle.enemy_mon.current_hp / 4;
-                    if (hp4 == 0) hp4 = 1;
-                    u32 w = ((u32)s_battle.enemy_mon.max_hp * 255) / (8 * hp4);
-                    if (w > 255) w = 255;
-                    u8 rand2 = (u8)battle_random();
-                    if (rand2 < (u8)w) {
-                        caught = TRUE;
-                        shakes = 3;
-                    } else {
-                        // Determine shakes: higher w = more shakes
-                        if (w < 10) shakes = 0;
-                        else if (w < 70) shakes = 1;
-                        else if (w < 150) shakes = 2;
-                        else shakes = 3;
-                        if (shakes == 3) caught = TRUE;
+                    rand1 -= status_sub;
+                    if (rand1 <= catch_rate) {
+                        u16 hp4 = s_battle.enemy_mon.current_hp / 4;
+                        if (hp4 == 0) hp4 = 1;
+                        u32 w = ((u32)s_battle.enemy_mon.max_hp * 255) / (12 * hp4);
+                        if (w > 255) {
+                            caught = TRUE;
+                            shakes = 3;
+                        } else {
+                            u8 rand2 = (u8)battle_random();
+                            if (rand2 <= (u8)w) {
+                                caught = TRUE;
+                                shakes = 3;
+                            } else {
+                                u32 y = (u32)catch_rate * 100 / 255;
+                                u32 z = ((u32)w * y) / 255 + status2;
+                                if (z < 10) shakes = 0;
+                                else if (z < 30) shakes = 1;
+                                else if (z < 70) shakes = 2;
+                                else { shakes = 3; caught = TRUE; }
+                            }
+                        }
                     }
                 }
 

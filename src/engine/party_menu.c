@@ -90,6 +90,7 @@ static const u32 *party_icon_tiles(PokemonId species) {
     case MON_SQUIRTLE: return g_party_icon_water_tiles;
     case MON_PIDGEY: return g_party_icon_bird_tiles;
     case MON_RATTATA: return g_party_icon_quadruped_tiles;
+    case MON_SPEAROW: return g_party_icon_bird_tiles;
     default: return g_party_icon_monster_tiles;
     }
 }
