@@ -72,6 +72,14 @@ const PokemonLearnset g_learnsets[NUM_POKEMON + 1] = {
         { 34, MOVE_SUPER_FANG },
         {  0, MOVE_NONE },
     },
+    [MON_SPEAROW] = {
+        {  9, MOVE_LEER },
+        { 15, MOVE_FURY_ATTACK },
+        { 22, MOVE_MIRROR_MOVE },
+        { 29, MOVE_DRILL_PECK },
+        { 36, MOVE_AGILITY },
+        {  0, MOVE_NONE },
+    },
 };
 
 MoveId learnset_move_at_level(PokemonId species, u8 level) {

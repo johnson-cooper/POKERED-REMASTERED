@@ -322,6 +322,10 @@ static void setup_species_obj_palette(vu16 *dst, PokemonId species) {
         dst[3] = RGB15(18, 12, 20);
         dst[4] = RGB15(31, 22, 29);
         break;
+    case MON_SPEAROW:
+        dst[3] = RGB15(20, 10, 6);
+        dst[4] = RGB15(31, 22, 14);
+        break;
     default:
         dst[2] = RGB15(18, 18, 18);
         dst[3] = RGB15(30, 30, 30);
@@ -1658,6 +1662,12 @@ void battle_update(void) {
                             s_battle.enemy_level, rival_dv,
                             s_starter_moves[s_battle.enemy_species], 2);
         s_battle.enemy_mon.nickname = NULL;
+        battle_sprite_load_front(s_battle.enemy_species, s_enemy_sprite_buf);
+        vu32 *obj_vram = (vu32 *)(MEM_VRAM + 0x10000);
+        for (u32 i = 0; i < BATTLE_SPRITE_WORDS; i++)
+            obj_vram[BATTLE_SPRITE_WORDS + i] = s_enemy_sprite_buf[i];
+        setup_species_obj_palette(PAL_OBJ + 1 * 16, s_battle.enemy_species);
+        pokedex_set_seen(s_battle.enemy_species);
         clear_lower_ui();
         char *p = str_append(s_msg_buf, "[RIVAL] sent out\n");
         p = str_append(p, species_name(s_battle.enemy_species));
