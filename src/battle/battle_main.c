@@ -2,6 +2,7 @@
 #include "battle_pokemon.h"
 #include "party.h"
 #include "experience.h"
+#include "learnsets.h"
 #include "battle_calc.h"
 #include "battle_ai.h"
 #include "battle_rng.h"
@@ -50,6 +51,13 @@ typedef enum {
     BS_EXP_WAIT,
     BS_LEVEL_UP,
     BS_LEVEL_UP_WAIT,
+    BS_LEARN_MOVE,
+    BS_LEARN_MOVE_WAIT,
+    BS_FORGET_PROMPT,
+    BS_FORGET_YESNO,
+    BS_FORGET_WHICH,
+    BS_FORGET_SELECT,
+    BS_FORGET_CANCEL,
     BS_DEFEAT,
     BS_DEFEAT_WAIT,
     BS_SWITCH_IN,
@@ -111,6 +119,8 @@ static BattleState s_after_msg_state;
 static BattleState s_after_exp_state;
 static PartyPokemon s_caught_mon;
 static bool8 s_caught_pending;
+static MoveId s_pending_move;
+static u8     s_forget_cursor;
 
 static u8 s_ball_shake_count;
 static u8 s_ball_shakes_done;
@@ -742,6 +752,25 @@ static void clear_lower_ui(void) {
     for (u8 r = 14; r < 20; r++)
         for (u8 c = 0; c < 30; c++)
             text_draw_tile(c, r, TEXT_BLANK_TILE);
+}
+
+static void draw_yesno_menu(u8 cursor) {
+    draw_box(22, 14, 8, 4);
+    text_draw_str(24, 15, "YES");
+    text_draw_str(24, 16, "NO");
+    text_draw_char(23, (u8)(15 + cursor), '>');
+    text_draw_char(23, (u8)(16 - cursor), ' ');
+}
+
+static void draw_forget_menu(u8 cursor) {
+    clear_lower_ui();
+    draw_box(0, 14, 20, 6);
+    const BattlePokemon *pl = &s_battle.player_mon;
+    for (u8 i = 0; i < 4; i++) {
+        if (pl->moves[i] != MOVE_NONE)
+            text_draw_str(2, (u8)(15 + i), g_move_data[pl->moves[i]].name);
+        text_draw_char(1, (u8)(15 + i), i == cursor ? '>' : ' ');
+    }
 }
 
 static void hide_enemy_sprite(void) { s_enemy_hidden = TRUE; }
@@ -1775,6 +1804,124 @@ void battle_update(void) {
 
     case BS_LEVEL_UP:
         if (dialog_update()) {
+            MoveId new_move = learnset_move_at_level(s_battle.player_species,
+                                                     s_battle.player_mon.level);
+            if (new_move != MOVE_NONE) {
+                u8 slot = 4;
+                for (u8 i = 0; i < 4; i++) {
+                    if (s_battle.player_mon.moves[i] == MOVE_NONE) { slot = i; break; }
+                }
+                if (slot < 4) {
+                    s_battle.player_mon.moves[slot] = new_move;
+                    s_battle.player_mon.pp[slot]    = g_move_data[new_move].pp;
+                    clear_lower_ui();
+                    char *p = str_append(s_msg_buf, mon_display_name(&s_battle.player_mon));
+                    p = str_append(p, " learned\n");
+                    p = str_append(p, g_move_data[new_move].name);
+                    p = str_append(p, "!");
+                    *p = '\0';
+                    battle_msg(s_msg_buf);
+                    s_battle.state = BS_LEARN_MOVE;
+                } else {
+                    s_pending_move = new_move;
+                    clear_lower_ui();
+                    char *p = str_append(s_msg_buf, mon_display_name(&s_battle.player_mon));
+                    p = str_append(p, " is trying\nto learn ");
+                    p = str_append(p, g_move_data[new_move].name);
+                    p = str_append(p, "!\nBut already knows\n4 moves!");
+                    *p = '\0';
+                    battle_msg(s_msg_buf);
+                    s_battle.state = BS_FORGET_PROMPT;
+                }
+            } else {
+                s_battle.state = s_after_exp_state;
+            }
+        }
+        break;
+
+    case BS_LEARN_MOVE:
+        if (dialog_update()) {
+            s_battle.state = s_after_exp_state;
+        }
+        break;
+
+    case BS_FORGET_PROMPT:
+        if (dialog_update()) {
+            clear_lower_ui();
+            text_draw_str(1, 15, "Delete a move?");
+            s_battle.menu_cursor = 0;
+            draw_yesno_menu(s_battle.menu_cursor);
+            s_battle.state = BS_FORGET_YESNO;
+        }
+        break;
+
+    case BS_FORGET_YESNO:
+        if (input_pressed(KEY_UP) && s_battle.menu_cursor > 0) {
+            s_battle.menu_cursor--;
+            draw_yesno_menu(s_battle.menu_cursor);
+        } else if (input_pressed(KEY_DOWN) && s_battle.menu_cursor < 1) {
+            s_battle.menu_cursor++;
+            draw_yesno_menu(s_battle.menu_cursor);
+        } else if (input_pressed(KEY_A) && s_battle.menu_cursor == 0) {
+            clear_lower_ui();
+            battle_msg("Which move should\nbe forgotten?");
+            s_battle.state = BS_FORGET_WHICH;
+        } else if (input_pressed(KEY_B) ||
+                   (input_pressed(KEY_A) && s_battle.menu_cursor == 1)) {
+            clear_lower_ui();
+            char *p = str_append(s_msg_buf, mon_display_name(&s_battle.player_mon));
+            p = str_append(p, " did not\nlearn ");
+            p = str_append(p, g_move_data[s_pending_move].name);
+            p = str_append(p, "!");
+            *p = '\0';
+            battle_msg(s_msg_buf);
+            s_battle.state = BS_FORGET_CANCEL;
+        }
+        break;
+
+    case BS_FORGET_WHICH:
+        if (dialog_update()) {
+            s_forget_cursor = 0;
+            draw_forget_menu(s_forget_cursor);
+            s_battle.state = BS_FORGET_SELECT;
+        }
+        break;
+
+    case BS_FORGET_SELECT:
+        if (input_pressed(KEY_UP) && s_forget_cursor > 0) {
+            s_forget_cursor--;
+            draw_forget_menu(s_forget_cursor);
+        } else if (input_pressed(KEY_DOWN) && s_forget_cursor < 3) {
+            s_forget_cursor++;
+            draw_forget_menu(s_forget_cursor);
+        } else if (input_pressed(KEY_A)) {
+            MoveId forgotten = s_battle.player_mon.moves[s_forget_cursor];
+            s_battle.player_mon.moves[s_forget_cursor] = s_pending_move;
+            s_battle.player_mon.pp[s_forget_cursor]    = g_move_data[s_pending_move].pp;
+            clear_lower_ui();
+            char *p = str_append(s_msg_buf, mon_display_name(&s_battle.player_mon));
+            p = str_append(p, " forgot\n");
+            p = str_append(p, g_move_data[forgotten].name);
+            p = str_append(p, "! And learned\n");
+            p = str_append(p, g_move_data[s_pending_move].name);
+            p = str_append(p, "!");
+            *p = '\0';
+            battle_msg(s_msg_buf);
+            s_battle.state = BS_LEARN_MOVE;
+        } else if (input_pressed(KEY_B)) {
+            clear_lower_ui();
+            char *p = str_append(s_msg_buf, mon_display_name(&s_battle.player_mon));
+            p = str_append(p, " did not\nlearn ");
+            p = str_append(p, g_move_data[s_pending_move].name);
+            p = str_append(p, "!");
+            *p = '\0';
+            battle_msg(s_msg_buf);
+            s_battle.state = BS_FORGET_CANCEL;
+        }
+        break;
+
+    case BS_FORGET_CANCEL:
+        if (dialog_update()) {
             s_battle.state = s_after_exp_state;
         }
         break;
@@ -2079,6 +2226,7 @@ void battle_update(void) {
     case BS_VICTORY_WAIT:
     case BS_EXP_WAIT:
     case BS_LEVEL_UP_WAIT:
+    case BS_LEARN_MOVE_WAIT:
         break;
     }
 }

@@ -13,3 +13,6 @@ typedef struct {
 typedef LevelMove PokemonLearnset[MAX_LEARNSET_MOVES];
 
 extern const PokemonLearnset g_learnsets[NUM_POKEMON + 1];
+
+// Returns the move learned at the given level, or MOVE_NONE.
+MoveId learnset_move_at_level(PokemonId species, u8 level);
