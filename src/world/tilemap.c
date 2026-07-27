@@ -6,6 +6,7 @@
 #include "gfx_npcs.h"
 #include "gfx_npcs_extra.h"
 #include "map_ids.h"
+#include "metatile_ids.h"
 
 // VRAM layout:
 // CBB 0 (SBBs 0-7,  0x06000000): map tile graphics
@@ -34,33 +35,32 @@ static inline void sbb_set(u32 sbb, u32 sx, u32 sy, u16 entry) {
     SBB_PTR(block)[(sy & 31) * 32 + (sx & 31)] = entry;
 }
 
-static bool8 pallet_oaks_house_cell(s32 mx, s32 my) {
-    if (g_world.map->map_id != MAP_PALLET_TOWN)
-        return FALSE;
-
-    return ((my == 1 || my == 2) && (mx == 6 || mx == 7)) ||
-           (my == 4 && mx >= 5 && mx <= 7) ||
-           (my == 5 && mx >= 5 && mx <= 7);
-}
-
 static bool8 pallet_northeast_sign_cell(s32 mx, s32 my) {
     return g_world.map->map_id == MAP_PALLET_TOWN && mx == 3 && my == 4;
 }
 
 static u8 tile_palette_for(const Tileset *ts, u16 tile_id, u8 explicit_palette,
-                           bool8 force_house_palette, bool8 force_sign_palette) {
+                           bool8 force_sign_palette) {
     if (force_sign_palette && tile_id >= OVERWORLD_OVERLAY_TRANSPARENT_WHITE_BASE)
         return 5;
 
-    // Oak's Lab is assembled from several original blocks whose source
-    // palette assignments differ. Keep its grass base green, but make every
-    // visible house tile use the common beige house palette.
-    if (force_house_palette && tile_id != 0x23 && tile_id != 0x39)
-        return 8;
+    // Pallet Town and Viridian City's overworld object layers use the source
+    // tile palette assignments from pokemon-rgb. This prevents the generic
+    // P_WALL beige palette from being applied as an opaque building overlay.
+    if ((g_world.map->map_id == MAP_PALLET_TOWN ||
+         g_world.map->map_id == MAP_VIRIDIAN_CITY) &&
+        tile_id >= OVERWORLD_OVERLAY_EDGE_MASK_BASE) {
+        u16 source_tile = tile_id;
+        if (source_tile >= OVERWORLD_OVERLAY_SOLID_BASE)
+            source_tile -= OVERWORLD_OVERLAY_SOLID_BASE;
+        else
+            source_tile -= OVERWORLD_OVERLAY_EDGE_MASK_BASE;
+        if (source_tile < ts->tile_count && ts->tile_palette_map)
+            return ts->tile_palette_map[source_tile];
+    }
 
-    // Overlay tile IDs are deliberately assigned an explicit palette by the
-    // metatile definition (roof, sign, wall, etc.). Do not replace those
-    // semantic assignments with the generic source-tile palette map.
+    // Other overlay tile IDs are deliberately assigned an explicit palette
+    // by the metatile definition (roof, sign, wall, etc.).
     if (tile_id >= OVERWORLD_OVERLAY_TRANSPARENT_WHITE_BASE)
         return explicit_palette;
     if (ts->tile_palette_map)
@@ -80,7 +80,6 @@ static void write_metatile(s32 mx, s32 my) {
         return;
 
     const Metatile *mt = &layout->tileset->metatiles[mtid];
-    bool8 house_cell = pallet_oaks_house_cell(mx, my);
     bool8 sign_cell = pallet_northeast_sign_cell(mx, my);
 
     // Each Pokemon Red block is 4x4 8px tiles, or 32x32 pixels.
@@ -91,15 +90,28 @@ static void write_metatile(s32 mx, s32 my) {
         for (u32 col = 0; col < 4; col++) {
             u32 i = row * 4 + col;
             u16 tile_id = mt->bottom[i];
-            u8 pal = tile_palette_for(layout->tileset, tile_id, mt->palettes[i], house_cell, sign_cell);
+            u8 pal = tile_palette_for(layout->tileset, tile_id, mt->palettes[i], sign_cell);
             sbb_set(BG2_SBB, tx + col, ty + row,
                     TILE_ENTRY(tile_id, pal, 0, 0));
 
-            tile_id = mt->top[i];
-            pal = tile_palette_for(layout->tileset, tile_id, mt->top_palettes[i], house_cell, sign_cell);
-            sbb_set(BG1_SBB, tx + col, ty + row,
-                    tile_id ? TILE_ENTRY(tile_id, pal, 0, 0)
-                            : TILE_ENTRY(OVERWORLD_EMPTY_TILE, 0, 0, 0));
+            // Pallet Town is built from pokered's complete bottom-layer
+            // blocks. Do not composite the GBA overlay layer there: the
+            // original house, fence, sign, and shoreline pixels already live
+            // in the bottom block data used by collision.
+            if (g_world.map->map_id == MAP_PALLET_TOWN &&
+                mtid != MT_ROAD_H &&
+                mtid != MT_BLDG_TOP_L && mtid != MT_BLDG_TOP_R &&
+                mtid != MT_BLDG_LEFT && mtid != MT_BLDG_MID &&
+                mtid != MT_BLDG_RIGHT) {
+                sbb_set(BG1_SBB, tx + col, ty + row,
+                        TILE_ENTRY(OVERWORLD_EMPTY_TILE, 0, 0, 0));
+            } else {
+                tile_id = mt->top[i];
+                pal = tile_palette_for(layout->tileset, tile_id, mt->top_palettes[i], sign_cell);
+                sbb_set(BG1_SBB, tx + col, ty + row,
+                        tile_id ? TILE_ENTRY(tile_id, pal, 0, 0)
+                                : TILE_ENTRY(OVERWORLD_EMPTY_TILE, 0, 0, 0));
+            }
         }
     }
 }
@@ -236,6 +248,9 @@ static void make_roof_corner_overlay(u32 dst[8], const u32 src[8],
     }
 }
 
+// Pallet's complete bottom-layer house blocks use white pixels around the
+// roof corners for the outside area. Recolor only that flood-filled region to
+// the adjacent grass light, preserving the roof artwork and collision data.
 // A building tile is an opaque object tile. The original GB artwork uses
 // white for both empty space and light wall pixels, but building blocks are
 // already clipped to their exact 8x8 cells by the block layout. Keeping every

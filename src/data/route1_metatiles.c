@@ -3,7 +3,7 @@
 #include "gfx_overworld.h"
 #include "overworld_palette_map.h"
 
-static const Metatile s_route1_metatiles[120] = {
+static const Metatile s_route1_metatiles[128] = {
     [0] = { .bottom={ 0x0A, 0x0A, 0x28, 0x29, 0x4B, 0x4B, 0x4B, 0x1F, 0x0A, 0x0A, 0x0A, 0x1F, 0x1A, 0x1A, 0x1A, 0x4F },
         .top={ 0 }, .palettes={ 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 0 }, .top_palettes={ 0 } },
     [1] = { .bottom={ 0x23, 0x23, 0x23, 0x23, 0x39, 0x23, 0x23, 0x23, 0x23, 0x23, 0x23, 0x23, 0x23, 0x23, 0x39, 0x23 },
@@ -244,6 +244,17 @@ static const Metatile s_route1_metatiles[120] = {
         .top={ 0 }, .palettes={ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0 }, .top_palettes={ 0 } },
     [119] = { .bottom={ 0x39, 0x39, 0x39, 0x39, 0x39, 0x39, 0x39, 0x39, 0x0E, 0x0E, 0x0E, 0x0E, 0x55, 0x55, 0x55, 0x55 },
         .top={ 0 }, .palettes={ 0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5 }, .top_palettes={ 0 } },
+    // Route 22 uses the final three blocks in overworld.bst. These must be
+    // plain terrain blocks; the city tileset reuses these IDs for overlays.
+    [125] = { .bottom={ 0x0A,0x0A,0x0A,0x0A, 0x4B,0x4B,0x4B,0x4B,
+                        0x4B,0x4B,0x4B,0x4B, 0x1A,0x1A,0x1A,0x1A },
+        .top={ 0 }, .palettes={ 1,1,1,1, 8,8,8,8, 8,8,8,8, 1,1,1,1 }, .top_palettes={ 0 } },
+    [126] = { .bottom={ 0x0A,0x0A,0x0A,0x1F, 0x4B,0x4B,0x4B,0x1F,
+                        0x4B,0x4B,0x4B,0x1F, 0x1A,0x1A,0x1A,0x4F },
+        .top={ 0 }, .palettes={ 1,1,1,8, 8,8,8,8, 8,8,8,8, 1,1,1,8 }, .top_palettes={ 0 } },
+    [127] = { .bottom={ 0x0A,0x0A,0x0A,0x0A, 0x4B,0x4B,0x4B,0x4B,
+                        0x0A,0x0A,0x0A,0x0A, 0x4B,0x4B,0x4B,0x4B },
+        .top={ 0 }, .palettes={ 1,1,1,1, 8,8,8,8, 1,1,1,1, 8,8,8,8 }, .top_palettes={ 0 } },
 };
 
 const Tileset g_tileset_route1 = {
@@ -256,4 +267,19 @@ const Tileset g_tileset_route1 = {
     .tile_palette_map = g_overworld_tile_palette_map,
     .metatiles = s_route1_metatiles,
     .metatile_count = 120,
+};
+
+// Route 22 is an outdoor overworld map, but it uses the complete original
+// block range. Keep it separate so city-only overlay definitions do not alter
+// the reference route geometry.
+const Tileset g_tileset_route22 = {
+    .tiles = g_overworld_color_tiles,
+    .overlay_tiles = g_overworld_tiles,
+    .tile_count = 96,
+    .palettes = g_overworld_palette_colors,
+    .palette_count = 8,
+    .palette_profile = &g_overworld_palette_profile,
+    .tile_palette_map = g_overworld_tile_palette_map,
+    .metatiles = s_route1_metatiles,
+    .metatile_count = 128,
 };

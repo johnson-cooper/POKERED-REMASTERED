@@ -62,9 +62,7 @@ static const WarpEvent s_warps[] = {
     { .x = 12, .y = 11, .dest_map = MAP_OAKS_LAB,          .dest_warp = 1 },
     // [3] Return point used by Route 1's south connection (dest_warp=3 must stay here).
     { .x = 11, .y = 0,  .dest_map = MAP_ROUTE_1,           .dest_warp = 0 },
-    // [4] Right subtile of the Oak's Lab door — mirrors [2] so either tile warps in.
-    { .x = 13, .y = 11, .dest_map = MAP_OAKS_LAB,          .dest_warp = 1 },
-    // [5] Right subtile of the Route 1 north exit.
+    // [4] Right subtile of the Route 1 north exit.
     { .x =  9, .y =  0, .dest_map = MAP_ROUTE_1,           .dest_warp = 0 },
 };
 

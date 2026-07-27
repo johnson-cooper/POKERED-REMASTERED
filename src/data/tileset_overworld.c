@@ -18,8 +18,8 @@
 #define P_FLOWER  1
 #define P_SHORE   8
 #define P_SIGN    5
-#define P_HOUSE_ROOF 8
-#define P_LAB_ROOF   8
+#define P_HOUSE_ROOF 6
+#define P_LAB_ROOF   6
 
 // Palette assignment follows the semantic tile groups in overworld.png.
 // The block geometry remains the original Red data; only the four GB shades
@@ -99,6 +99,20 @@
         0x23,0x23,0x23,0x23, 0x23,0x23,0x23,0x23, \
         0x23,0x23,0x23,0x23, 0x23,0x23,0x23,0x23 }, \
       .top={ \
+        OH(t00),OH(t01),OH(t02),OH(t03), OH(t10),OH(t11),OH(t12),OH(t13), \
+        OS(t20),OS(t21),OS(t22),OS(t23), OS(t30),OS(t31),OS(t32),OS(t33) }, \
+      .palettes={ PAL_ALL(P_GRASS) }, \
+      .top_palettes={ PAL_ALL(pobj) } }
+
+#define BLK_OBJ_COLL(pbase,pobj, \
+                    b00,b01,b02,b03, b10,b11,b12,b13, \
+                    b20,b21,b22,b23, b30,b31,b32,b33, \
+                    t00,t01,t02,t03, t10,t11,t12,t13, \
+                    t20,t21,t22,t23, t30,t31,t32,t33) \
+    { .bottom={ \
+        (b00),(b01),(b02),(b03), (b10),(b11),(b12),(b13), \
+        (b20),(b21),(b22),(b23), (b30),(b31),(b32),(b33) }, \
+      .top={ \
         OS(t00),OS(t01),OS(t02),OS(t03), OS(t10),OS(t11),OS(t12),OS(t13), \
         OS(t20),OS(t21),OS(t22),OS(t23), OS(t30),OS(t31),OS(t32),OS(t33) }, \
       .palettes={ PAL_ALL(P_GRASS) }, \
@@ -111,7 +125,7 @@
         0x23,0x23,0x23,0x23, 0x23,0x23,0x23,0x23, \
         0x23,0x23,0x23,0x23, 0x23,0x23,0x23,0x23 }, \
       .top={ \
-        OH(t00),OH(t01),OH(t02),OH(t03), OH(t10),OH(t11),OH(t12),OH(t13), \
+        OS(t00),OS(t01),OS(t02),OS(t03), OS(t10),OS(t11),OS(t12),OS(t13), \
         OS(t20),OS(t21),OS(t22),OS(t23), OS(t30),OS(t31),OS(t32),OS(t33) }, \
       .palettes={ P_GRASS,P_GRASS,P_GRASS,P_GRASS, \
                   P_GRASS,P_GRASS,P_GRASS,P_GRASS, \
@@ -122,12 +136,30 @@
                       (pwall),(pwall),(pwall),(pwall), \
                       (pwall),(pwall),(pwall),(pwall) } }
 
+// Same visual overlay as BLK_ROOF_OBJ, but retains the original pokered
+// bottom-layer tiles so the shared overworld collision sampler sees the real
+// house footprint instead of the grass used as an overlay backing layer.
+#define BLK_ROOF_OBJ_COLL(proof,pwall, \
+                          b00,b01,b02,b03, b10,b11,b12,b13, \
+                          b20,b21,b22,b23, b30,b31,b32,b33, \
+                          t00,t01,t02,t03, t10,t11,t12,t13, \
+                          t20,t21,t22,t23, t30,t31,t32,t33) \
+    { .bottom={ \
+        (b00),(b01),(b02),(b03), (b10),(b11),(b12),(b13), \
+        (b20),(b21),(b22),(b23), (b30),(b31),(b32),(b33) }, \
+      .top={ \
+        OH(t00),OH(t01),OH(t02),OH(t03), OH(t10),OH(t11),OH(t12),OH(t13), \
+        OS(t20),OS(t21),OS(t22),OS(t23), OS(t30),OS(t31),OS(t32),OS(t33) }, \
+      .palettes={ PAL_ALL(P_GRASS) }, \
+      .top_palettes={ (proof),(proof),(proof),(proof), (proof),(proof),(proof),(proof), \
+                      (pwall),(pwall),(pwall),(pwall), (pwall),(pwall),(pwall),(pwall) } }
+
 #define BLK_ROOF_TOP( \
                     r00,r01,r02,r03, r10,r11,r12,r13, \
                     w00,w01,w02,w03, w10,w11,w12,w13) \
     { .bottom={ \
         (r00),(r01),(r02),(r03), (r10),(r11),(r12),(r13), \
-        0x23,0x23,0x23,0x23, 0x23,0x23,0x23,0x23 }, \
+        (w00),(w01),(w02),(w03), (w10),(w11),(w12),(w13) }, \
       .top={ 0,0,0,0, 0,0,0,0, \
              OH(w00),OH(w01),OH(w02),OH(w03), OH(w10),OH(w11),OH(w12),OH(w13) }, \
       .palettes={ P_GRASS,P_GRASS,P_GRASS,P_GRASS, P_GRASS,P_GRASS,P_GRASS,P_GRASS, \
@@ -177,13 +209,19 @@ static const Metatile s_metatiles[128] = {
     [MT_BORDER_TL  ] = BLK_AUTO(
                                0x52,0x52,0x52,0x52, 0x52,0x52,0x52,0x52, 0x52,0x52,0x52,0x52, 0x52,0x52,0x52,0x52),
 
-    [MT_BLDG_LEFT  ] = BLK_ROOF_OBJ(P_LAB_ROOF,P_WALL,
+    [MT_BLDG_LEFT  ] = BLK_ROOF_OBJ_COLL(P_LAB_ROOF,P_WALL,
+                               0x05,0x06,0x53,0x53, 0x15,0x38,0x12,0x12,
+                               0x15,0x38,0x12,0x12, 0x15,0x16,0x17,0x17,
                                0x05,0x06,0x53,0x53, 0x15,0x38,0x12,0x12,
                                0x15,0x38,0x12,0x12, 0x15,0x16,0x17,0x17),
-    [MT_BLDG_MID   ] = BLK_ROOF_OBJ(P_LAB_ROOF,P_WALL,
+    [MT_BLDG_MID   ] = BLK_ROOF_OBJ_COLL(P_LAB_ROOF,P_WALL,
+                               0x53,0x53,0x53,0x53, 0x12,0x12,0x12,0x12,
+                               0x12,0x12,0x12,0x12, 0x17,0x17,0x17,0x17,
                                0x53,0x53,0x53,0x53, 0x12,0x12,0x12,0x12,
                                0x12,0x12,0x12,0x12, 0x17,0x17,0x17,0x17),
-    [MT_BLDG_RIGHT ] = BLK_ROOF_OBJ(P_LAB_ROOF,P_WALL,
+    [MT_BLDG_RIGHT ] = BLK_ROOF_OBJ_COLL(P_LAB_ROOF,P_WALL,
+                               0x53,0x53,0x08,0x09, 0x12,0x12,0x38,0x19,
+                               0x12,0x12,0x38,0x19, 0x17,0x17,0x18,0x19,
                                0x53,0x53,0x08,0x09, 0x12,0x12,0x38,0x19,
                                0x12,0x12,0x38,0x19, 0x17,0x17,0x18,0x19),
     [MT_BLDG_FRONT_L] = BLK_ALL(P_WALL,
@@ -215,13 +253,19 @@ static const Metatile s_metatiles[128] = {
                                     0x05,0x06,0x07,0x07, 0x15,0x16,0x17,0x17),
     [MT_BLDG_TOP_R ] = BLK_ROOF_TOP(0x23,0x23,0x23,0x23, 0x39,0x23,0x23,0x23,
                                     0x07,0x07,0x08,0x09, 0x17,0x17,0x18,0x19),
-    [MT_BLDG_DOOR  ] = BLK_OBJ(P_GRASS,P_WALL,
+    [MT_BLDG_DOOR  ] = BLK_OBJ_COLL(P_GRASS,P_WALL,
+                               0x0A,0x4B,0x4B,0x0A, 0x4B,0x4B,0x4B,0x4B,
+                               0x0B,0x0C,0x0A,0x0A, 0x1B,0x1C,0x1A,0x1A,
                                0x0A,0x4B,0x4B,0x0A, 0x4B,0x4B,0x4B,0x4B,
                                0x0B,0x0C,0x0A,0x0A, 0x1B,0x1C,0x1A,0x1A),
-    [MT_BLDG_WALL_L] = BLK_OBJ(P_GRASS,P_WALL,
+    [MT_BLDG_WALL_L] = BLK_OBJ_COLL(P_GRASS,P_WALL,
+                               0x25,0x26,0x0A,0x22, 0x5C,0x17,0x17,0x17,
+                               0x0F,0x22,0x0B,0x0C, 0x4E,0x1A,0x1B,0x1C,
                                0x25,0x26,0x0A,0x22, 0x5C,0x17,0x17,0x17,
                                0x0F,0x22,0x0B,0x0C, 0x4E,0x1A,0x1B,0x1C),
-    [MT_BLDG_WALL_R] = BLK_OBJ(P_GRASS,P_WALL,
+    [MT_BLDG_WALL_R] = BLK_OBJ_COLL(P_GRASS,P_WALL,
+                               0x0A,0x0A,0x28,0x29, 0x17,0x17,0x17,0x5D,
+                               0x0A,0x0A,0x22,0x1F, 0x1A,0x1A,0x1A,0x4F,
                                0x0A,0x0A,0x28,0x29, 0x17,0x17,0x17,0x5D,
                                0x0A,0x0A,0x22,0x1F, 0x1A,0x1A,0x1A,0x4F),
 
@@ -230,11 +274,9 @@ static const Metatile s_metatiles[128] = {
     [MT_BORDER_TR  ] = BLK_AUTO(0x2C,0x2C,0x2A,0x2B, 0x2C,0x2C,0x3A,0x3B, 0x2A,0x2B,0x2A,0x2B, 0x3A,0x3B,0x3A,0x3B),
     [MT_BORDER_BL  ] = BLK_AUTO(0x2A,0x2B,0x2C,0x2C, 0x3A,0x3B,0x2C,0x2C, 0x2A,0x2B,0x2A,0x2B, 0x3A,0x3B,0x3A,0x3B),
     [MT_TREE_TOP   ] = BLK_AUTO(0x2C,0x2C,0x2C,0x2C, 0x2C,0x2C,0x2C,0x2C, 0x2A,0x2B,0x2A,0x2B, 0x3A,0x3B,0x3A,0x3B),
-    [MT_SIGN       ] = BLK2(0x39,0x39,0x39,0x39, 0x39,0x39,0x39,0x39, 0x23,0x23,0x23,0x23, 0x23,0x23,0x23,0x23,
-                            0,0,0,0, 0,0,0,0, O(0x0E),O(0x0E),O(0x46),O(0x47), O(0x55),O(0x55),O(0x56),O(0x57),
-                            P_GRASS,P_GRASS,P_GRASS,P_GRASS, P_GRASS,P_GRASS,P_GRASS,P_GRASS,
-                            P_GRASS,P_GRASS,P_GRASS,P_GRASS, P_GRASS,P_GRASS,P_GRASS,P_GRASS,
-                            0,0,0,0, 0,0,0,0, P_SIGN,P_SIGN,P_SIGN,P_SIGN, P_SIGN,P_SIGN,P_SIGN,P_SIGN),
+    [MT_SIGN       ] = BLK_AUTO(
+                               0x39,0x39,0x39,0x39, 0x39,0x39,0x39,0x39,
+                               0x0E,0x0E,0x46,0x47, 0x55,0x55,0x56,0x57),
 
     [MT_ROUTE_B    ] = BLK(0x39,0x39,0x39,0x39, 0x39,0x39,0x39,0x39, 0x2A,0x2B,0x2A,0x2B, 0x3A,0x3B,0x3A,0x3B,
                            P_GRASS,P_GRASS,P_GRASS,P_GRASS, P_GRASS,P_GRASS,P_GRASS,P_GRASS,
@@ -253,11 +295,9 @@ static const Metatile s_metatiles[128] = {
                              P_PATH,P_PATH,P_PATH,P_PATH, P_PATH,P_PATH,P_PATH,P_PATH,
                              P_PATH,P_PATH,P_PATH,P_PATH, P_PATH,P_PATH,P_PATH,P_PATH,
                              0,0,0,0, 0,P_FLOWER,0,P_FLOWER, P_FLOWER,0,P_FLOWER,0, 0,0,0,0),
-    [MT_ROAD_CORNER] = BLK2(0x39,0x39,0x39,0x39, 0x39,0x39,0x39,0x39, 0x23,0x23,0x23,0x23, 0x23,0x23,0x23,0x23,
-                             0,0,0,0, 0,0,0,0, O(0x0E),O(0x0E),O(0x0E),O(0x0E), O(0x55),O(0x55),O(0x55),O(0x55),
-                             P_GRASS,P_GRASS,P_GRASS,P_GRASS, P_GRASS,P_GRASS,P_GRASS,P_GRASS,
-                             P_GRASS,P_GRASS,P_GRASS,P_GRASS, P_GRASS,P_GRASS,P_GRASS,P_GRASS,
-                             0,0,0,0, 0,0,0,0, P_WOOD,P_WOOD,P_WOOD,P_WOOD, P_WOOD,P_WOOD,P_WOOD,P_WOOD),
+    [MT_ROAD_CORNER] = BLK_AUTO(
+                               0x39,0x39,0x39,0x39, 0x39,0x39,0x39,0x39,
+                               0x0E,0x0E,0x0E,0x0E, 0x55,0x55,0x55,0x55),
 
     // ── Viridian City blocks (from pokered gfx/blocksets/overworld.bst) ─────
     [0x02] = BLK_ROOF_OBJ(P_LAB_ROOF,P_WALL,
@@ -339,6 +379,8 @@ static const Metatile s_metatiles[128] = {
 #undef BLK_AUTO
 #undef BLK2
 #undef BLK
+#undef BLK_OBJ_COLL
+#undef BLK_ROOF_OBJ_COLL
 #undef O
 #undef OE
 #undef OW

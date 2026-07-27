@@ -262,7 +262,8 @@ bool8 player_script_start_step(Direction dir) {
     if (player_try_collision_warp(nx, ny))
         return TRUE;
 
-    if (!player_tile_has_warp(nx, ny) && !map_is_subtile_passable(nx, ny)) {
+    if (!player_tile_has_warp(nx, ny) &&
+        !map_is_subtile_passable_from(nx, ny, dir)) {
         p->move_state = MOVE_STATE_TURNING;
         p->step_frame = 4;
         p->step_dx = 0;

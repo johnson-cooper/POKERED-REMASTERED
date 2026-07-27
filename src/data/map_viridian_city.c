@@ -71,7 +71,9 @@ const MapHeader g_map_viridian_city = {
     .warps = s_warps, .warp_count = ARRAY_COUNT(s_warps),
     .npcs = s_npcs, .npc_count = ARRAY_COUNT(s_npcs),
     .script = script_viridian_city, .music_id = AUDIO_MUSIC_VIRIDIAN_CITY,
-    .roof_palette = &g_roof_viridian,
+    // Viridian uses the standard OVERWORLD palette bank. The reference tile
+    // palette map supplies building and roof colors per source tile.
+    .roof_palette = NULL,
 };
 
 #undef P

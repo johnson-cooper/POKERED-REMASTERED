@@ -54,8 +54,127 @@ static bool8 indoor_tile_is_passable(const Tileset *ts, u16 tile) {
     return FALSE;
 }
 
+static bool8 collision_tile_is_passable(const Tileset *tileset, u16 tile_id,
+                                        u16 metatile_id) {
+    if (tileset->use_cell_collision)
+        return indoor_tile_is_passable(tileset, tile_id);
+    return overworld_tile_is_passable(tile_id) ||
+           overworld_tile_is_flower(tile_id, metatile_id);
+}
+
+static bool8 collision_edge_is_passable(const Tileset *tileset,
+                                        const Metatile *mt, u32 first,
+                                        u32 second, u16 metatile_id) {
+    return collision_tile_is_passable(tileset, mt->bottom[first], metatile_id) &&
+           collision_tile_is_passable(tileset, mt->bottom[second], metatile_id);
+}
+
+static bool8 overworld_tile_is_water(u16 tile_id) {
+    return tile_id == 0x14;
+}
+
+u8 map_get_subtile_collision_edges(s32 x, s32 y) {
+    const MapLayout *layout = g_world.map->layout;
+
+    if (x < 0 || y < 0)
+        return COLLISION_EDGE_NORTH | COLLISION_EDGE_SOUTH |
+               COLLISION_EDGE_WEST | COLLISION_EDGE_EAST;
+
+    s32 block_x = x / 2;
+    s32 block_y = y / 2;
+    if (block_x >= layout->width || block_y >= layout->height)
+        return COLLISION_EDGE_NORTH | COLLISION_EDGE_SOUTH |
+               COLLISION_EDGE_WEST | COLLISION_EDGE_EAST;
+
+    MapCell cell = map_get_cell(block_x, block_y);
+    u16 mtid = MAPCELL_METATILE(cell);
+    if (!layout->tileset || mtid >= layout->tileset->metatile_count)
+        return COLLISION_EDGE_NORTH | COLLISION_EDGE_SOUTH |
+               COLLISION_EDGE_WEST | COLLISION_EDGE_EAST;
+
+    const Tileset *tileset = layout->tileset;
+
+    if (layout->collision_subtile_masks != NULL &&
+        layout->collision_subtile_mask_valid != NULL) {
+        u32 mask_index = (u32)mtid * 4 + (u32)(y & 1) * 2 + (u32)(x & 1);
+        if (layout->collision_subtile_mask_valid[mask_index])
+            return layout->collision_subtile_masks[mask_index];
+    }
+
+    // Viridian has map-specific building and fence rules that are more
+    // authoritative than the shared overworld tile graphics. Preserve those
+    // rules while allowing ordinary ground cells to use directional edges.
+    if (g_world.map->map_id == MAP_VIRIDIAN_CITY &&
+        !map_is_subtile_passable(x, y))
+        return COLLISION_EDGE_NORTH | COLLISION_EDGE_SOUTH |
+               COLLISION_EDGE_WEST | COLLISION_EDGE_EAST;
+
+    if (tileset->collision_edge_masks != NULL)
+        return tileset->collision_edge_masks[mtid];
+
+    const Metatile *mt = &tileset->metatiles[mtid];
+    u32 col = (u32)(x & 1) * 2;
+    u32 row = (u32)(y & 1) * 2;
+    u32 top = row * 4 + col;
+    u32 bottom = (row + 1) * 4 + col;
+    u8 edges = 0;
+
+    if (!collision_edge_is_passable(tileset, mt, top, top + 1, mtid))
+        edges |= COLLISION_EDGE_NORTH;
+    if (!collision_edge_is_passable(tileset, mt, bottom, bottom + 1, mtid))
+        edges |= COLLISION_EDGE_SOUTH;
+    if (!collision_edge_is_passable(tileset, mt, top, bottom, mtid))
+        edges |= COLLISION_EDGE_WEST;
+    if (!collision_edge_is_passable(tileset, mt, top + 1, bottom + 1, mtid))
+        edges |= COLLISION_EDGE_EAST;
+
+    // Route 22's shoreline blocks have a walkable-looking upper row above
+    // water. The upper row is not an enterable movement cell: entering from
+    // the north would place the player into the water immediately below it.
+    // Close only that north edge while preserving the already-correct east,
+    // west, and south edge results.
+    if ((g_world.map->map_id == MAP_ROUTE_22 ||
+         g_world.map->map_id == MAP_PALLET_TOWN) &&
+        (edges & COLLISION_EDGE_NORTH) == 0 &&
+        (edges & COLLISION_EDGE_SOUTH) != 0 &&
+        (overworld_tile_is_water(mt->bottom[top]) ||
+         overworld_tile_is_water(mt->bottom[top + 1]) ||
+         overworld_tile_is_water(mt->bottom[bottom]) ||
+         overworld_tile_is_water(mt->bottom[bottom + 1])))
+        edges |= COLLISION_EDGE_NORTH;
+
+    // Pallet Town's house/fence blocks use the same two-row construction as
+    // the pokered shoreline blocks: the upper row is ground and the lower
+    // row is the visible wall. Close the north entry edge so movement cannot
+    // bypass the wall by entering through its ground-looking upper row.
+    if (g_world.map->map_id == MAP_PALLET_TOWN &&
+        (mtid == MT_TREE_CORNER || mtid == MT_TREE_TOP ||
+         mtid == MT_BORDER_TL || mtid == MT_BORDER_L ||
+         mtid == MT_BORDER_R || mtid == MT_BORDER_TR ||
+         mtid == MT_BORDER_BL || mtid == MT_BLDG_TOP_L ||
+         mtid == MT_BLDG_TOP_R || mtid == MT_SIGN ||
+         mtid == MT_ROAD_CORNER) &&
+        (edges & COLLISION_EDGE_NORTH) == 0 &&
+        (edges & COLLISION_EDGE_SOUTH) != 0)
+        edges |= COLLISION_EDGE_NORTH;
+
+    return edges;
+}
+
 bool8 map_is_subtile_passable_from(s32 x, s32 y, Direction dir) {
     (void)dir;
+
+    if (g_world.map->map_id == MAP_PALLET_TOWN ||
+        g_world.map->map_id == MAP_ROUTE_1 ||
+        g_world.map->map_id == MAP_ROUTE_22 ||
+        g_world.map->map_id == MAP_VIRIDIAN_CITY) {
+        u8 edges = map_get_subtile_collision_edges(x, y);
+        u8 edge = (dir == DIR_DOWN)  ? COLLISION_EDGE_NORTH :
+                   (dir == DIR_UP)    ? COLLISION_EDGE_SOUTH :
+                   (dir == DIR_LEFT)  ? COLLISION_EDGE_WEST :
+                                         COLLISION_EDGE_EAST;
+        return (edges & edge) == 0;
+    }
     return map_is_subtile_passable(x, y);
 }
 
@@ -166,17 +285,6 @@ bool8 map_is_subtile_passable(s32 x, s32 y) {
             mtid == MT_BLDG_WALL_L || mtid == MT_BLDG_WALL_R)
             return FALSE;
     }
-
-    if (g_world.map->map_id == MAP_PALLET_TOWN &&
-        block_x == 7 && block_y == 5)
-        return FALSE;
-
-    // Route 22's walkway uses the dedicated path metatiles. Do not make the
-    // adjacent 0x3E/0x62 rock-edge blocks globally walkable: those are the
-    // wall tiles that close the false road entrance in the reference map.
-    if (g_world.map->map_id == MAP_ROUTE_22 &&
-        (mtid == MT_WALKWAY_L || mtid == MT_WALKWAY_R))
-        return TRUE;
 
     if (!layout->tileset || mtid >= layout->tileset->metatile_count)
         return FALSE;

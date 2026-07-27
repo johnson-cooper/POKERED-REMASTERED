@@ -10,6 +10,13 @@ typedef u16 MapCell;
 #define MAPCELL_MAKE(m,col,el) (((el)<<12)|((col)<<10)|((m)&0x3FF))
 #define MAPCELL_IMPASSABLE     0x0400
 
+// Directional collision edges for one 16px movement cell.  A set bit means
+// that entering the cell through that edge is blocked.
+#define COLLISION_EDGE_NORTH  (1u << 0)
+#define COLLISION_EDGE_SOUTH  (1u << 1)
+#define COLLISION_EDGE_WEST   (1u << 2)
+#define COLLISION_EDGE_EAST   (1u << 3)
+
 // ── Map block ─────────────────────────────────────────────────────────────────
 typedef struct {
     u16 bottom[16];
@@ -45,6 +52,10 @@ typedef struct {
     const u8      *tile_palette_map;
     const Metatile *metatiles;
     u16            metatile_count;
+    // Optional pokered-style directional collision masks, indexed by
+    // metatile ID. A NULL table means the map code derives the mask from the
+    // overworld collision tile list.
+    const u8      *collision_edge_masks;
     bool8          use_cell_collision; // TRUE = indoor: refine W cells per-subtile by tile content
     const u8      *collision_tiles;    // tile IDs that indicate passable ground (indoor only)
     u8             collision_tile_count;
@@ -56,6 +67,11 @@ typedef struct {
     s32             height;
     const Tileset  *tileset;
     const MapCell  *cells;
+    // Optional per-movement-cell masks for visual overlays (houses, fences,
+    // trees). The valid table distinguishes an override from an ordinary
+    // pokered tile-sampled cell.
+    const u8       *collision_subtile_masks;
+    const u8       *collision_subtile_mask_valid;
 } MapLayout;
 
 // ── Warp ──────────────────────────────────────────────────────────────────────
@@ -179,6 +195,7 @@ MapCell  map_get_cell(s32 x, s32 y);
 bool8    map_is_passable(s32 x, s32 y);
 bool8    map_is_subtile_passable(s32 x, s32 y);
 bool8    map_is_subtile_passable_from(s32 x, s32 y, Direction dir);
+u8       map_get_subtile_collision_edges(s32 x, s32 y);
 u16      map_get_subtile_tile_id(s32 x, s32 y);
 
 // Map registry

@@ -2,19 +2,19 @@
 #include "overworld_palette_map.h"
 
 // Palette assignments based on pokemon-rgb/color/tilesets/overworld.asm,
-// with grass (0x23,0x39) and tree (0x2A-0x2B,0x3A-0x3B) tiles promoted
-// from GRAY to GREEN so they render as vivid green on GBA rather than
-// the washed-out neutral gray that only looked correct on GBC hardware.
+// These assignments match pokemon-rgb/color/tilesets/overworld.asm exactly.
+// In particular, house corner/background, fence, and sign tiles retain the
+// source tile palettes instead of inheriting a whole-house override.
 // GRAY=0 RED=1 GREEN=2 WATER=3 YELLOW=4 BROWN=5 ROOF=6 TEXT=7
 const u8 g_overworld_tile_palette_map[96] = {
     0,5,5,1,5,6,6,6,   // 0x00-0x07
     6,6,4,4,4,0,5,0,   // 0x08-0x0F
     0,5,6,5,3,6,6,6,   // 0x10-0x17
     6,6,0,5,5,2,5,0,   // 0x18-0x1F
-    0,0,0,2,5,6,6,5,   // 0x20-0x27  (0x23: GRAY→GREEN)
-    6,6,2,2,2,2,2,0,   // 0x28-0x2F  (0x2A,0x2B: GRAY→GREEN)
+    0,0,0,0,5,6,6,5,   // 0x20-0x27
+    6,6,0,0,2,2,2,0,   // 0x28-0x2F
     5,0,5,5,5,5,5,5,   // 0x30-0x37
-    6,2,2,2,5,2,2,0,   // 0x38-0x3F  (0x39,0x3A,0x3B: GRAY→GREEN)
+    6,0,0,0,5,2,2,0,   // 0x38-0x3F
     2,2,0,0,0,0,0,0,   // 0x40-0x47
     5,5,0,5,6,6,0,0,   // 0x48-0x4F
     2,2,2,6,5,5,0,0,   // 0x50-0x57
@@ -54,8 +54,10 @@ const PaletteProfile g_overworld_palette_profile = {
 // The reference provides the two lightest shades per town; the dark-mid
 // shade is derived to match the hue so the roof stripe pattern blends in.
 //                                        lightest          light             dark              darkest
-const RoofPalette g_roof_pallet     = { RGB15(31,31,31), RGB15(24,24,24), RGB15(15,15,15), RGB15( 7, 7, 7) };
-const RoofPalette g_roof_viridian   = { RGB15( 0,29, 7), RGB15( 0,24, 7), RGB15( 0,14, 3), RGB15( 7, 7, 7) };
+// pokemon-rgb/color/data/roofpalettes.asm: PalletRoof. The source provides
+// the two light shades; the darker shades remain the overworld roof colors.
+const RoofPalette g_roof_pallet     = { RGB15(27,31,27), RGB15(24,24,24), RGB15(15,15,15), RGB15( 7, 7, 7) };
+const RoofPalette g_roof_viridian   = { RGB15( 0,29, 7), RGB15( 0,24, 7), RGB15(11,23, 5), RGB15( 7, 7, 7) };
 const RoofPalette g_roof_pewter     = { RGB15(24,25,26), RGB15(20,17,19), RGB15(12,10,11), RGB15( 7, 7, 7) };
 const RoofPalette g_roof_cerulean   = { RGB15(14,24,31), RGB15(14,20,26), RGB15( 7,12,18), RGB15( 7, 7, 7) };
 const RoofPalette g_roof_lavender   = { RGB15(23,12,31), RGB15(19, 9,24), RGB15(11, 5,16), RGB15( 7, 7, 7) };
