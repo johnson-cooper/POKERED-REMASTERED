@@ -41,11 +41,12 @@ static void prepare_party_palettes(void) {
     vu16 *nidom   = (vu16 *)MEM_PAL + 7 * 16;
     vu16 *nidorino = (vu16 *)MEM_PAL + 4 * 16;
     vu16 *spearow = (vu16 *)MEM_PAL + 5 * 16;
+    vu16 *weedle  = (vu16 *)MEM_PAL + 2 * 16;
 
     for (u8 i = 0; i < 16; i++) {
         ui[i] = bulba[i] = charm[i] = squirt[i] = 0x7FFF;
         pidgey[i] = rattat[i] = nidof[i] = nidom[i] = 0x7FFF;
-        nidorino[i] = spearow[i] = 0x7FFF;
+        nidorino[i] = spearow[i] = weedle[i] = 0x7FFF;
     }
     ui[1] = RGB15(2, 1, 2);
     ui[2] = RGB15(31, 31, 31);
@@ -75,8 +76,8 @@ static void prepare_party_palettes(void) {
     pidgey[4]   = RGB15(29, 24, 16);
     rattat[3]   = RGB15(18, 9, 18);
     rattat[4]   = RGB15(29, 18, 27);
-    nidof[1] = nidom[1] = nidorino[1] = spearow[1] = RGB15(2, 1, 2);
-    nidof[2] = nidom[2] = nidorino[2] = spearow[2] = RGB15(31, 31, 31);
+    nidof[1] = nidom[1] = nidorino[1] = spearow[1] = weedle[1] = RGB15(2, 1, 2);
+    nidof[2] = nidom[2] = nidorino[2] = spearow[2] = weedle[2] = RGB15(31, 31, 31);
     nidof[3]    = RGB15(18, 12, 20);
     nidof[4]    = RGB15(31, 22, 29);
     nidom[3]    = RGB15(12, 10, 20);
@@ -85,6 +86,8 @@ static void prepare_party_palettes(void) {
     nidorino[4] = RGB15(23, 20, 31);
     spearow[3]  = RGB15(20, 10, 6);
     spearow[4]  = RGB15(31, 22, 14);
+    weedle[3]   = RGB15(20, 14, 4);
+    weedle[4]   = RGB15(31, 28, 14);
 }
 
 static const u32 *party_sprite_tiles(PokemonId species) {
@@ -97,6 +100,7 @@ static const u32 *party_sprite_tiles(PokemonId species) {
     case MON_NIDORAN_M:  return g_pokedex_nidoran_m_tiles;
     case MON_NIDORINO:   return g_pokedex_nidorino_tiles;
     case MON_SPEAROW:    return g_pokedex_spearow_tiles;
+    case MON_WEEDLE:     return g_pokedex_weedle_tiles;
     case MON_BULBASAUR:
     default:             return g_pokedex_bulbasaur_tiles;
     }
@@ -110,6 +114,7 @@ static const u32 *party_icon_tiles(PokemonId species) {
     case MON_PIDGEY: return g_party_icon_bird_tiles;
     case MON_RATTATA: return g_party_icon_quadruped_tiles;
     case MON_SPEAROW: return g_party_icon_bird_tiles;
+    case MON_WEEDLE: return g_party_icon_monster_tiles;
     default: return g_party_icon_monster_tiles;
     }
 }
@@ -124,6 +129,7 @@ static u8 party_sprite_palette(PokemonId species) {
     case MON_NIDORAN_M:  return 7;
     case MON_NIDORINO:   return 4;
     case MON_SPEAROW:    return 5;
+    case MON_WEEDLE:     return 2;
     case MON_BULBASAUR:
     default:             return PARTY_SPRITE_PAL;
     }
@@ -140,6 +146,7 @@ static const char *party_species_name(PokemonId species) {
     case MON_NIDORAN_M:  return "NIDORAN\xf0"; // ♂
     case MON_NIDORINO:   return "NIDORINO";
     case MON_SPEAROW:    return "SPEAROW";
+    case MON_WEEDLE:     return "WEEDLE";
     default: return "POKEMON";
     }
 }
@@ -165,6 +172,7 @@ static const char *party_type1(PokemonId species) {
     case MON_NIDORAN_F:
     case MON_NIDORAN_M:
     case MON_NIDORINO:   return "POISON";
+    case MON_WEEDLE:     return "BUG";
     default:             return "GRASS";
     }
 }
@@ -174,6 +182,7 @@ static const char *party_type2(PokemonId species) {
     case MON_BULBASAUR:  return "POISON";
     case MON_PIDGEY:
     case MON_SPEAROW:    return "FLYING";
+    case MON_WEEDLE:     return "POISON";
     default:             return "";
     }
 }

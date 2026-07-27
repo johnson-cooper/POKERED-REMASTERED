@@ -80,6 +80,9 @@ const PokemonLearnset g_learnsets[NUM_POKEMON + 1] = {
         { 36, MOVE_AGILITY },
         {  0, MOVE_NONE },
     },
+    [MON_WEEDLE] = {
+        {  0, MOVE_NONE },
+    },
 };
 
 MoveId learnset_move_at_level(PokemonId species, u8 level) {

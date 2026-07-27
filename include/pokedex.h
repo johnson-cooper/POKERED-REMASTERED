@@ -13,6 +13,7 @@ typedef enum {
     POKEDEX_SPEAROW,
     POKEDEX_NIDORAN_F,
     POKEDEX_NIDORAN_M,
+    POKEDEX_WEEDLE,
     POKEDEX_ENTRY_COUNT,
 } PokedexSpecies;
 

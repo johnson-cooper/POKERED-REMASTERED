@@ -88,6 +88,13 @@ static const PokedexEntry s_entries[] = {
         g_pokedex_nidoran_m_tiles,
         7,
     },
+    [POKEDEX_WEEDLE] = {
+        "WEEDLE", "HAIRY BUG", "HT 1'0", "WT 7.0LB", "NO. 013",
+        { "OFTEN FOUND IN", "FORESTS, EATING", "LEAVES." },
+        { "IT HAS A SHARP", "VENOMOUS STINGER", "ON ITS HEAD." },
+        g_pokedex_weedle_tiles,
+        2,
+    },
 };
 
 static bool8 s_open;
@@ -110,6 +117,7 @@ static void prepare_pokedex_palettes(void) {
     vu16 *spearow  = (vu16 *)MEM_PAL + 5 * 16;
     vu16 *nidof    = (vu16 *)MEM_PAL + 6 * 16;
     vu16 *nidom    = (vu16 *)MEM_PAL + 7 * 16;
+    vu16 *weedle   = (vu16 *)MEM_PAL + 2 * 16;
 
     for (u8 i = 0; i < 16; i++) {
         paper[i] = 0x7FFF;
@@ -122,6 +130,7 @@ static void prepare_pokedex_palettes(void) {
         spearow[i] = 0x7FFF;
         nidof[i] = 0x7FFF;
         nidom[i] = 0x7FFF;
+        weedle[i] = 0x7FFF;
     }
 
     paper[1] = RGB15(2, 1, 2);
@@ -145,8 +154,8 @@ static void prepare_pokedex_palettes(void) {
     rattata[3] = RGB15(14, 8, 16);
     rattata[4] = RGB15(24, 18, 26);
 
-    nidof[1] = nidom[1] = nidorino[1] = spearow[1] = RGB15(2, 1, 2);
-    nidof[2] = nidom[2] = nidorino[2] = spearow[2] = RGB15(31, 31, 31);
+    nidof[1] = nidom[1] = nidorino[1] = spearow[1] = weedle[1] = RGB15(2, 1, 2);
+    nidof[2] = nidom[2] = nidorino[2] = spearow[2] = weedle[2] = RGB15(31, 31, 31);
     nidof[3]    = RGB15(18, 12, 20);
     nidof[4]    = RGB15(31, 22, 29);
     nidom[3]    = RGB15(12, 10, 20);
@@ -155,6 +164,8 @@ static void prepare_pokedex_palettes(void) {
     nidorino[4] = RGB15(23, 20, 31);
     spearow[3]  = RGB15(20, 10, 6);
     spearow[4]  = RGB15(31, 22, 14);
+    weedle[3]   = RGB15(20, 14, 4);
+    weedle[4]   = RGB15(31, 28, 14);
 }
 static u16 s_saved_palette[16];
 static bool8 s_palette_saved;
@@ -227,6 +238,7 @@ bool8 pokedex_species_to_entry(PokemonId species, PokedexSpecies *out) {
     case MON_SPEAROW:    *out = POKEDEX_SPEAROW; return TRUE;
     case MON_NIDORAN_F:  *out = POKEDEX_NIDORAN_F; return TRUE;
     case MON_NIDORAN_M:  *out = POKEDEX_NIDORAN_M; return TRUE;
+    case MON_WEEDLE:     *out = POKEDEX_WEEDLE; return TRUE;
     default: return FALSE;
     }
 }
