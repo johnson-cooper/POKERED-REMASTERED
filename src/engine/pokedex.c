@@ -60,6 +60,34 @@ static const PokedexEntry s_entries[] = {
         g_pokedex_rattata_tiles,
         9,
     },
+    [POKEDEX_NIDORINO] = {
+        "NIDORINO", "POISON PIN", "HT 2'11", "WT 43.0LB", "NO. 033",
+        { "AN AGGRESSIVE TYPE", "THAT IS QUICK TO", "ATTACK." },
+        { "ITS HORN SECRETES", "A POWERFUL VENOM", "WHEN IT STABS." },
+        g_pokedex_nidorino_tiles,
+        4,
+    },
+    [POKEDEX_SPEAROW] = {
+        "SPEAROW", "TINY BIRD", "HT 1'0", "WT 4.4LB", "NO. 021",
+        { "EATS BUGS IN GRASSY", "AREAS. IT FLAPS", "ITS WINGS FAST." },
+        { "INEPT AT FLYING", "HIGH. CANNOT STAND", "COLD WEATHER." },
+        g_pokedex_spearow_tiles,
+        5,
+    },
+    [POKEDEX_NIDORAN_F] = {
+        "NIDORAN F", "POISON PIN", "HT 1'4", "WT 15.4LB", "NO. 029",
+        { "ALTHOUGH SMALL,", "VENOMOUS BARBS ON", "ITS BACK ARE SHARP." },
+        { "THE FEMALE HAS", "SMALLER HORNS THAN", "THE MALE." },
+        g_pokedex_nidoran_f_tiles,
+        6,
+    },
+    [POKEDEX_NIDORAN_M] = {
+        "NIDORAN M", "POISON PIN", "HT 1'8", "WT 19.8LB", "NO. 032",
+        { "VERY PROTECTIVE OF", "ITS TERRITORY.", "ATTACKS WITH POISON" },
+        { "SPIKES IF ANYTHING", "GETS TOO CLOSE.", "" },
+        g_pokedex_nidoran_m_tiles,
+        7,
+    },
 };
 
 static bool8 s_open;
@@ -72,12 +100,16 @@ static void pd_tile(u8 col, u8 row, u8 tile) {
 }
 
 static void prepare_pokedex_palettes(void) {
-    vu16 *paper = (vu16 *)MEM_PAL + POKEDEX_PAL * 16;
-    vu16 *bulba = (vu16 *)MEM_PAL + 11 * 16;
-    vu16 *charm = (vu16 *)MEM_PAL + 12 * 16;
-    vu16 *squirt = (vu16 *)MEM_PAL + 13 * 16;
-    vu16 *pidgey = (vu16 *)MEM_PAL + 8 * 16;
+    vu16 *paper   = (vu16 *)MEM_PAL + POKEDEX_PAL * 16;
+    vu16 *bulba   = (vu16 *)MEM_PAL + 11 * 16;
+    vu16 *charm   = (vu16 *)MEM_PAL + 12 * 16;
+    vu16 *squirt  = (vu16 *)MEM_PAL + 13 * 16;
+    vu16 *pidgey  = (vu16 *)MEM_PAL + 8 * 16;
     vu16 *rattata = (vu16 *)MEM_PAL + 9 * 16;
+    vu16 *nidorino = (vu16 *)MEM_PAL + 4 * 16;
+    vu16 *spearow  = (vu16 *)MEM_PAL + 5 * 16;
+    vu16 *nidof    = (vu16 *)MEM_PAL + 6 * 16;
+    vu16 *nidom    = (vu16 *)MEM_PAL + 7 * 16;
 
     for (u8 i = 0; i < 16; i++) {
         paper[i] = 0x7FFF;
@@ -86,6 +118,10 @@ static void prepare_pokedex_palettes(void) {
         squirt[i] = 0x7FFF;
         pidgey[i] = 0x7FFF;
         rattata[i] = 0x7FFF;
+        nidorino[i] = 0x7FFF;
+        spearow[i] = 0x7FFF;
+        nidof[i] = 0x7FFF;
+        nidom[i] = 0x7FFF;
     }
 
     paper[1] = RGB15(2, 1, 2);
@@ -108,6 +144,17 @@ static void prepare_pokedex_palettes(void) {
     pidgey[4] = RGB15(26, 22, 14);
     rattata[3] = RGB15(14, 8, 16);
     rattata[4] = RGB15(24, 18, 26);
+
+    nidof[1] = nidom[1] = nidorino[1] = spearow[1] = RGB15(2, 1, 2);
+    nidof[2] = nidom[2] = nidorino[2] = spearow[2] = RGB15(31, 31, 31);
+    nidof[3]    = RGB15(18, 12, 20);
+    nidof[4]    = RGB15(31, 22, 29);
+    nidom[3]    = RGB15(12, 10, 20);
+    nidom[4]    = RGB15(23, 20, 31);
+    nidorino[3] = RGB15(12, 10, 20);
+    nidorino[4] = RGB15(23, 20, 31);
+    spearow[3]  = RGB15(20, 10, 6);
+    spearow[4]  = RGB15(31, 22, 14);
 }
 static u16 s_saved_palette[16];
 static bool8 s_palette_saved;
@@ -176,6 +223,10 @@ bool8 pokedex_species_to_entry(PokemonId species, PokedexSpecies *out) {
     case MON_SQUIRTLE:   *out = POKEDEX_SQUIRTLE; return TRUE;
     case MON_PIDGEY:     *out = POKEDEX_PIDGEY; return TRUE;
     case MON_RATTATA:    *out = POKEDEX_RATTATA; return TRUE;
+    case MON_NIDORINO:   *out = POKEDEX_NIDORINO; return TRUE;
+    case MON_SPEAROW:    *out = POKEDEX_SPEAROW; return TRUE;
+    case MON_NIDORAN_F:  *out = POKEDEX_NIDORAN_F; return TRUE;
+    case MON_NIDORAN_M:  *out = POKEDEX_NIDORAN_M; return TRUE;
     default: return FALSE;
     }
 }

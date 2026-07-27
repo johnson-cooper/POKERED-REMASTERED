@@ -75,12 +75,14 @@ static void prepare_party_palettes(void) {
     pidgey[4]   = RGB15(29, 24, 16);
     rattat[3]   = RGB15(18, 9, 18);
     rattat[4]   = RGB15(29, 18, 27);
-    nidof[3]    = RGB15(15, 5, 20);
-    nidof[4]    = RGB15(25, 15, 31);
-    nidom[3]    = RGB15(5, 8, 20);
-    nidom[4]    = RGB15(14, 16, 31);
-    nidorino[3] = RGB15(5, 8, 20);
-    nidorino[4] = RGB15(14, 16, 31);
+    nidof[1] = nidom[1] = nidorino[1] = spearow[1] = RGB15(2, 1, 2);
+    nidof[2] = nidom[2] = nidorino[2] = spearow[2] = RGB15(31, 31, 31);
+    nidof[3]    = RGB15(18, 12, 20);
+    nidof[4]    = RGB15(31, 22, 29);
+    nidom[3]    = RGB15(12, 10, 20);
+    nidom[4]    = RGB15(23, 20, 31);
+    nidorino[3] = RGB15(12, 10, 20);
+    nidorino[4] = RGB15(23, 20, 31);
     spearow[3]  = RGB15(20, 10, 6);
     spearow[4]  = RGB15(31, 22, 14);
 }
