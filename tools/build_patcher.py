@@ -157,7 +157,33 @@ def _pokemon_with_learnsets() -> set[str]:
     return names
 
 
+def _pokemon_with_pokedex() -> set[str]:
+    """
+    Return the set of Pokémon names (lowercase) wired into
+    pokedex_species_to_entry() in src/engine/pokedex.c.
+    """
+    import re
+    pokedex_file = Path("src/engine/pokedex.c")
+    names: set[str] = set()
+    if pokedex_file.exists():
+        in_func = False
+        for line in pokedex_file.read_text(encoding="utf-8").splitlines():
+            if "pokedex_species_to_entry" in line and "{" in line:
+                in_func = True
+            if in_func:
+                m = re.match(r"\s*case MON_(\w+):", line)
+                if m:
+                    names.add(m.group(1).lower())
+                if "}" in line and "case" not in line and "default" not in line:
+                    in_func = False
+    return names
+
+
 def _count_learnsets(names: set[str]) -> dict:
+    return {"ported": len(names), "total": REF_POKEMON}
+
+
+def _count_pokedex(names: set[str]) -> dict:
     return {"ported": len(names), "total": REF_POKEMON}
 
 
@@ -165,13 +191,13 @@ def _count_pokemon_complete(sprite_names: set[str]) -> dict:
     return {"ready": len(sprite_names), "total": REF_POKEMON}
 
 
-def _count_fully_ported(sprite_names: set[str], learnset_names: set[str]) -> dict:
-    """Pokémon that have both a real sprite AND a learnset."""
-    complete = sprite_names & learnset_names
+def _count_fully_ported(sprite_names: set[str], learnset_names: set[str], pokedex_names: set[str]) -> dict:
+    """Pokémon that have a real sprite, a learnset, AND a Pokédex entry."""
+    complete = sprite_names & learnset_names & pokedex_names
     return {"ported": len(complete), "total": REF_POKEMON}
 
 
-def _calc_overall_pct(counts: dict, sprite_names: set, learnset_names: set) -> int:
+def _calc_overall_pct(counts: dict, sprite_names: set, learnset_names: set, pokedex_names: set) -> int:
     """Simple average across all tracked bars (excluding derived 'fully ported')."""
     bars = [
         counts["maps"]["ported"]     / counts["maps"]["total"],
@@ -181,6 +207,7 @@ def _calc_overall_pct(counts: dict, sprite_names: set, learnset_names: set) -> i
         counts["items"]["ported"]    / counts["items"]["total"],
         len(sprite_names)            / REF_POKEMON,
         len(learnset_names)          / REF_POKEMON,
+        len(pokedex_names)           / REF_POKEMON,
     ]
     return max(1, round(sum(bars) / len(bars) * 100))
 
@@ -313,6 +340,7 @@ const _PCT=$OVERALL_PCT;
 const _COUNTS=$COUNTS_JSON;
 const _PKMN_COMPLETE=$PKMN_COMPLETE_JSON;
 const _LEARNSETS=$LEARNSETS_JSON;
+const _POKEDEX=$POKEDEX_JSON;
 const _FULLY_PORTED=$FULLY_PORTED_JSON;
 const _LABELS={maps:"Maps",pokemon:"Pokémon",moves:"Moves",music:"Music",items:"Items"};
 (function(){
@@ -339,6 +367,7 @@ const _LABELS={maps:"Maps",pokemon:"Pokémon",moves:"Moves",music:"Music",items:
   var pkRows=[
     {label:"Sprites",       ported:_PKMN_COMPLETE.ready,  total:_PKMN_COMPLETE.total},
     {label:"Learnsets",     ported:_LEARNSETS.ported,      total:_LEARNSETS.total},
+    {label:"Pokédex",  ported:_POKEDEX.ported,        total:_POKEDEX.total},
     {label:"Fully Ported",  ported:_FULLY_PORTED.ported,   total:_FULLY_PORTED.total},
   ];
   var pkGrid=document.getElementById("pkmn-grid");
@@ -383,10 +412,12 @@ def build(gba_path: Path, out_path: Path) -> None:
     counts         = _count_ported()
     sprite_names   = _pokemon_with_sprites()
     learnset_names = _pokemon_with_learnsets()
-    overall_pct    = _calc_overall_pct(counts, sprite_names, learnset_names)
+    pokedex_names  = _pokemon_with_pokedex()
+    overall_pct    = _calc_overall_pct(counts, sprite_names, learnset_names, pokedex_names)
     pkmn_complete  = _count_pokemon_complete(sprite_names)
     learnsets      = _count_learnsets(learnset_names)
-    fully_ported   = _count_fully_ported(sprite_names, learnset_names)
+    pokedex        = _count_pokedex(pokedex_names)
+    fully_ported   = _count_fully_ported(sprite_names, learnset_names, pokedex_names)
     print(f"  Progress {overall_pct}%  maps={counts['maps']['ported']}/{counts['maps']['total']}"
           f"  pokemon={counts['pokemon']['ported']}/{counts['pokemon']['total']}"
           f"  moves={counts['moves']['ported']}/{counts['moves']['total']}"
@@ -394,6 +425,7 @@ def build(gba_path: Path, out_path: Path) -> None:
           f"  items={counts['items']['ported']}/{counts['items']['total']}"
           f"  sprites={pkmn_complete['ready']}/{pkmn_complete['total']}"
           f"  learnsets={learnsets['ported']}/{learnsets['total']}"
+          f"  pokedex={pokedex['ported']}/{pokedex['total']}"
           f"  fully-ported={fully_ported['ported']}/{fully_ported['total']}")
 
     splash_data = _read_splash()
@@ -411,6 +443,7 @@ def build(gba_path: Path, out_path: Path) -> None:
     counts_json        = json.dumps(counts, separators=(",", ":"))
     pkmn_complete_json = json.dumps(pkmn_complete, separators=(",", ":"))
     learnsets_json     = json.dumps(learnsets, separators=(",", ":"))
+    pokedex_json       = json.dumps(pokedex, separators=(",", ":"))
     fully_ported_json  = json.dumps(fully_ported, separators=(",", ":"))
 
     html = _HTML.substitute(
@@ -424,6 +457,7 @@ def build(gba_path: Path, out_path: Path) -> None:
         COUNTS_JSON=counts_json,
         PKMN_COMPLETE_JSON=pkmn_complete_json,
         LEARNSETS_JSON=learnsets_json,
+        POKEDEX_JSON=pokedex_json,
         FULLY_PORTED_JSON=fully_ported_json,
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
