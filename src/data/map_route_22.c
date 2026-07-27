@@ -42,9 +42,13 @@ static const MapLayout s_layout = {
 };
 
 static const WarpEvent s_warps[] = {
-    // East connection to Viridian City (warp indices 8/9 in Viridian).
-    { .x = 38, .y = 9, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 8 },
-    { .x = 38, .y = 10, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 9 },
+    // East connection to Viridian City, shifted one tile east. The three
+    // tiles directly north use the same Viridian City destination.
+    { .x = 39, .y = 9, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 8 },
+    { .x = 39, .y = 10, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 9 },
+    { .x = 39, .y = 6, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 8 },
+    { .x = 39, .y = 7, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 8 },
+    { .x = 39, .y = 8, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 8 },
     // Route 22 Gate entrance (door at block 4,2 = subtile 8,5).
     { .x = 8, .y = 5, .dest_map = MAP_ROUTE_22_GATE, .dest_warp = 0 },
 };
@@ -62,7 +66,7 @@ const MapHeader g_map_route_22 = {
     .name = "Route 22",
     .layout = &s_layout,
     .warps = s_warps,
-    .warp_count = 3,
+    .warp_count = ARRAY_COUNT(s_warps),
     .npcs = s_npcs,
     .npc_count = 1,
     .script = script_route_22,

@@ -142,6 +142,8 @@ static u32 s_player_sprite_buf[BATTLE_SPRITE_WORDS];
 static u32 s_enemy_sprite_buf[BATTLE_SPRITE_WORDS];
 static PartyPokemon s_pre_battle_party;
 static bool8 s_has_pre_battle_party;
+static bool8 s_oaks_lab_rival_battle;
+static bool8 s_route22_rival_battle;
 
 static char s_msg_buf[128];
 
@@ -827,6 +829,8 @@ static void apply_stat_effect(MoveId move, BattlePokemon *target) {
 
 void battle_setup_rival(u16 chosen_ball, const char *player_nickname) {
     s_battle.is_wild = FALSE;
+    s_oaks_lab_rival_battle = TRUE;
+    s_route22_rival_battle = FALSE;
     s_battle.enemy_level = 5;
     switch (chosen_ball) {
     case 10:
@@ -852,6 +856,8 @@ void battle_setup_rival(u16 chosen_ball, const char *player_nickname) {
 
 void battle_setup_route22_rival(const char *player_nickname) {
     s_battle.is_wild = FALSE;
+    s_oaks_lab_rival_battle = FALSE;
+    s_route22_rival_battle = TRUE;
 
     PartyPokemon *lead = party_get_lead();
     s_battle.player_species = lead ? lead->species : MON_BULBASAUR;
@@ -879,6 +885,8 @@ void battle_setup_route22_rival(const char *player_nickname) {
 void battle_setup_wild(PokemonId species, u8 level, PokemonId player_species,
                        const char *player_nickname) {
     s_battle.is_wild = TRUE;
+    s_oaks_lab_rival_battle = FALSE;
+    s_route22_rival_battle = FALSE;
     s_battle.enemy_species = species;
     s_battle.enemy_level = level;
     s_battle.player_species = player_species;
@@ -1982,7 +1990,7 @@ void battle_update(void) {
 
     case BS_END:
         if (dialog_is_open()) { dialog_update(); break; }
-        bool8 scripted_rival_battle = !s_battle.is_wild;
+        bool8 scripted_rival_battle = s_oaks_lab_rival_battle;
         if (scripted_rival_battle)
             flags_set(FLAG_BATTLED_RIVAL_IN_OAKS_LAB);
         if (scripted_rival_battle && s_has_pre_battle_party) {
@@ -2033,7 +2041,16 @@ void battle_update(void) {
             }
         }
         if (s_blackout && party_all_fainted() && !scripted_rival_battle) {
-            const MapHeader *recovery_map = map_get_by_id(g_last_healing_point.map_id);
+            u8 recovery_map_id = g_last_healing_point.map_id;
+            // Older saves stored Viridian Pokécenter healing at the outdoor
+            // entrance. Normalize that legacy point to the new interior
+            // recovery location.
+            if (recovery_map_id == MAP_VIRIDIAN_CITY &&
+                g_last_healing_point.x == 23 &&
+                g_last_healing_point.y == 25) {
+                recovery_map_id = MAP_VIRIDIAN_POKECENTER;
+            }
+            const MapHeader *recovery_map = map_get_by_id(recovery_map_id);
             if (!recovery_map)
                 recovery_map = map_get_by_id(MAP_PLAYERS_HOUSE_1F);
             party_heal_all();
@@ -2043,6 +2060,9 @@ void battle_update(void) {
                 if (g_last_healing_point.map_id == MAP_PLAYERS_HOUSE_1F) {
                     spawn_x = 4;
                     spawn_y = 3;
+                } else if (recovery_map_id == MAP_VIRIDIAN_POKECENTER) {
+                    spawn_x = 3;
+                    spawn_y = 5;
                 }
                 world_init(recovery_map, spawn_x, spawn_y);
                 g_world.player.facing = (Direction)g_last_healing_point.facing;

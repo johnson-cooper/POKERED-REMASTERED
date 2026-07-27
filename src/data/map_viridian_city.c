@@ -49,9 +49,14 @@ static const WarpEvent s_warps[] = {
     { .x = 32, .y = 7,  .dest_map = MAP_VIRIDIAN_GYM, .dest_warp = 0 },
     // North connection to Route 2
     { .x = 20, .y = 0,  .dest_map = MAP_ROUTE_2, .dest_warp = 0 },
-    // West connection to Route 22
+    // West connection to Route 22. Keep the original two-tile opening,
+    // and include the three tiles directly north of it as the same route
+    // transition.
     { .x = 0,  .y = 17, .dest_map = MAP_ROUTE_22, .dest_warp = 0 },
     { .x = 0,  .y = 18, .dest_map = MAP_ROUTE_22, .dest_warp = 0 },
+    { .x = 0,  .y = 14, .dest_map = MAP_ROUTE_22, .dest_warp = 0 },
+    { .x = 0,  .y = 15, .dest_map = MAP_ROUTE_22, .dest_warp = 0 },
+    { .x = 0,  .y = 16, .dest_map = MAP_ROUTE_22, .dest_warp = 0 },
 };
 
 static const NpcDef s_npcs[] = {

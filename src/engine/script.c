@@ -555,10 +555,9 @@ static bool8 npc_script_tick(void) {
             if (choice == 0xFF) return FALSE;
 
             if (choice) {
-                // Viridian City is the outdoor map associated with this
-                // center. Respawn on the same entrance warp used by the
-                // pokered map, facing outward from the building.
-                party_set_healing_point(MAP_VIRIDIAN_CITY, 23, 25, DIR_DOWN);
+                // Respawn inside the Pokécenter, two tiles north of the
+                // entrance, facing south toward the exit.
+                party_set_healing_point(MAP_VIRIDIAN_POKECENTER, 3, 5, DIR_DOWN);
                 dialog_open();
                 dialog_set_text("OK. We'll need\nyour POKeMON.");
                 s_pokecenter_state = POKECENTER_NEED_PARTY;
@@ -1088,6 +1087,7 @@ typedef enum {
     R22_RIVAL_DIALOG,
     R22_BATTLE,
     R22_POST_BATTLE_DIALOG,
+    R22_POST_BATTLE_DIALOG_2,
     R22_RIVAL_EXIT,
     R22_DONE,
 } Route22ScriptState;
@@ -1119,7 +1119,8 @@ void script_route_22(void) {
         g_world.npcs[0].y = (u8)p->tile_y;
         g_world.npcs[0].px = (s16)(25 * 16);
         g_world.npcs[0].py = (s16)(p->tile_y * 16);
-        g_world.npcs[0].facing = DIR_LEFT;
+        // Pokered leaves the rival facing east/right after his approach.
+        g_world.npcs[0].facing = DIR_RIGHT;
         g_world.npcs[0].walking = FALSE;
 
         audio_music_play(AUDIO_MUSIC_MEET_PROF_OAK);
@@ -1132,8 +1133,8 @@ void script_route_22(void) {
         if (g_world.npcs[0].x > p->tile_x + 2) {
             world_npc_start_step(0, DIR_LEFT);
         } else {
-            g_world.npcs[0].facing = DIR_LEFT;
-            p->facing = DIR_RIGHT;
+            g_world.npcs[0].facing = DIR_RIGHT;
+            p->facing = DIR_LEFT;
             dialog_open();
             dialog_set_text(
                 "[RIVAL]: Hey!\n[NAME]!\fYou're going to\nPOKeMON LEAGUE?\fForget it! You\nprobably don't\nhave any BADGEs!\fThe guard won't\nlet you through!\fBy the way, did\nyour POKeMON get\nany stronger?");
@@ -1157,6 +1158,10 @@ void script_route_22(void) {
         if (g_game.state != GAME_STATE_OVERWORLD) break;
         if (battle_is_blackout()) {
             s_route22_state = R22_DONE;
+            // The battle return restores the map, but the player was frozen
+            // by the cutscene before entering battle. Release that state on
+            // the loss path so the overworld cannot remain locked.
+            p->move_state = MOVE_STATE_IDLE;
             s_blocks_input = FALSE;
             s_active_script_id = 0;
             break;
@@ -1168,11 +1173,20 @@ void script_route_22(void) {
         audio_music_play(AUDIO_MUSIC_MEET_PROF_OAK);
         dialog_open();
         dialog_set_text(
-            "[RIVAL]: Awww!\nYou just lucked\nout!\fI heard POKeMON\nLEAGUE has many\ntough trainers!\fI have to figure\nout how to get\npast them!\fYou should quit\ndawdling and get\na move on!");
+            "[RIVAL]: Awww!\nYou just lucked\nout!");
         s_route22_state = R22_POST_BATTLE_DIALOG;
         break;
 
     case R22_POST_BATTLE_DIALOG:
+        if (dialog_update()) {
+            dialog_open();
+            dialog_set_text(
+                "[RIVAL]: What?\nWhy do I have 2\nPOKeMON?\fYou should catch\nsome more too!");
+            s_route22_state = R22_POST_BATTLE_DIALOG_2;
+        }
+        break;
+
+    case R22_POST_BATTLE_DIALOG_2:
         if (dialog_update()) {
             s_route22_state = R22_RIVAL_EXIT;
             s_route22_walk_steps = 0;
