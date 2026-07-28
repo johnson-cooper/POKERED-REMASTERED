@@ -1032,8 +1032,14 @@ void battle_setup_wild(PokemonId species, u8 level, PokemonId player_species,
 }
 
 void battle_setup_trainer(TrainerId trainer, const char *player_nickname) {
+    battle_setup_trainer_variant(trainer, 0, player_nickname);
+}
+
+void battle_setup_trainer_variant(TrainerId trainer, u8 variant,
+                                  const char *player_nickname) {
     if (trainer <= TRAINER_NONE || trainer >= TRAINER_COUNT) return;
-    const TrainerParty *party = &g_trainer_parties[trainer];
+    const TrainerParty *party = trainer_party_get(trainer, variant);
+    if (!party) return;
     if (!party->count) return;
     s_battle.is_wild = FALSE;
     s_oaks_lab_rival_battle = FALSE;

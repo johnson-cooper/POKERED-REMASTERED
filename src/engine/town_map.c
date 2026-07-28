@@ -33,6 +33,7 @@ static const TownMapEntry s_locations[] = {
 static const TownMapEntry s_routes[] = {
     { MAP_ROUTE_1, 5, 13, "ROUTE 1" },
     { MAP_ROUTE_2, 5,  8, "ROUTE 2" },
+    { MAP_VIRIDIAN_FOREST, 5,  6, "VIRIDIAN FOREST" },
 };
 
 #define NUM_ROUTES ARRAY_COUNT(s_routes)
@@ -54,6 +55,8 @@ static u8 find_player_location(void) {
         return 0; // Pallet Town
     if (mid >= MAP_VIRIDIAN_MART && mid <= MAP_VIRIDIAN_GYM)
         return 1; // Viridian City
+    if (mid >= MAP_PEWTER_MART && mid <= MAP_PEWTER_SPEECH_HOUSE)
+        return 2; // Pewter City
     return 0;
 }
 

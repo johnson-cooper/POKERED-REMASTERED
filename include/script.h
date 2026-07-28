@@ -1,6 +1,7 @@
 #pragma once
 #include "types.h"
 #include "pokemon.h"
+#include "world.h"
 
 // Map script system — called once per frame from world_update() via the
 // map header's script function pointer.
@@ -11,6 +12,9 @@
 // NPC A-press interaction: called from player_update when player presses A
 // facing an NPC at the adjacent subtile.
 void script_trigger_npc(u16 script_id, u8 npc_index);
+void script_trigger_background(u16 script_id);
+void script_trigger_background_event(const BackgroundEvent *event);
+void script_trainer_battle_complete(bool8 won);
 bool8 script_viridian_old_man_blocks(s32 x, s32 y);
 
 // Advances generic NPC dialogs on every map, including maps without a

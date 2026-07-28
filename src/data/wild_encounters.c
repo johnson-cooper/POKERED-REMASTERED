@@ -33,6 +33,16 @@ const WildEncounterTable g_wild_encounter_tables[MAP_COUNT] = {
             { MON_NIDORAN_F, 3, 3, 11 }, { MON_NIDORAN_F, 4, 4, 4 },
         },
     },
+    [MAP_VIRIDIAN_FOREST] = {
+        8,
+        {
+            { MON_WEEDLE,   4, 4, 51 }, { MON_KAKUNA,   5, 5, 51 },
+            { MON_WEEDLE,   3, 3, 39 }, { MON_WEEDLE,   5, 5, 25 },
+            { MON_KAKUNA,   4, 4, 25 }, { MON_KAKUNA,   6, 6, 25 },
+            { MON_METAPOD,  4, 4, 13 }, { MON_CATERPIE, 3, 3, 13 },
+            { MON_PIKACHU,  3, 3, 11 }, { MON_PIKACHU,  5, 5, 3 },
+        },
+    },
 };
 
 bool8 wild_encounter_select(u8 map_id, PokemonId *species, u8 *level) {

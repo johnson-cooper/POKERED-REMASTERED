@@ -56,9 +56,12 @@ $tileset.Add('#include "indoor_palette.h"')
 $tileset.Add('')
 $tileset.Add('#define ZERO16 {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0}')
 $tileset.Add('')
-$tileset.Add('static const Metatile s_gate_metatiles[0x30] = {')
-for ($block = 0; $block -lt 0x30; $block++) {
-    $vals = $blocks[($block * 16)..($block * 16 + 15)] | ForEach-Object { "0x{0:X2}" -f $_ }
+$tileset.Add('static const Metatile s_gate_metatiles[0x80] = {')
+for ($block = 0; $block -lt 0x80; $block++) {
+    # Game Boy signed tile IDs use $80-$DF for the same 96-tile graphics
+    # bank. GBA VRAM uses direct unsigned indices, so normalize that bank
+    # before emitting metatile tile references.
+    $vals = $blocks[($block * 16)..($block * 16 + 15)] | ForEach-Object { "0x{0:X2}" -f ($_ -band 0x7F) }
     $tileset.Add("    [$block] = { .bottom={" + ($vals -join ',') + "}, .top=ZERO16, .palettes=ZERO16, .top_palettes=ZERO16 },")
 }
 $tileset.Add('};')

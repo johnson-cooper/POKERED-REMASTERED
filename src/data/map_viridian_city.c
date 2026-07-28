@@ -61,6 +61,12 @@ static const WarpEvent s_warps[] = {
     { .x = 0,  .y = 16, .dest_map = MAP_ROUTE_22, .dest_warp = 0 },
 };
 
+static const MapConnection s_connections[] = {
+    { .direction = DIR_UP, .dest_map = MAP_ROUTE_2, .offset = 5 },
+    { .direction = DIR_DOWN, .dest_map = MAP_ROUTE_1, .offset = 5 },
+    { .direction = DIR_LEFT, .dest_map = MAP_ROUTE_22, .offset = 4 },
+};
+
 static const NpcDef s_npcs[] = {
     { .x = 13, .y = 20, .sprite_tile = GFX_YOUNGSTER_TILE_BASE, .facing = DIR_DOWN,  .script_id = 15, .movement = NPC_MOVE_WALK_ANY },
     { .x = 30, .y =  8, .sprite_tile = GFX_GAMBLER_TILE_BASE,   .facing = DIR_DOWN,  .script_id = 16, .movement = NPC_MOVE_STAY },
@@ -81,6 +87,8 @@ const MapHeader g_map_viridian_city = {
     // Viridian uses the standard OVERWORLD palette bank. The reference tile
     // palette map supplies building and roof colors per source tile.
     .roof_palette = NULL,
+    .connections = s_connections,
+    .connection_count = ARRAY_COUNT(s_connections),
 };
 
 #undef P

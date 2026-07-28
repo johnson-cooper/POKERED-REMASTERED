@@ -52,6 +52,11 @@ static const WarpEvent s_warps[] = {
     { .x = 8, .y = 5, .dest_map = MAP_ROUTE_22_GATE, .dest_warp = 0 },
 };
 
+static const BackgroundEvent s_bg_events[] = {
+    { .x = 7, .y = 11, .script_id = 0,
+      .text = "ROUTE 22\fVIRIDIAN CITY -\nPOKeMON LEAGUE" },
+};
+
 static const NpcDef s_npcs[] = {
     // Rival — hidden by default, shown by script when conditions met.
     // pokered places both toggleable Rival objects on this exact tile.
@@ -71,6 +76,8 @@ const MapHeader g_map_route_22 = {
     .script = script_route_22,
     .music_id = AUDIO_MUSIC_ROUTES_1,
     .roof_palette = &g_roof_pallet,
+    .bg_events = s_bg_events,
+    .bg_event_count = ARRAY_COUNT(s_bg_events),
 };
 
 #undef P

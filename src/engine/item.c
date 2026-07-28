@@ -22,6 +22,7 @@ static const ItemDef s_item_defs[ITEM_COUNT] = {
     [ITEM_WATER_STONE] = { "WATER STONE",  2100, FALSE },
     [ITEM_LEAF_STONE]  = { "LEAF STONE",   2100, FALSE },
     [ITEM_MOON_STONE]  = { "MOON STONE",   2100, FALSE },
+    [ITEM_HP_UP]       = { "HP UP",        9800, FALSE },
 };
 
 const char *item_get_name(ItemId id) {

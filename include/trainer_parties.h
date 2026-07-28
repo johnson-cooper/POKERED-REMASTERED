@@ -3,6 +3,7 @@
 #include "pokemon.h"
 
 #define TRAINER_PARTY_MAX 6
+#define TRAINER_PARTY_VARIANTS_MAX 16
 
 typedef enum {
     TRAINER_NONE = 0,
@@ -23,3 +24,4 @@ typedef struct {
 } TrainerParty;
 
 extern const TrainerParty g_trainer_parties[TRAINER_COUNT];
+const TrainerParty *trainer_party_get(TrainerId trainer, u8 variant);

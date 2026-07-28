@@ -85,6 +85,23 @@ typedef struct {
     u8 dest_warp;   // 0-indexed into destination map's warp array
 } WarpEvent;
 
+// Pokered map-header connections join outdoor maps at an edge instead of
+// using an authored doorway warp. `offset` is applied to the source edge
+// coordinate when calculating the destination spawn coordinate.
+typedef struct {
+    u8 direction;    // DIR_UP/DOWN/LEFT/RIGHT
+    u8 dest_map;
+    s8 offset;
+} MapConnection;
+
+// Background events are non-NPC interactions such as signs and wall-mounted
+// text. Coordinates use the same 16px subtile units as WarpEvent and NpcDef.
+typedef struct {
+    u8  x, y;
+    u16 script_id;
+    const char *text;    // pokered TEXT_* payload for a simple sign/poster
+} BackgroundEvent;
+
 // ── NPC ───────────────────────────────────────────────────────────────────────
 typedef struct {
     u8  x, y;           // subtile position (16px units)
@@ -93,6 +110,14 @@ typedef struct {
     u8  flags;          // NPCF_* flags
     u16 script_id;
     u8  movement;       // NpcMovement
+    u16 item_id;        // ITEM_* when NPCF_ITEM is set
+    u16 item_flag;      // persistent GameFlag used to hide a collected item
+    const char *text;    // simple TEXT_* payload; NULL means scripted behavior
+    u8  trainer_id;     // TrainerId when NPCF_TRAINER is set
+    u8  trainer_party;   // reference party index for future trainer variants
+    u8  trainer_sight;   // pokered trainer engage distance in tiles
+    u16 trainer_flag;    // persistent defeated flag; 0 means non-persistent
+    const char *trainer_text; // dialogue shown immediately before battle
 } NpcDef;
 
 // Runtime copy of an NPC definition. Scripted scenes can move and hide these
@@ -111,10 +136,21 @@ typedef struct {
     u8  walk_cycle;
     u8  movement;       // NpcMovement
     u16 move_timer;
+    u16 item_id;
+    u16 item_flag;
+    const char *text;
+    u8  trainer_id;
+    u8  trainer_party;
+    u8  trainer_sight;
+    u16 trainer_flag;
+    const char *trainer_text;
 } NpcState;
 
 #define NPCF_HIDDEN     0x01  // not rendered or interactive
 #define NPCF_NO_SPRITE  0x02  // tile provides the visual; NPC is still interactive
+#define NPCF_ITEM       0x04  // overworld item ball; item_id/item_flag are valid
+#define NPCF_TRAINER    0x08  // starts a data-driven trainer battle
+#define NPCF_TRAINER_DEFEATED 0x10 // trainer remains visible but will not re-battle
 
 typedef enum {
     NPC_MOVE_STAY = 0,
@@ -138,6 +174,10 @@ typedef struct {
     MapScriptFn     script;
     u16             music_id;
     const RoofPalette *roof_palette;
+    const BackgroundEvent *bg_events;
+    u8              bg_event_count;
+    const MapConnection *connections;
+    u8              connection_count;
 } MapHeader;
 
 // ── Player ────────────────────────────────────────────────────────────────────
@@ -186,6 +226,8 @@ void world_init(const MapHeader *map, u8 start_x, u8 start_y);
 void world_update(void);
 void world_render(void);
 void world_do_warp(const WarpEvent *w);
+void world_do_connection(u8 dest_map, Direction direction, s16 source_coordinate,
+                         s8 offset);
 void world_npc_start_step(u8 index, Direction dir);
 bool8 world_npc_is_moving(u8 index);
 

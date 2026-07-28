@@ -27,7 +27,41 @@ bool8 script_blocks_input(void) { return s_blocks_input; }
 static u8 s_npc_script_state = 0;
 static u16 s_active_script_id = 0;
 static u8 s_active_npc_index  = 0;
+static bool8 s_active_trainer_battle = FALSE;
 static u8 s_route1_youngster_state = 0;
+static char s_item_pickup_text[64];
+
+// Reserved script id for the pokered trainer flow: approach, show battle
+// text, then initialize the battle after the text box is dismissed.
+#define ACTIVE_TRAINER_DIALOG 101
+
+static void start_active_trainer_battle(void) {
+    if (!g_world.map || s_active_npc_index >= g_world.npc_count)
+        return;
+    NpcState *trainer = &g_world.npcs[s_active_npc_index];
+    PartyPokemon *lead = party_get_lead();
+    const char *nickname = lead && lead->nickname[0] ? lead->nickname : NULL;
+    battle_setup_trainer_variant((TrainerId)trainer->trainer_id,
+                                 trainer->trainer_party, nickname);
+    audio_music_play(AUDIO_MUSIC_TRAINER_BATTLE);
+    battle_transition_start();
+    s_blocks_input = FALSE;
+    game_change_state(GAME_STATE_BATTLE);
+}
+
+static void item_text_build(const char *prefix, const char *name) {
+    u8 i = 0;
+    while (prefix[i] && i + 1 < sizeof(s_item_pickup_text)) {
+        s_item_pickup_text[i] = prefix[i];
+        i++;
+    }
+    while (name && name[0] && i + 1 < sizeof(s_item_pickup_text)) {
+        s_item_pickup_text[i++] = *name++;
+    }
+    if (i + 1 < sizeof(s_item_pickup_text))
+        s_item_pickup_text[i++] = '!';
+    s_item_pickup_text[i] = '\0';
+}
 
 // Reserved script id for map-owned cutscenes. It prevents the generic NPC
 // dialog dispatcher from swallowing the map script's own dialog updates.
@@ -366,6 +400,46 @@ void script_trigger_npc(u16 script_id, u8 npc_index) {
     if (s_blocks_input) return;
     if (dialog_is_open()) return;
 
+    if (g_world.map && npc_index < g_world.npc_count &&
+        (g_world.npcs[npc_index].flags & NPCF_ITEM)) {
+        NpcState *item = &g_world.npcs[npc_index];
+        ItemId item_id = (ItemId)item->item_id;
+        if (bag_add(item_id, 1)) {
+            if (item->item_flag < FLAG_COUNT)
+                flags_set((GameFlag)item->item_flag);
+            item->flags |= NPCF_HIDDEN;
+            item_text_build("[NAME] found a ", item_get_name(item_id));
+            dialog_open();
+            dialog_set_text(s_item_pickup_text);
+        } else {
+            dialog_open();
+            dialog_set_text("You can't carry\nany more items.");
+        }
+        s_active_script_id = 0;
+        s_active_npc_index = npc_index;
+        s_npc_script_state = 1;
+        s_blocks_input = TRUE;
+        return;
+    }
+
+    if (g_world.map && npc_index < g_world.npc_count &&
+        (g_world.npcs[npc_index].flags & NPCF_TRAINER) &&
+        !(g_world.npcs[npc_index].flags & NPCF_TRAINER_DEFEATED)) {
+        s_active_npc_index = npc_index;
+        s_active_trainer_battle = TRUE;
+        s_active_script_id = ACTIVE_TRAINER_DIALOG;
+        s_npc_script_state = 1;
+        s_blocks_input = TRUE;
+        const char *text = g_world.npcs[npc_index].trainer_text;
+        if (text && text[0]) {
+            dialog_open();
+            dialog_set_text(text);
+        } else {
+            start_active_trainer_battle();
+        }
+        return;
+    }
+
     if (script_id == 22 && flags_get(FLAG_GOT_POKEDEX) &&
         g_world.map && g_world.map->map_id == MAP_VIRIDIAN_MART) {
         s_active_script_id = script_id;
@@ -526,6 +600,16 @@ void script_trigger_npc(u16 script_id, u8 npc_index) {
         }
     }
 
+    // Simple pokered object-event dialogue can live directly on the map
+    // object. Conditional and stateful events continue through script_id.
+    if (npc_index < g_world.npc_count && g_world.npcs[npc_index].text) {
+        dialog_open();
+        dialog_set_text(g_world.npcs[npc_index].text);
+        s_npc_script_state = 1;
+        s_blocks_input = TRUE;
+        return;
+    }
+
     if (script_id < ARRAY_COUNT(s_npc_texts)) {
         const char *text = s_npc_texts[script_id];
         if (text[0]) {
@@ -535,11 +619,75 @@ void script_trigger_npc(u16 script_id, u8 npc_index) {
             s_blocks_input = TRUE;
         }
     }
+
+}
+
+void script_trainer_battle_complete(bool8 won) {
+    if (!s_active_trainer_battle) return;
+    if (won && g_world.map && s_active_npc_index < g_world.npc_count) {
+        NpcState *trainer = &g_world.npcs[s_active_npc_index];
+        if (trainer->trainer_flag != 0 && trainer->trainer_flag < FLAG_COUNT) {
+            flags_set((GameFlag)trainer->trainer_flag);
+            trainer->flags |= NPCF_TRAINER_DEFEATED;
+        }
+    }
+    s_active_trainer_battle = FALSE;
+}
+
+void script_trigger_background(u16 script_id) {
+    if (s_blocks_input || dialog_is_open()) return;
+
+    // Route 1's sign is a pokered-style background event rather than an NPC.
+    // Additional sign/text IDs can be added as the generated text table and
+    // script interpreter are expanded.
+    if (script_id == 1) {
+        dialog_open();
+        dialog_set_text("ROUTE 1\fPALLET TOWN -\nVIRIDIAN CITY");
+    } else if (script_id == 2) {
+        dialog_open();
+        dialog_set_text("ROUTE 2\fVIRIDIAN CITY -\nPEWTER CITY");
+    } else if (script_id == 3) {
+        dialog_open();
+        dialog_set_text("DIGLETT's CAVE\fROUTE 2");
+    } else if (script_id == 4) {
+        dialog_open();
+        dialog_set_text("ROUTE 22\fVIRIDIAN CITY -\nPOKeMON LEAGUE");
+    } else {
+        return;
+    }
+
+    if (script_id >= 1 && script_id <= 4) {
+        s_npc_script_state = 1;
+        s_active_script_id = 0;
+        s_blocks_input = TRUE;
+    }
+}
+
+void script_trigger_background_event(const BackgroundEvent *event) {
+    if (!event) return;
+    if (event->text) {
+        if (s_blocks_input || dialog_is_open()) return;
+        dialog_open();
+        dialog_set_text(event->text);
+        s_npc_script_state = 1;
+        s_active_script_id = 0;
+        s_blocks_input = TRUE;
+        return;
+    }
+    script_trigger_background(event->script_id);
 }
 
 // Returns TRUE when NPC dialog is done.
 static bool8 npc_script_tick(void) {
     if (!s_blocks_input) return TRUE;
+
+    if (s_active_script_id == ACTIVE_TRAINER_DIALOG) {
+        if (dialog_update()) {
+            s_npc_script_state = 0;
+            start_active_trainer_battle();
+        }
+        return FALSE;
+    }
 
     if (s_active_script_id == 25 &&
         g_world.map && g_world.map->map_id == MAP_VIRIDIAN_POKECENTER) {
@@ -1214,6 +1362,7 @@ void script_route_22(void) {
 
 void script_reset_runtime(void) {
     s_blocks_input = FALSE;
+    s_active_trainer_battle = FALSE;
     s_npc_script_state = 0;
     s_active_script_id = 0;
     s_active_npc_index = 0;

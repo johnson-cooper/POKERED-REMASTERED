@@ -341,6 +341,16 @@ extern const MapHeader g_map_viridian_gym;
 extern const MapHeader g_map_route_2;
 extern const MapHeader g_map_route_22;
 extern const MapHeader g_map_route_22_gate;
+extern const MapHeader g_map_viridian_forest_north_gate;
+extern const MapHeader g_map_viridian_forest_south_gate;
+extern const MapHeader g_map_viridian_forest;
+extern const MapHeader g_map_pewter_city;
+extern const MapHeader g_map_pewter_mart;
+extern const MapHeader g_map_pewter_pokecenter;
+extern const MapHeader g_map_pewter_gym;
+extern const MapHeader g_map_museum_1f;
+extern const MapHeader g_map_pewter_nidoran_house;
+extern const MapHeader g_map_pewter_speech_house;
 
 static const MapHeader * const s_map_table[MAP_COUNT] = {
     [MAP_PALLET_TOWN]        = &g_map_pallet_town,
@@ -358,6 +368,16 @@ static const MapHeader * const s_map_table[MAP_COUNT] = {
     [MAP_ROUTE_2]                = &g_map_route_2,
     [MAP_ROUTE_22]               = &g_map_route_22,
     [MAP_ROUTE_22_GATE]          = &g_map_route_22_gate,
+    [MAP_VIRIDIAN_FOREST_NORTH_GATE] = &g_map_viridian_forest_north_gate,
+    [MAP_VIRIDIAN_FOREST_SOUTH_GATE] = &g_map_viridian_forest_south_gate,
+    [MAP_VIRIDIAN_FOREST] = &g_map_viridian_forest,
+    [MAP_PEWTER_CITY] = &g_map_pewter_city,
+    [MAP_PEWTER_MART] = &g_map_pewter_mart,
+    [MAP_PEWTER_POKECENTER] = &g_map_pewter_pokecenter,
+    [MAP_PEWTER_GYM] = &g_map_pewter_gym,
+    [MAP_MUSEUM_1F] = &g_map_museum_1f,
+    [MAP_PEWTER_NIDORAN_HOUSE] = &g_map_pewter_nidoran_house,
+    [MAP_PEWTER_SPEECH_HOUSE] = &g_map_pewter_speech_house,
 };
 
 const MapHeader *map_get_by_id(u8 map_id) {

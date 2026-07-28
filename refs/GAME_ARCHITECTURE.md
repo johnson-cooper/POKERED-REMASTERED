@@ -1061,7 +1061,89 @@ This section supersedes the early progress snapshot in Section 24.
 
 - `make patcher` regenerates `patcher/index.html` from the current ROM and bumps
   `patcher/VERSION`.
-- The patcher was last rebuilt as v0.0.29 and embeds the current 1,041,376-byte
+- The patcher was last rebuilt as v0.0.35 and embeds the current 1,062,048-byte
   ROM. Its progress scanner now reports all 151 Pokemon, 165 moves, 151 sprite
   sets, 151 learnsets, and the generated Pokédex data; map/music/item totals
   remain based on the currently ported content rather than the full reference.
+
+### Map event foundation
+
+- `MapHeader` now supports `BackgroundEvent` records alongside warps and NPCs.
+  Each record stores a subtile coordinate and a script/text ID.
+- Player interaction checks background events after NPC targeting, allowing
+  pokered signs and wall-mounted text to use the same script channel without
+  map-specific coordinate checks.
+- Route 1's sign is the first migrated background event. The same table will
+  carry item balls, hidden events, and conditional map interactions as the
+  script/event converter is expanded.
+- Route 2 now demonstrates persistent item-ball events: the Moon Stone and
+  HP UP are represented as data records with item IDs and append-only event
+  flags. Collection adds the item to the bag, sets the flag, hides the ball
+  immediately, and keeps it hidden after leaving and re-entering the map.
+- Item-ball records reuse the overworld Poké Ball object graphics and the
+  generic NPC interaction channel until the full pokered object-event
+  interpreter is in place. New item IDs and event flags must be appended so
+  existing serialized saves retain their meanings.
+- Route 22's Pokémon League sign is also registered as a background event,
+  confirming that the same data path is shared across outdoor routes rather
+  than being tied to one map.
+- `BackgroundEvent.text` can carry a map-owned dialogue payload directly;
+  `script_id` remains available for conditional or scripted interactions.
+  This mirrors pokered's separation between simple `TEXT_*` background
+  events and event scripts without forcing every sign through a global switch.
+- `NpcDef.text` provides the corresponding data-driven path for ordinary
+  person-event dialogue. NPCs with conditional rewards, battles, or movement
+  scripts leave `text` NULL and continue through `script_id` dispatch.
+- `make reference-map-manifest` runs `tools/inspect_pokered_map_objects.py`
+  and extracts all pokered map object declarations into
+  `build/pokered_map_objects.json`. The manifest is the audit input for the
+  map-by-map conversion: it counts and preserves reference warps, background
+  text events, persons, item balls, and trainer-party references.
+- Viridian Forest is the first newly ported reference dungeon slice. Its
+  pokered `.blk`, `.bst`, tileset atlas, object events, gates, encounters,
+  connection warps, item balls, background text, and trainer objects are now
+  represented in `src/data/` and `src/world/`. Forest item flags are appended
+  to preserve serialized save meanings, and `NPCF_TRAINER` dispatches generic
+  data-driven trainer battles through the existing battle engine.
+- Trainer objects now carry a reference party variant. Viridian Forest's
+  three Bug Catchers use the pokered parties at levels 6, 7, and 9 rather than
+  sharing one placeholder party; existing callers continue to use variant 0.
+- `MapConnection` now models pokered header-level outdoor connections with a
+  direction, destination map, and coordinate offset. Edge movement resolves
+  these connections generically after explicit warp tiles, and Route 1,
+  Route 2's southern edge, and Viridian City now use the shared connection
+  path for their reference links.
+- Pewter City is now registered from the reference `PewterCity.blk`, with its
+  background signs, five person events, southern Route 2 connection, and
+  reference-linked Mart, Pokécenter, Gym, Museum, Nidoran House, and Speech
+  House interiors. Those interiors use `WARP_LAST_MAP` so their exits return
+  to the correct Pewter City warp, matching pokered's parent-map behavior.
+- Forest Gate map headers now use an explicit `g_tileset_forest_gate` symbol.
+  This preserves pokered's `FOREST_GATE` identity while correctly sharing the
+  reference `gate.png`/`gate.bst` assets that pokered aliases for both gate
+  tilesets; it must not be replaced with the Forest overworld tileset.
+- Gate conversion now imports all 128 metatiles from the reference `gate.bst`
+  rather than only the first 48. It also normalizes pokered's signed Game Boy
+  tile references (`$80-$DF`) to the corresponding GBA tile indices, avoiding
+  blank/checkerboard cells for valid high-numbered gate blocks.
+- Data-driven trainer NPCs now carry a reference sight distance and persistent
+  defeated-event flag. The overworld checks the trainer's facing direction and
+  straight-line range, blocks input, walks the trainer directly toward the
+  player until adjacent, then starts the trainer battle. Victory sets the
+  appended event flag so the trainer does not automatically re-engage on later
+  visits; defeated trainers remain interactable for their after-battle text.
+- Trainer NPCs now also carry `trainer_text`. The trainer flow follows pokered's
+  `CheckFightingMapTrainers` / `TrainerWalkUpToPlayer` /
+  `DisplayEnemyTrainerTextAndStartBattle` order: sighted trainers approach,
+  display their battle dialogue, and only initialize the battle after the
+  dialogue closes. Trainer battles continue through the normal EXP, level-up,
+  move-learning, and evolution states before returning to the overworld.
+- Viridian Forest now has the Red-version reference wild table: encounter rate
+  8, with the reference Weedle, Kakuna, Metapod, Caterpie, and Pikachu level
+  slots and pokered slot probabilities. The Forest tileset's encounter grass
+  tile (`$20` only; `$30` is not encounter grass) is checked by the overworld
+  encounter hook, so encounters are limited to the designated grass.
+- Trainer sight distance is per-NPC rather than hard-coded. Viridian Forest's
+  three trainers currently use a four-tile sight distance; other maps can set
+  each `NpcDef.trainer_sight` independently while retaining pokered's distance
+  of two where desired.

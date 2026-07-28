@@ -284,6 +284,8 @@ void game_update(void) {
                 "Welcome to the world of\nPOK~MON!\f"
                 "My name is OAK! People call\nme the POK~MON PROF!");
         } else if (entering == GAME_STATE_OVERWORLD) {
+            if (previous_state == GAME_STATE_BATTLE)
+                script_trainer_battle_complete(!battle_is_blackout());
             // A fresh game uses the temporary Red's House 2F spawn. Returning
             // from battle or the pause menu must keep the current map intact.
             if (s_continue_load) {

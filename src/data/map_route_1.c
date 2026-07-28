@@ -49,6 +49,17 @@ static const WarpEvent s_warps[] = {
     { .x = 11, .y = 0, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 0 },
 };
 
+static const BackgroundEvent s_bg_events[] = {
+    // Route1_Object: bg_event 9, 27, TEXT_ROUTE1_SIGN
+    { .x = 9, .y = 27, .script_id = 0,
+      .text = "ROUTE 1\fPALLET TOWN -\nVIRIDIAN CITY" },
+};
+
+static const MapConnection s_connections[] = {
+    { .direction = DIR_UP, .dest_map = MAP_VIRIDIAN_CITY, .offset = -5 },
+    { .direction = DIR_DOWN, .dest_map = MAP_PALLET_TOWN, .offset = 0 },
+};
+
 const MapHeader g_map_route_1 = {
     .map_id = MAP_ROUTE_1,
     .name = "Route 1",
@@ -61,12 +72,17 @@ const MapHeader g_map_route_1 = {
         { .x = 5,  .y = 24, .sprite_tile = GFX_YOUNGSTER_TILE_BASE,
           .facing = DIR_UP, .script_id = 37, .movement = NPC_MOVE_UP_DOWN },
         { .x = 15, .y = 13, .sprite_tile = GFX_YOUNGSTER_TILE_BASE,
-          .facing = DIR_LEFT, .script_id = 38, .movement = NPC_MOVE_LEFT_RIGHT },
+          .facing = DIR_LEFT, .script_id = 38, .movement = NPC_MOVE_LEFT_RIGHT,
+          .text = "I'm raising POKeMON too!\fWhen they get\nstrong, they can\nprotect me!" },
     },
     .npc_count = 2,
     .script = NULL,
     .music_id = AUDIO_MUSIC_ROUTES_1,
     .roof_palette = &g_roof_pallet,
+    .bg_events = s_bg_events,
+    .bg_event_count = ARRAY_COUNT(s_bg_events),
+    .connections = s_connections,
+    .connection_count = ARRAY_COUNT(s_connections),
 };
 
 #undef P

@@ -6,6 +6,7 @@
 #include "route1.h"
 #include "route2.h"
 #include "route22.h"
+#include "viridian_forest.h"
 #include "map_ids.h"
 #include "flags.h"
 
@@ -18,6 +19,88 @@
 static const s8 DIR_DX[4] = {  0,  0, -1,  1 };
 static const s8 DIR_DY[4] = {  1, -1,  0,  0 };
 static bool8 player_tile_occupied_by_npc(s32 x, s32 y);
+static u8 s_trainer_approach_index = 0xFF;
+static Direction s_trainer_player_facing = DIR_DOWN;
+
+static bool8 player_trainer_sight_begin(void) {
+    PlayerState *p = &g_world.player;
+    for (u8 i = 0; i < g_world.npc_count; i++) {
+        const NpcState *trainer = &g_world.npcs[i];
+        if (trainer->flags & (NPCF_HIDDEN | NPCF_TRAINER_DEFEATED)) continue;
+        if (!(trainer->flags & NPCF_TRAINER)) continue;
+
+        u8 sight = trainer->trainer_sight ? trainer->trainer_sight : 2;
+        s16 dx = p->tile_x - trainer->x;
+        s16 dy = p->tile_y - trainer->y;
+        Direction dir = (Direction)trainer->facing;
+        s16 distance;
+        if (dir == DIR_DOWN && dx == 0 && dy > 0) distance = dy;
+        else if (dir == DIR_UP && dx == 0 && dy < 0) distance = -dy;
+        else if (dir == DIR_RIGHT && dy == 0 && dx > 0) distance = dx;
+        else if (dir == DIR_LEFT && dy == 0 && dx < 0) distance = -dx;
+        else continue;
+        if (distance < 1 || distance > sight) continue;
+
+        // Match the reference's straight-line sight while preventing an
+        // imported trainer from walking through a wall or another object.
+        for (s16 step = 1; step < distance; step++) {
+            s16 x = trainer->x + (dir == DIR_RIGHT ? step : dir == DIR_LEFT ? -step : 0);
+            s16 y = trainer->y + (dir == DIR_DOWN ? step : dir == DIR_UP ? -step : 0);
+            if (!map_is_subtile_passable(x, y)) {
+                distance = 0;
+                break;
+            }
+        }
+        if (!distance) continue;
+
+        s_trainer_approach_index = i;
+        // Pokered freezes the player when the trainer notices them. Keep the
+        // direction from the player's last movement instead of turning the
+        // player toward the trainer during the approach cutscene.
+        s_trainer_player_facing = p->facing;
+        p->move_state = MOVE_STATE_FROZEN;
+        return TRUE;
+    }
+    return FALSE;
+}
+
+static bool8 player_trainer_sight_update(void) {
+    if (s_trainer_approach_index == 0xFF) return FALSE;
+    if (s_trainer_approach_index >= g_world.npc_count) {
+        s_trainer_approach_index = 0xFF;
+        g_world.player.facing = s_trainer_player_facing;
+        g_world.player.move_state = MOVE_STATE_IDLE;
+        return FALSE;
+    }
+
+    NpcState *trainer = &g_world.npcs[s_trainer_approach_index];
+    PlayerState *p = &g_world.player;
+    Direction dir = (Direction)trainer->facing;
+    s16 dx = p->tile_x - trainer->x;
+    s16 dy = p->tile_y - trainer->y;
+    s16 distance = (dir == DIR_DOWN) ? dy : (dir == DIR_UP) ? -dy :
+                   (dir == DIR_RIGHT) ? dx : -dx;
+    if (world_npc_is_moving(s_trainer_approach_index)) return TRUE;
+    if (distance <= 1) {
+        s_trainer_approach_index = 0xFF;
+        p->facing = s_trainer_player_facing;
+        p->move_state = MOVE_STATE_IDLE;
+        script_trigger_npc(trainer->script_id, (u8)(trainer - g_world.npcs));
+        return TRUE;
+    }
+
+    s16 nx = trainer->x + DIR_DX[dir];
+    s16 ny = trainer->y + DIR_DY[dir];
+    if (!map_is_subtile_passable(nx, ny) ||
+        (nx == p->tile_x && ny == p->tile_y)) {
+        s_trainer_approach_index = 0xFF;
+        p->facing = s_trainer_player_facing;
+        p->move_state = MOVE_STATE_IDLE;
+        return FALSE;
+    }
+    world_npc_start_step(s_trainer_approach_index, dir);
+    return TRUE;
+}
 
 static bool8 player_try_ledge_jump(Direction dir) {
     PlayerState *p = &g_world.player;
@@ -102,7 +185,7 @@ static bool8 player_tile_has_warp(s32 x, s32 y) {
 // actually starts, so a harmless A press in the overworld stays silent.
 static bool8 player_check_npc_interact(void) {
     const MapHeader *map = g_world.map;
-    if (!map->npcs || g_world.npc_count == 0) return FALSE;
+    if (!map) return FALSE;
 
     PlayerState *p = &g_world.player;
     s16 fx = p->tile_x + DIR_DX[p->facing];
@@ -161,6 +244,18 @@ static bool8 player_check_npc_interact(void) {
         else p->facing = DIR_UP;
         script_trigger_npc(npc->script_id, (u8)fallback);
         return TRUE;
+    }
+
+    // Pokered signs and other wall-mounted text are background events rather
+    // than NPCs. Prefer the tile directly in front of the player.
+    if (map->bg_events) {
+        for (u8 i = 0; i < map->bg_event_count; i++) {
+            const BackgroundEvent *event = &map->bg_events[i];
+            if ((s16)event->x == fx && (s16)event->y == fy) {
+                script_trigger_background_event(event);
+                return TRUE;
+            }
+        }
     }
 
     // In pokered the nurse object is behind the Pokécenter counter at
@@ -233,6 +328,18 @@ static bool8 player_try_collision_warp(s32 nx, s32 ny) {
                 world_do_warp(w);
                 return TRUE;
             }
+        }
+        Direction exit_direction = nx < 0 ? DIR_LEFT :
+                                   nx >= map_width ? DIR_RIGHT :
+                                   ny < 0 ? DIR_UP : DIR_DOWN;
+        for (u8 i = 0; i < map->connection_count; i++) {
+            const MapConnection *connection = &map->connections[i];
+            if (connection->direction != (u8)exit_direction) continue;
+            s16 coordinate = (exit_direction == DIR_UP || exit_direction == DIR_DOWN)
+                           ? g_world.player.tile_x : g_world.player.tile_y;
+            world_do_connection(connection->dest_map, exit_direction,
+                                coordinate, connection->offset);
+            return TRUE;
         }
     }
     return FALSE;
@@ -324,6 +431,11 @@ bool8 player_script_start_step_forced(Direction dir) {
 void player_update(void) {
     PlayerState *p = &g_world.player;
 
+    if (s_trainer_approach_index != 0xFF) {
+        player_trainer_sight_update();
+        return;
+    }
+
     // Scripts block player input, but an already-started scripted walk must
     // continue advancing frame-by-frame.
     if (script_blocks_input() && g_world.player.move_state != MOVE_STATE_WALKING)
@@ -350,9 +462,15 @@ void player_update(void) {
                 route1_try_wild_encounter();
                 route2_try_wild_encounter();
                 route22_try_wild_encounter();
+                viridian_forest_try_wild_encounter();
             }
             p->move_state = MOVE_STATE_IDLE;
         }
+        return;
+    }
+
+    if (player_trainer_sight_begin()) {
+        player_trainer_sight_update();
         return;
     }
 

@@ -4,6 +4,9 @@
 #include "audio.h"
 #include "map_ids.h"
 #include "overworld_palette_map.h"
+#include "gfx_pokeball.h"
+#include "item.h"
+#include "flags.h"
 
 extern const Tileset g_tileset_route1;
 
@@ -61,6 +64,31 @@ static const WarpEvent s_warps[] = {
     { .x = 7, .y = 71, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 8 },
     { .x = 8, .y = 71, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 8 },
     { .x = 9, .y = 71, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 8 },
+    { .x = 3, .y = 11, .dest_map = MAP_VIRIDIAN_FOREST_NORTH_GATE, .dest_warp = 0 },
+    { .x = 3, .y = 43, .dest_map = MAP_VIRIDIAN_FOREST_SOUTH_GATE, .dest_warp = 2 },
+};
+
+static const BackgroundEvent s_bg_events[] = {
+    { .x = 5,  .y = 65, .script_id = 0,
+      .text = "ROUTE 2\fVIRIDIAN CITY -\nPEWTER CITY" },
+    { .x = 11, .y = 11, .script_id = 0,
+      .text = "DIGLETT's CAVE\fROUTE 2" },
+};
+
+static const MapConnection s_connections[] = {
+    { .direction = DIR_UP, .dest_map = MAP_PEWTER_CITY, .offset = -5 },
+    { .direction = DIR_DOWN, .dest_map = MAP_VIRIDIAN_CITY, .offset = -5 },
+};
+
+static const NpcDef s_npcs[] = {
+    { .x = 13, .y = 54, .sprite_tile = GFX_POKEBALL_TILE_BASE,
+      .facing = DIR_DOWN, .flags = NPCF_ITEM, .script_id = 0,
+      .movement = NPC_MOVE_STAY, .item_id = ITEM_MOON_STONE,
+      .item_flag = FLAG_ROUTE2_MOON_STONE },
+    { .x = 13, .y = 45, .sprite_tile = GFX_POKEBALL_TILE_BASE,
+      .facing = DIR_DOWN, .flags = NPCF_ITEM, .script_id = 0,
+      .movement = NPC_MOVE_STAY, .item_id = ITEM_HP_UP,
+      .item_flag = FLAG_ROUTE2_HP_UP },
 };
 
 const MapHeader g_map_route_2 = {
@@ -69,11 +97,15 @@ const MapHeader g_map_route_2 = {
     .layout = &s_layout,
     .warps = s_warps,
     .warp_count = ARRAY_COUNT(s_warps),
-    .npcs = NULL,
-    .npc_count = 0,
+    .npcs = s_npcs,
+    .npc_count = ARRAY_COUNT(s_npcs),
     .script = NULL,
     .music_id = AUDIO_MUSIC_ROUTES_1,
     .roof_palette = &g_roof_pallet,
+    .bg_events = s_bg_events,
+    .bg_event_count = ARRAY_COUNT(s_bg_events),
+    .connections = s_connections,
+    .connection_count = ARRAY_COUNT(s_connections),
 };
 
 #undef P

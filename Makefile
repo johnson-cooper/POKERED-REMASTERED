@@ -72,12 +72,15 @@ DFILES  := $(OFILES:.o=.d)
 
 PYTHON  ?= python
 
-.PHONY: all clean patcher
+.PHONY: all clean patcher reference-map-manifest
 
 all: $(TARGET).gba
 
 patcher: $(TARGET).gba
 	$(PYTHON) tools/build_patcher.py $(TARGET).gba patcher/index.html
+
+reference-map-manifest:
+	$(PYTHON) tools/inspect_pokered_map_objects.py -o $(BUILD)/pokered_map_objects.json
 
 $(TARGET).gba: $(TARGET).elf
 	$(OBJCOPY) -O binary $< $@

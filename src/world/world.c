@@ -22,6 +22,11 @@ typedef enum {
 static WorldTransitionPhase s_transition_phase = WORLD_TRANSITION_NONE;
 static u8 s_transition_level;
 static WarpEvent s_pending_warp;
+static bool8 s_pending_connection;
+static u8 s_connection_dest_map;
+static Direction s_connection_direction;
+static s16 s_connection_coordinate;
+static s8 s_connection_offset;
 
 // GBA hardware fade registers. Darken mode applies a black overlay to all
 // visible layers; BLDY ranges from 0 (normal) to 16 (fully black).
@@ -80,6 +85,21 @@ void world_init(const MapHeader *map, u8 start_x, u8 start_y) {
         dst->walk_cycle = 0;
         dst->movement = src->movement;
         dst->move_timer = (u16)(i * 23);
+        dst->item_id = src->item_id;
+        dst->item_flag = src->item_flag;
+        dst->text = src->text;
+        dst->trainer_id = src->trainer_id;
+        dst->trainer_party = src->trainer_party;
+        dst->trainer_sight = src->trainer_sight;
+        dst->trainer_flag = src->trainer_flag;
+        dst->trainer_text = src->trainer_text;
+        if ((src->flags & NPCF_TRAINER) && src->trainer_flag != 0 &&
+            src->trainer_flag < FLAG_COUNT &&
+            flags_get((GameFlag)src->trainer_flag))
+            dst->flags |= NPCF_TRAINER_DEFEATED;
+        if ((src->flags & NPCF_ITEM) && src->item_flag < FLAG_COUNT &&
+            flags_get((GameFlag)src->item_flag))
+            dst->flags |= NPCF_HIDDEN;
     }
 
     // Map loads rebuild NPC state from the static map definition. Reapply
@@ -202,7 +222,10 @@ static void world_npcs_update(void) {
 static void world_finish_warp(void) {
     const MapHeader *dest;
 
-    if (s_pending_warp.dest_map == WARP_LAST_MAP) {
+    u8 spawn_x = 4, spawn_y = 4;
+    if (s_pending_connection) {
+        dest = map_get_by_id(s_connection_dest_map);
+    } else if (s_pending_warp.dest_map == WARP_LAST_MAP) {
         dest = g_world.last_map;
     } else {
         dest = map_get_by_id(s_pending_warp.dest_map);
@@ -215,9 +238,23 @@ static void world_finish_warp(void) {
         return; // destination not yet implemented
     }
 
-    // Find the destination spawn point from dest's warp table
-    u8 spawn_x = 4, spawn_y = 4; // fallback
-    if (s_pending_warp.dest_warp < dest->warp_count) {
+    if (s_pending_connection) {
+        s32 coordinate = (s32)s_connection_coordinate + s_connection_offset;
+        s32 max_x = dest->layout->width * 2 - 1;
+        s32 max_y = dest->layout->height * 2 - 1;
+        if (s_connection_direction == DIR_UP || s_connection_direction == DIR_DOWN) {
+            if (coordinate < 0) coordinate = 0;
+            if (coordinate > max_x) coordinate = max_x;
+            spawn_x = (u8)coordinate;
+            spawn_y = s_connection_direction == DIR_UP ? (u8)max_y : 0;
+        } else {
+            if (coordinate < 0) coordinate = 0;
+            if (coordinate > max_y) coordinate = max_y;
+            spawn_y = (u8)coordinate;
+            spawn_x = s_connection_direction == DIR_LEFT ? (u8)max_x : 0;
+        }
+    } else if (s_pending_warp.dest_warp < dest->warp_count) {
+        // Find the destination spawn point from the destination warp table.
         const WarpEvent *dw = &dest->warps[s_pending_warp.dest_warp];
         spawn_x = dw->x;
         spawn_y = dw->y;
@@ -232,8 +269,24 @@ void world_do_warp(const WarpEvent *w) {
     if (!w || s_transition_phase != WORLD_TRANSITION_NONE) return;
 
     s_pending_warp = *w;
+    s_pending_connection = FALSE;
     audio_sfx_play(AUDIO_SFX_WARP_OUT);
 
+    s_transition_level = 0;
+    s_transition_phase = WORLD_TRANSITION_OUT;
+    g_world.player.move_state = MOVE_STATE_FROZEN;
+    world_transition_apply();
+}
+
+void world_do_connection(u8 dest_map, Direction direction, s16 source_coordinate,
+                         s8 offset) {
+    if (s_transition_phase != WORLD_TRANSITION_NONE) return;
+    s_connection_dest_map = dest_map;
+    s_connection_direction = direction;
+    s_connection_coordinate = source_coordinate;
+    s_connection_offset = offset;
+    s_pending_connection = TRUE;
+    audio_sfx_play(AUDIO_SFX_WARP_OUT);
     s_transition_level = 0;
     s_transition_phase = WORLD_TRANSITION_OUT;
     g_world.player.move_state = MOVE_STATE_FROZEN;
