@@ -197,17 +197,13 @@ def _count_fully_ported(sprite_names: set[str], learnset_names: set[str], pokede
     return {"ported": len(complete), "total": REF_POKEMON}
 
 
-def _calc_overall_pct(counts: dict, sprite_names: set, learnset_names: set, pokedex_names: set) -> int:
-    """Simple average across all tracked bars (excluding derived 'fully ported')."""
+def _calc_overall_pct(counts: dict, fully_ported: dict) -> int:
+    """Average the main progress bars, using fully ported Pokémon as the Pokémon metric."""
     bars = [
         counts["maps"]["ported"]     / counts["maps"]["total"],
-        counts["pokemon"]["ported"]  / counts["pokemon"]["total"],
-        counts["moves"]["ported"]    / counts["moves"]["total"],
         counts["music"]["ported"]    / counts["music"]["total"],
         counts["items"]["ported"]    / counts["items"]["total"],
-        len(sprite_names)            / REF_POKEMON,
-        len(learnset_names)          / REF_POKEMON,
-        len(pokedex_names)           / REF_POKEMON,
+        fully_ported["ported"]       / fully_ported["total"],
     ]
     return max(1, round(sum(bars) / len(bars) * 100))
 
@@ -235,6 +231,40 @@ def _git_info() -> tuple[int, str]:
         return count, date
     except Exception:
         return 0, datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _git_changelog() -> list[dict[str, str]]:
+    """Return the commits included in this build, newest first, as GitHub links."""
+    try:
+        remote = subprocess.check_output(
+            ["git", "config", "--get", "remote.origin.url"],
+            stderr=subprocess.DEVNULL, text=True
+        ).strip()
+        if remote.startswith("git@github.com:"):
+            repo = remote.removeprefix("git@github.com:")
+        else:
+            repo = remote.split("github.com/", 1)[1]
+        repo = repo.removesuffix(".git").rstrip("/")
+        raw = subprocess.check_output(
+            ["git", "log", "--date=short", "--pretty=format:%H%x09%h%x09%ad%x09%s"],
+            stderr=subprocess.DEVNULL, text=True
+        )
+        commits = []
+        for line in raw.splitlines():
+            parts = line.split("\t", 3)
+            if len(parts) != 4:
+                continue
+            full, short, date, subject = parts
+            commits.append({
+                "hash": full,
+                "short": short,
+                "date": date,
+                "subject": subject,
+                "url": f"https://github.com/{repo}/commit/{full}",
+            })
+        return commits
+    except Exception:
+        return []
 
 
 _HTML = Template(r"""<!DOCTYPE html>
@@ -269,6 +299,11 @@ h1{font-size:1.4rem;text-align:center;line-height:1.8;margin:0}
 .stat-bar-wrap{width:100%;height:5px;background:rgba(0,0,0,.12)}
 .stat-bar-fill{height:100%;background:#e3000b}
 #pkmn-prog .pkmn-hd{font-size:.75rem;margin-bottom:.8em}
+#changelog .pkmn-hd{font-size:.75rem;margin-bottom:.8em}
+.changelog-list{display:flex;flex-direction:column;gap:.45em}
+.changelog-item{display:flex;justify-content:space-between;gap:1em;align-items:baseline;font-size:.65rem}
+.changelog-item a{color:inherit;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.changelog-item a:hover{text-decoration:underline}
 #splash{text-align:center;padding:1em 0}
 #splash img{max-width:100%;height:auto;image-rendering:pixelated;image-rendering:crisp-edges}
 .footer-note{font-size:.6rem}
@@ -329,6 +364,10 @@ $SPLASH_HTML
 <div class="pkmn-hd">POKEMON COMPLETENESS</div>
 <div id="pkmn-grid" class="stat-grid"></div>
 </div>
+<div class="framed neutral no-hd" id="changelog">
+<div class="pkmn-hd">CHANGELOG</div>
+<div id="changelog-list" class="changelog-list"></div>
+</div>
 </div>
 <script>
 const K=$HASHES;
@@ -342,6 +381,7 @@ const _PKMN_COMPLETE=$PKMN_COMPLETE_JSON;
 const _LEARNSETS=$LEARNSETS_JSON;
 const _POKEDEX=$POKEDEX_JSON;
 const _FULLY_PORTED=$FULLY_PORTED_JSON;
+const _CHANGELOG=$CHANGELOG_JSON;
 const _LABELS={maps:"Maps",pokemon:"Pokémon",moves:"Moves",music:"Music",items:"Items"};
 (function(){
   document.getElementById("pbar").className="progress-bar p"+_PCT;
@@ -349,13 +389,18 @@ const _LABELS={maps:"Maps",pokemon:"Pokémon",moves:"Moves",music:"Music",items:
   document.getElementById("prog-hd").textContent="PORT PROGRESS  v"+_VER+"  #"+_COMMITS+"  "+shortDate;
   document.getElementById("prog-pct").textContent=_PCT+"% TO v1.0.0";
   var grid=document.getElementById("stat-grid");
-  var keys=["maps","pokemon","moves","music","items"];
-  for(var i=0;i<keys.length;i++){
-    var k=keys[i],d=_COUNTS[k];
+  var progressRows=[
+    {label:"Maps",    ported:_COUNTS.maps.ported,    total:_COUNTS.maps.total},
+    {label:"Pokémon", ported:_FULLY_PORTED.ported, total:_FULLY_PORTED.total},
+    {label:"Music",   ported:_COUNTS.music.ported,   total:_COUNTS.music.total},
+    {label:"Items",   ported:_COUNTS.items.ported,   total:_COUNTS.items.total},
+  ];
+  for(var i=0;i<progressRows.length;i++){
+    var d=progressRows[i];
     var pct=Math.round(d.ported/d.total*100);
     var row=document.createElement("div");row.className="stat-row";
     var meta=document.createElement("div");meta.className="stat-meta";
-    var lbl=document.createElement("span");lbl.className="stat-lbl";lbl.textContent=_LABELS[k];
+    var lbl=document.createElement("span");lbl.className="stat-lbl";lbl.textContent=d.label;
     var num=document.createElement("span");num.className="stat-num";num.textContent=d.ported+"/"+d.total;
     meta.appendChild(lbl);meta.appendChild(num);
     var wrap=document.createElement("div");wrap.className="stat-bar-wrap";
@@ -368,7 +413,7 @@ const _LABELS={maps:"Maps",pokemon:"Pokémon",moves:"Moves",music:"Music",items:
     {label:"Sprites",       ported:_PKMN_COMPLETE.ready,  total:_PKMN_COMPLETE.total},
     {label:"Learnsets",     ported:_LEARNSETS.ported,      total:_LEARNSETS.total},
     {label:"Pokédex",  ported:_POKEDEX.ported,        total:_POKEDEX.total},
-    {label:"Fully Ported",  ported:_FULLY_PORTED.ported,   total:_FULLY_PORTED.total},
+    {label:"Moves",         ported:_COUNTS.moves.ported,    total:_COUNTS.moves.total},
   ];
   var pkGrid=document.getElementById("pkmn-grid");
   for(var i=0;i<pkRows.length;i++){
@@ -384,6 +429,14 @@ const _LABELS={maps:"Maps",pokemon:"Pokémon",moves:"Moves",music:"Music",items:
     wrap.appendChild(fill);
     row.appendChild(meta);row.appendChild(wrap);
     pkGrid.appendChild(row);
+  }
+  var changelog=document.getElementById("changelog-list");
+  for(var i=0;i<_CHANGELOG.length;i++){
+    var c=_CHANGELOG[i], item=document.createElement("div");item.className="changelog-item";
+    var link=document.createElement("a");link.href=c.url;link.target="_blank";link.rel="noopener";
+    link.textContent=c.subject;link.title=c.hash;
+    var meta=document.createElement("span");meta.className="stat-num";meta.textContent=c.short+"  "+c.date;
+    item.appendChild(link);item.appendChild(meta);changelog.appendChild(item);
   }
 })();
 async function sha1(buf){const h=await crypto.subtle.digest("SHA-1",buf);return[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,"0")).join("")}
@@ -413,11 +466,11 @@ def build(gba_path: Path, out_path: Path) -> None:
     sprite_names   = _pokemon_with_sprites()
     learnset_names = _pokemon_with_learnsets()
     pokedex_names  = _pokemon_with_pokedex()
-    overall_pct    = _calc_overall_pct(counts, sprite_names, learnset_names, pokedex_names)
     pkmn_complete  = _count_pokemon_complete(sprite_names)
     learnsets      = _count_learnsets(learnset_names)
     pokedex        = _count_pokedex(pokedex_names)
     fully_ported   = _count_fully_ported(sprite_names, learnset_names, pokedex_names)
+    overall_pct    = _calc_overall_pct(counts, fully_ported)
     print(f"  Progress {overall_pct}%  maps={counts['maps']['ported']}/{counts['maps']['total']}"
           f"  pokemon={counts['pokemon']['ported']}/{counts['pokemon']['total']}"
           f"  moves={counts['moves']['ported']}/{counts['moves']['total']}"
@@ -440,11 +493,13 @@ def build(gba_path: Path, out_path: Path) -> None:
         print(f"  Splash   (none — place image at {SPLASH_PATH} to embed)")
 
     commit_count, build_date = _git_info()
+    changelog           = _git_changelog()
     counts_json        = json.dumps(counts, separators=(",", ":"))
     pkmn_complete_json = json.dumps(pkmn_complete, separators=(",", ":"))
     learnsets_json     = json.dumps(learnsets, separators=(",", ":"))
     pokedex_json       = json.dumps(pokedex, separators=(",", ":"))
     fully_ported_json  = json.dumps(fully_ported, separators=(",", ":"))
+    changelog_json     = json.dumps(changelog, ensure_ascii=False, separators=(",", ":"))
 
     html = _HTML.substitute(
         HASHES=hashes_js,
@@ -459,6 +514,7 @@ def build(gba_path: Path, out_path: Path) -> None:
         LEARNSETS_JSON=learnsets_json,
         POKEDEX_JSON=pokedex_json,
         FULLY_PORTED_JSON=fully_ported_json,
+        CHANGELOG_JSON=changelog_json,
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(html, encoding="utf-8")
