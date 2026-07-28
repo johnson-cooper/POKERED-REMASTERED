@@ -323,8 +323,8 @@ static void setup_species_obj_palette(vu16 *dst, PokemonId species) {
         dst[4] = RGB15(31, 22, 29);
         break;
     case MON_SPEAROW:
+        dst[2] = RGB15(31, 22, 14);
         dst[3] = RGB15(20, 10, 6);
-        dst[4] = RGB15(31, 22, 14);
         break;
     case MON_WEEDLE:
         dst[2] = RGB15(31, 28, 14);
