@@ -3,6 +3,7 @@
 #include "experience.h"
 #include "map_ids.h"
 #include "pokedex.h"
+#include "pokemon_species_data.h"
 
 PartyState g_party;
 HealingPoint g_last_healing_point;
@@ -30,14 +31,9 @@ static void copy_nickname(char dst[PARTY_NICKNAME_LENGTH], const char *src) {
 
 void party_set_starter(PokemonId species, const char *nickname) {
     BattlePokemon mon;
-    static const MoveId starter_moves[][2] = {
-        [MON_BULBASAUR]  = { MOVE_TACKLE, MOVE_GROWL },
-        [MON_CHARMANDER] = { MOVE_SCRATCH, MOVE_GROWL },
-        [MON_SQUIRTLE]   = { MOVE_TACKLE, MOVE_TAIL_WHIP },
-    };
     party_clear();
     battle_pokemon_init(&mon, species, 5, 0x9888,
-                        starter_moves[species], 2);
+                        pokemon_initial_moves(species), 4);
     g_party.count = 1;
     g_party.mons[0].species = mon.species;
     g_party.mons[0].level = mon.level;
@@ -83,6 +79,27 @@ PartyPokemon *party_get_slot(u8 slot) {
 void party_update_active(const PartyPokemon *mon) {
     if (g_party.count && mon)
         g_party.mons[0] = *mon;
+}
+
+void party_evolve_slot(u8 slot, PokemonId species) {
+    PartyPokemon *mon = party_get_slot(slot);
+    if (!mon || species == MON_NONE || species > NUM_POKEMON) return;
+    const PokemonBaseStats *base = &g_pokemon_base_stats[species];
+    u16 old_max = mon->max_hp;
+    u8 level = mon->level;
+    mon->species = species;
+    mon->max_hp = (u16)(((u32)(base->hp + dv_hp(mon->dv)) * 2 * level) / 100 + level + 10);
+    mon->attack = (u16)(((u32)(base->attack + dv_attack(mon->dv)) * 2 * level) / 100 + 5);
+    mon->defense = (u16)(((u32)(base->defense + dv_defense(mon->dv)) * 2 * level) / 100 + 5);
+    mon->speed = (u16)(((u32)(base->speed + dv_speed(mon->dv)) * 2 * level) / 100 + 5);
+    mon->special = (u16)(((u32)(base->special + dv_special(mon->dv)) * 2 * level) / 100 + 5);
+    mon->current_hp += mon->max_hp - old_max;
+    pokedex_set_seen(species);
+    pokedex_set_owned(species);
+}
+
+void party_evolve_active(PokemonId species) {
+    party_evolve_slot(0, species);
 }
 
 void party_update_slot(u8 slot, const PartyPokemon *mon) {

@@ -130,6 +130,8 @@ static bool8 s_pc_open;
 static PcMenuState s_pc_state;
 static u8 s_pc_cursor;
 static u8 s_pc_sub_cursor;
+static u8 s_pc_item_scroll;
+static u8 s_pc_withdraw_page;
 static u16 s_pc_saved_dispcnt;
 static PcMenuState s_pc_after_msg;
 
@@ -219,10 +221,17 @@ static void pc_draw_withdraw_list(void) {
     text_draw_str(2, 1, "Withdraw which?");
 
     PcBox *box = &g_pc.boxes[g_pc.current_box];
-    u8 shown = box->count > 7 ? 7 : box->count;
+    u8 page_start = (u8)(s_pc_withdraw_page * 7);
+    u8 remaining = box->count > page_start ? (u8)(box->count - page_start) : 0;
+    u8 shown = remaining > 7 ? 7 : remaining;
+    if (box->count > 7) {
+        text_draw_str(21, 1, "P");
+        text_draw_char(22, 1, (char)('1' + s_pc_withdraw_page));
+        text_draw_str(23, 1, "/3");
+    }
     for (u8 i = 0; i < shown; i++) {
         u8 row = (u8)(3 + i * 2);
-        text_draw_str(4, row, party_mon_display_name(&box->mons[i]));
+        text_draw_str(4, row, party_mon_display_name(&box->mons[page_start + i]));
         char lv[6];
         lv[0] = 'L'; lv[1] = 'v';
         u8 l = box->mons[i].level;
@@ -282,21 +291,31 @@ static void pc_draw_item_withdraw(void) {
     pc_draw_box(0, 0, 29, 19);
     text_draw_str(2, 1, "Withdraw item:");
 
-    u8 shown = g_pc.item_count > 7 ? 7 : g_pc.item_count;
+    u8 total = (u8)(g_pc.item_count + 1);
+    if (s_pc_item_scroll > 0 && s_pc_item_scroll + 7 > total)
+        s_pc_item_scroll = total > 7 ? (u8)(total - 7) : 0;
+    u8 shown = (u8)(g_pc.item_count - s_pc_item_scroll);
+    if (shown > 7) shown = 7;
     for (u8 i = 0; i < shown; i++) {
+        u8 item_index = (u8)(s_pc_item_scroll + i);
         u8 row = (u8)(3 + i * 2);
-        text_draw_str(4, row, item_get_name((ItemId)g_pc.items[i].id));
+        text_draw_str(4, row, item_get_name((ItemId)g_pc.items[item_index].id));
         char qty[5];
         qty[0] = 'x';
-        u8 q = g_pc.items[i].quantity;
+        u8 q = g_pc.items[item_index].quantity;
         if (q >= 10) { qty[1] = (char)('0' + q / 10); qty[2] = (char)('0' + q % 10); qty[3] = '\0'; }
         else { qty[1] = (char)('0' + q); qty[2] = '\0'; }
         text_draw_str(22, row, qty);
     }
-    text_draw_str(4, (u8)(3 + shown * 2), "CANCEL");
+    if (g_pc.item_count >= s_pc_item_scroll &&
+        g_pc.item_count < (u8)(s_pc_item_scroll + 7))
+        text_draw_str(4, (u8)(3 + (g_pc.item_count - s_pc_item_scroll) * 2), "CANCEL");
 
-    u8 row = (u8)(3 + s_pc_sub_cursor * 2);
-    text_draw_char(2, row, '>');
+    if (s_pc_sub_cursor >= s_pc_item_scroll &&
+        s_pc_sub_cursor < (u8)(s_pc_item_scroll + 7)) {
+        u8 row = (u8)(3 + (s_pc_sub_cursor - s_pc_item_scroll) * 2);
+        text_draw_char(2, row, '>');
+    }
 }
 
 static void pc_draw_item_deposit(void) {
@@ -397,6 +416,7 @@ bool8 pc_menu_update(void) {
             if (s_pc_sub_cursor == 0) {
                 s_pc_state = PC_MENU_BILLS_WITHDRAW;
                 s_pc_sub_cursor = 0;
+                s_pc_withdraw_page = 0;
                 pc_draw_withdraw_list();
             } else if (s_pc_sub_cursor == 1) {
                 s_pc_state = PC_MENU_BILLS_DEPOSIT;
@@ -470,7 +490,7 @@ bool8 pc_menu_update(void) {
                 s_pc_after_msg = PC_MENU_BILLS_WITHDRAW;
                 s_pc_state = PC_MENU_MSG_WAIT;
             } else {
-                pc_withdraw_pokemon(s_pc_sub_cursor);
+                pc_withdraw_pokemon((u8)(s_pc_withdraw_page * 7 + s_pc_sub_cursor));
                 pc_msg("POKeMON was\nwithdrawn!");
                 s_pc_sub_cursor = 0;
                 s_pc_after_msg = PC_MENU_BILLS_WITHDRAW;
@@ -480,6 +500,17 @@ bool8 pc_menu_update(void) {
         }
         if (input_pressed(KEY_B)) {
             s_pc_state = PC_MENU_BILLS_PC; s_pc_sub_cursor = 0; pc_draw_bills();
+        }
+        if (input_pressed(KEY_LEFT) && s_pc_withdraw_page > 0) {
+            s_pc_withdraw_page--;
+            s_pc_sub_cursor = 0;
+            pc_draw_withdraw_list();
+        }
+        if (input_pressed(KEY_RIGHT) && s_pc_withdraw_page < 2 &&
+            s_pc_withdraw_page * 7 < box->count) {
+            s_pc_withdraw_page++;
+            s_pc_sub_cursor = 0;
+            pc_draw_withdraw_list();
         }
         return FALSE;
     }
@@ -515,6 +546,7 @@ bool8 pc_menu_update(void) {
             if (s_pc_sub_cursor == 0) {
                 s_pc_state = PC_MENU_PLAYER_WITHDRAW_ITEM;
                 s_pc_sub_cursor = 0;
+                s_pc_item_scroll = 0;
                 pc_draw_item_withdraw();
             } else if (s_pc_sub_cursor == 1) {
                 s_pc_state = PC_MENU_PLAYER_DEPOSIT_ITEM;
@@ -531,16 +563,23 @@ bool8 pc_menu_update(void) {
     }
 
     if (s_pc_state == PC_MENU_PLAYER_WITHDRAW_ITEM) {
-        u8 shown = g_pc.item_count > 7 ? 7 : g_pc.item_count;
-        u8 total = (u8)(shown + 1);
-        if (input_pressed(KEY_UP) && s_pc_sub_cursor > 0) {
-            s_pc_sub_cursor--; pc_draw_item_withdraw(); audio_sfx_play(AUDIO_SFX_SELECT);
+        u8 total = (u8)(g_pc.item_count + 1);
+        if (input_pressed(KEY_UP)) {
+            s_pc_sub_cursor = s_pc_sub_cursor == 0
+                ? (u8)(total - 1) : (u8)(s_pc_sub_cursor - 1);
+            if (s_pc_sub_cursor < s_pc_item_scroll)
+                s_pc_item_scroll = s_pc_sub_cursor;
+            pc_draw_item_withdraw(); audio_sfx_play(AUDIO_SFX_SELECT);
         }
-        if (input_pressed(KEY_DOWN) && s_pc_sub_cursor < (u8)(total - 1)) {
-            s_pc_sub_cursor++; pc_draw_item_withdraw(); audio_sfx_play(AUDIO_SFX_SELECT);
+        if (input_pressed(KEY_DOWN)) {
+            s_pc_sub_cursor = s_pc_sub_cursor >= (u8)(total - 1)
+                ? 0 : (u8)(s_pc_sub_cursor + 1);
+            if (s_pc_sub_cursor >= (u8)(s_pc_item_scroll + 7))
+                s_pc_item_scroll = (u8)(s_pc_sub_cursor - 6);
+            pc_draw_item_withdraw(); audio_sfx_play(AUDIO_SFX_SELECT);
         }
         if (input_pressed(KEY_A)) {
-            if (s_pc_sub_cursor >= shown) {
+            if (s_pc_sub_cursor >= g_pc.item_count) {
                 s_pc_state = PC_MENU_PLAYER_PC; s_pc_sub_cursor = 0; pc_draw_player_pc();
             } else {
                 ItemId id = (ItemId)g_pc.items[s_pc_sub_cursor].id;

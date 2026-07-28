@@ -50,6 +50,8 @@ void party_export(PartyState *out);
 void party_import(const PartyState *in);
 void party_update_active(const PartyPokemon *mon);
 void party_update_slot(u8 slot, const PartyPokemon *mon);
+void party_evolve_slot(u8 slot, PokemonId species);
+void party_evolve_active(PokemonId species);
 void party_swap_slots(u8 a, u8 b);
 bool8 party_add(const PartyPokemon *mon);
 bool8 party_has_usable_mon(u8 exclude_slot);

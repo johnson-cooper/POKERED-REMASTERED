@@ -3,6 +3,7 @@
 #include "party.h"
 #include "experience.h"
 #include "learnsets.h"
+#include "evolution.h"
 #include "battle_calc.h"
 #include "battle_ai.h"
 #include "battle_rng.h"
@@ -23,6 +24,9 @@
 #include "flags.h"
 #include "item.h"
 #include "pc.h"
+#include "pokemon_palette.h"
+#include "pokemon_species_data.h"
+#include "gfx_pokeball.h"
 
 typedef enum {
     BS_INIT = 0,
@@ -50,6 +54,9 @@ typedef enum {
     BS_EXP,
     BS_EXP_WAIT,
     BS_LEVEL_UP,
+    BS_EVOLUTION,
+    BS_EVOLUTION_ANIM,
+    BS_EVOLUTION_MESSAGE,
     BS_LEVEL_UP_WAIT,
     BS_LEARN_MOVE,
     BS_LEARN_MOVE_WAIT,
@@ -94,6 +101,7 @@ typedef struct {
     PokemonId enemy_species;
     u8 enemy_level;
     bool8 is_wild;
+    const char *trainer_name;
     bool8 run_ends_battle;
     bool8 ball_caught;
     const char *player_nickname;
@@ -129,6 +137,13 @@ static u16 s_ball_anim_timer;
 static bool8 s_ball_caught_result;
 static bool8 s_catch_nickname_active;
 static bool8 s_enemy_hidden;
+static bool8 s_ball_visible;
+static s16 s_ball_x;
+static s16 s_ball_y;
+static bool8 s_evolution_sprite_hidden;
+static u8 s_evolution_anim_timer;
+
+#define BATTLE_POKEBALL_TILE_BASE 192
 
 #define TRANSITION_SCREEN_W 30
 #define TRANSITION_SCREEN_H 20
@@ -145,6 +160,7 @@ static u16 s_transition_cursor;
 static bool8 s_transition_active;
 static s16 s_player_slide_x;
 static u8 s_battle_item_cursor;
+static u8 s_battle_item_page;
 static bool8 s_trainer_visible;
 static bool8 s_player_is_trainer;
 
@@ -153,6 +169,8 @@ static u32 s_enemy_sprite_buf[BATTLE_SPRITE_WORDS];
 static PartyPokemon s_pre_battle_party;
 static bool8 s_has_pre_battle_party;
 static bool8 s_oaks_lab_rival_battle;
+static PokemonId s_evolution_from;
+static PokemonId s_evolution_to;
 static bool8 s_route22_rival_battle;
 
 static char s_msg_buf[128];
@@ -228,31 +246,10 @@ static bool8 battle_transition_update(void) {
     return s_transition_cursor >= s_transition_count;
 }
 
-static const MoveId s_starter_moves[][2] = {
-    [MON_BULBASAUR]  = { MOVE_TACKLE, MOVE_GROWL },
-    [MON_CHARMANDER] = { MOVE_SCRATCH, MOVE_GROWL },
-    [MON_SQUIRTLE]   = { MOVE_TACKLE, MOVE_TAIL_WHIP },
-    [MON_WEEDLE]     = { MOVE_POISON_STING, MOVE_STRING_SHOT },
-    [MON_PIDGEY]     = { MOVE_GUST, MOVE_SAND_ATTACK },
-    [MON_RATTATA]    = { MOVE_TACKLE, MOVE_TAIL_WHIP },
-    [MON_SPEAROW]    = { MOVE_PECK, MOVE_GROWL },
-    [MON_NIDORAN_F]  = { MOVE_TACKLE, MOVE_GROWL },
-    [MON_NIDORAN_M]  = { MOVE_LEER, MOVE_TACKLE },
-};
-
 static const char *species_name(PokemonId id) {
-    switch (id) {
-    case MON_BULBASAUR:  return "BULBASAUR";
-    case MON_CHARMANDER: return "CHARMANDER";
-    case MON_SQUIRTLE:   return "SQUIRTLE";
-    case MON_WEEDLE:     return "WEEDLE";
-    case MON_SPEAROW:    return "SPEAROW";
-    case MON_NIDORAN_F:  return "NIDORAN F";
-    case MON_NIDORAN_M:  return "NIDORAN M";
-    case MON_PIDGEY:     return "PIDGEY";
-    case MON_RATTATA:    return "RATTATA";
-    default:             return "POKeMON";
-    }
+    if (id > MON_NONE && id <= NUM_POKEMON && g_pokedex_entries[id].name)
+        return g_pokedex_entries[id].name;
+    return "POKeMON";
 }
 
 static const char *mon_display_name(const BattlePokemon *mon) {
@@ -278,11 +275,45 @@ static char *str_append_num(char *dst, u16 val) {
     return dst;
 }
 
+static void battle_recalculate_player_stats(PokemonId species, u8 level) {
+    const PokemonBaseStats *base = &g_pokemon_base_stats[species];
+    u16 old_max = s_battle.player_mon.max_hp;
+
+    s_battle.player_mon.max_hp = (u16)(((u32)(base->hp + dv_hp(s_battle.player_mon.dv)) * 2 * level) / 100 + level + 10);
+    s_battle.player_mon.attack = (u16)(((u32)(base->attack + dv_attack(s_battle.player_mon.dv)) * 2 * level) / 100 + 5);
+    s_battle.player_mon.defense = (u16)(((u32)(base->defense + dv_defense(s_battle.player_mon.dv)) * 2 * level) / 100 + 5);
+    s_battle.player_mon.speed = (u16)(((u32)(base->speed + dv_speed(s_battle.player_mon.dv)) * 2 * level) / 100 + 5);
+    s_battle.player_mon.special = (u16)(((u32)(base->special + dv_special(s_battle.player_mon.dv)) * 2 * level) / 100 + 5);
+    s_battle.player_mon.current_hp += s_battle.player_mon.max_hp - old_max;
+}
+
+static bool8 battle_try_evolve_player(void) {
+    const Evolution *evolution = pokemon_evolution_for_level(
+        s_battle.player_species, s_battle.player_mon.level);
+    if (evolution) {
+        s_evolution_from = s_battle.player_species;
+        s_evolution_to = evolution->target;
+        s_battle.player_species = s_evolution_to;
+        s_battle.player_mon.species = s_evolution_to;
+        battle_recalculate_player_stats(s_evolution_to,
+                                         s_battle.player_mon.level);
+        pokedex_set_seen(s_evolution_to);
+        pokedex_set_owned(s_evolution_to);
+        return TRUE;
+    }
+    return FALSE;
+}
+
 static void battle_msg(const char *text) {
     dialog_open();
     dialog_set_text(text);
 }
 
+static void setup_species_obj_palette(vu16 *dst, PokemonId species) {
+    pokemon_battle_palette_load(dst, species);
+}
+
+#if 0
 static void setup_species_obj_palette(vu16 *dst, PokemonId species) {
     for (u8 i = 0; i < 16; i++)
         dst[i] = 0x7FFF;
@@ -298,6 +329,12 @@ static void setup_species_obj_palette(vu16 *dst, PokemonId species) {
         dst[4] = RGB15(18, 28, 12);
         break;
     case MON_CHARMANDER:
+        dst[3] = RGB15(20, 5, 2);
+        dst[4] = RGB15(31, 16, 4);
+        break;
+    case MON_CHARMELEON:
+        // Charmeleon artwork is not ported yet; share Charmander's palette
+        // until its dedicated sprite and palette are added.
         dst[3] = RGB15(20, 5, 2);
         dst[4] = RGB15(31, 16, 4);
         break;
@@ -336,6 +373,7 @@ static void setup_species_obj_palette(vu16 *dst, PokemonId species) {
         break;
     }
 }
+#endif
 
 static void setup_palettes(void) {
     for (u8 slot = 0; slot < 2; slot++) {
@@ -355,6 +393,14 @@ static void setup_palettes(void) {
     red[1] = RGB15(8, 8, 16);
     red[2] = RGB15(18, 15, 22);
     red[3] = RGB15(31, 24, 14);
+
+    vu16 *ball = PAL_OBJ + 4 * 16;
+    ball[0] = 0;
+    // The imported pokered art uses the same 5/10/15 color indices as the
+    // overworld Poké Ball sprite.
+    ball[5] = RGB15(31, 8, 8);
+    ball[10] = RGB15(31, 31, 31);
+    ball[15] = RGB15(4, 4, 4);
 }
 
 static void draw_battle_bg(void) {
@@ -396,7 +442,7 @@ static void draw_sprites(void) {
 
     RenderCmd cmd;
 
-    if (s_player_slide_x > -64) {
+    if (s_player_slide_x > -64 && !s_evolution_sprite_hidden) {
         cmd.type = RCMD_DRAW_SPRITE_LARGE;
         cmd.id = 0;
         cmd.x = s_player_slide_x;
@@ -410,6 +456,15 @@ static void draw_sprites(void) {
         cmd.x = 176 - 32;
         cmd.y = 40 - 32;
         cmd.param = s_trainer_visible ? BATTLE_TRAINER_PAL : 1;
+        render_submit(cmd);
+    }
+
+    if (s_ball_visible) {
+        cmd.type = RCMD_DRAW_SPRITE;
+        cmd.id = BATTLE_POKEBALL_TILE_BASE;
+        cmd.x = s_ball_x;
+        cmd.y = s_ball_y;
+        cmd.param = 0x40; // OBJ palette 4
         render_submit(cmd);
     }
 }
@@ -664,23 +719,36 @@ static u8 battle_usable_item_count(void) {
     u8 n = 0;
     for (u8 i = 0; i < g_bag.count; i++)
         if (!item_is_key_item((ItemId)g_bag.slots[i].id)) n++;
-    return n > 3 ? 3 : n;
+    return n;
 }
 
 static void draw_item_menu(void) {
     draw_box(0, 14, 30, 6);
-    u8 visible = battle_usable_item_count();
+    u8 total_items = battle_usable_item_count();
 
-    if (visible == 0) {
+    if (total_items == 0) {
         text_draw_str(2, 16, "No items!");
         text_draw_str(19, 18, "B:CANCEL");
         return;
     }
 
+    u8 page_count = (u8)((total_items + 2) / 3);
+    if (s_battle_item_page >= page_count)
+        s_battle_item_page = (u8)(page_count - 1);
+    u8 page_start = (u8)(s_battle_item_page * 3);
+    u8 page_items = (u8)(total_items - page_start);
+    if (page_items > 3) page_items = 3;
+
     u8 ni = 0;
-    for (u8 i = 0; i < g_bag.count && ni < 3; i++) {
+    for (u8 i = 0; i < g_bag.count && ni < total_items; i++) {
         if (item_is_key_item((ItemId)g_bag.slots[i].id)) continue;
-        u8 row = (u8)(15 + ni);
+        if (ni < page_start) {
+            ni++;
+            continue;
+        }
+        u8 page_index = (u8)(ni - page_start);
+        if (page_index >= page_items) break;
+        u8 row = (u8)(15 + page_index);
         text_draw_str(2, row, item_get_name((ItemId)g_bag.slots[i].id));
         char qty[4] = "x";
         u8 q = g_bag.slots[i].quantity, p = 1;
@@ -691,9 +759,14 @@ static void draw_item_menu(void) {
         ni++;
     }
     text_draw_str(2, 18, "CANCEL");
-    text_draw_str(19, 18, "B:CANCEL");
+    text_draw_str(2, 19, "PAGE");
+    text_draw_char(7, 19, (char)('1' + s_battle_item_page));
+    text_draw_char(8, 19, '/');
+    text_draw_char(9, 19, (char)('1' + page_count - 1));
+    text_draw_str(20, 19, "B:CANCEL");
 
-    u8 row = (s_battle_item_cursor < visible) ? (u8)(15 + s_battle_item_cursor) : 18;
+    u8 row = (s_battle_item_cursor < page_items)
+        ? (u8)(15 + s_battle_item_cursor) : 18;
     text_draw_char(1, row, '>');
 }
 
@@ -784,6 +857,27 @@ static void draw_forget_menu(u8 cursor) {
 static void hide_enemy_sprite(void) { s_enemy_hidden = TRUE; }
 static void show_enemy_sprite(void) { s_enemy_hidden = FALSE; }
 
+static void hide_ball_sprite(void) { s_ball_visible = FALSE; }
+
+static void update_ball_sprite(void) {
+    if (!s_ball_visible)
+        return;
+
+    if (s_battle.state == BS_BALL_THROW && s_ball_anim_phase == 1) {
+        // A short upward arc from the player's side to the enemy, matching
+        // pokered's toss before the target is pulled into the ball.
+        u16 t = s_ball_anim_timer;
+        if (t > 15) t = 15;
+        s_ball_x = (s16)(40 + (128 * t) / 15);
+        s_ball_y = (s16)(88 - (56 * t) / 15 - (t * (15 - t)) / 7);
+    } else if (s_battle.state == BS_BALL_SHAKE) {
+        // The original ball tilts side-to-side during each shake. A small
+        // horizontal offset preserves that effect on the GBA sprite.
+        s_ball_x = (s16)(168 + ((s_ball_anim_timer & 4) ? 2 : -2));
+        s_ball_y = 32;
+    }
+}
+
 static BattlePokemon *cur_attacker(void) {
     if (s_battle.turn_phase == 0)
         return s_battle.player_goes_first ? &s_battle.player_mon : &s_battle.enemy_mon;
@@ -866,6 +960,7 @@ static void apply_stat_effect(MoveId move, BattlePokemon *target) {
 
 void battle_setup_rival(u16 chosen_ball, const char *player_nickname) {
     s_battle.is_wild = FALSE;
+    s_battle.trainer_name = "[RIVAL]";
     s_oaks_lab_rival_battle = TRUE;
     s_route22_rival_battle = FALSE;
     s_battle.enemy_level = 5;
@@ -893,6 +988,7 @@ void battle_setup_rival(u16 chosen_ball, const char *player_nickname) {
 
 void battle_setup_route22_rival(const char *player_nickname) {
     s_battle.is_wild = FALSE;
+    s_battle.trainer_name = "[RIVAL]";
     s_oaks_lab_rival_battle = FALSE;
     s_route22_rival_battle = TRUE;
 
@@ -922,6 +1018,7 @@ void battle_setup_route22_rival(const char *player_nickname) {
 void battle_setup_wild(PokemonId species, u8 level, PokemonId player_species,
                        const char *player_nickname) {
     s_battle.is_wild = TRUE;
+    s_battle.trainer_name = NULL;
     s_oaks_lab_rival_battle = FALSE;
     s_route22_rival_battle = FALSE;
     s_battle.enemy_species = species;
@@ -934,6 +1031,28 @@ void battle_setup_wild(PokemonId species, u8 level, PokemonId player_species,
     s_enemy_party_index = 0;
 }
 
+void battle_setup_trainer(TrainerId trainer, const char *player_nickname) {
+    if (trainer <= TRAINER_NONE || trainer >= TRAINER_COUNT) return;
+    const TrainerParty *party = &g_trainer_parties[trainer];
+    if (!party->count) return;
+    s_battle.is_wild = FALSE;
+    s_oaks_lab_rival_battle = FALSE;
+    s_route22_rival_battle = FALSE;
+    s_battle.trainer_name = party->name;
+    PartyPokemon *lead = party_get_lead();
+    s_battle.player_species = lead ? lead->species : MON_BULBASAUR;
+    s_battle.player_nickname = player_nickname;
+    s_enemy_party_count = party->count;
+    if (s_enemy_party_count > ENEMY_PARTY_MAX) s_enemy_party_count = ENEMY_PARTY_MAX;
+    for (u8 i = 0; i < s_enemy_party_count; i++) {
+        s_enemy_party[i].species = party->party[i].species;
+        s_enemy_party[i].level = party->party[i].level;
+    }
+    s_enemy_party_index = 0;
+    s_battle.enemy_species = s_enemy_party[0].species;
+    s_battle.enemy_level = s_enemy_party[0].level;
+}
+
 bool8 battle_is_wild(void) {
     return s_battle.is_wild;
 }
@@ -944,6 +1063,8 @@ bool8 battle_is_blackout(void) {
 
 void battle_init(void) {
     battle_rng_seed(g_vblank_count);
+    s_evolution_sprite_hidden = FALSE;
+    s_evolution_anim_timer = 0;
     s_blackout = FALSE;
     s_active_party_slot = 0;
     s_force_switch = FALSE;
@@ -953,6 +1074,9 @@ void battle_init(void) {
     s_after_exp_state = BS_END;
     s_caught_pending = FALSE;
     s_enemy_hidden = FALSE;
+    s_ball_visible = FALSE;
+    s_ball_x = 0;
+    s_ball_y = 0;
     s_catch_nickname_active = FALSE;
 
     s_battle.saved_dispcnt = REG_DISPCNT;
@@ -1005,11 +1129,11 @@ void battle_init(void) {
         s_battle.player_mon.nickname = saved_player->nickname[0] ? saved_player->nickname : NULL;
     } else {
         battle_pokemon_init(&s_battle.player_mon, s_battle.player_species,
-                            5, player_dv, s_starter_moves[s_battle.player_species], 2);
+                            5, player_dv, pokemon_initial_moves(s_battle.player_species), 4);
     }
     battle_pokemon_init(&s_battle.enemy_mon, s_battle.enemy_species,
                         s_battle.enemy_level,
-                        rival_dv, s_starter_moves[s_battle.enemy_species], 2);
+                        rival_dv, pokemon_initial_moves(s_battle.enemy_species), 4);
     s_battle.player_mon.nickname = s_battle.player_nickname &&
         s_battle.player_nickname[0] ? s_battle.player_nickname : NULL;
 
@@ -1026,6 +1150,9 @@ void battle_init(void) {
         obj_vram[i] = s_player_sprite_buf[i];
     for (u32 i = 0; i < BATTLE_SPRITE_WORDS; i++)
         obj_vram[BATTLE_SPRITE_WORDS + i] = s_enemy_sprite_buf[i];
+    for (u32 i = 0; i < g_pokeball_tile_count * 8; i++)
+        obj_vram[BATTLE_POKEBALL_TILE_BASE * 8 + i] =
+            remap_sprite_nibbles(g_pokeball_tiles[i]);
     copy_red_battle_tiles(obj_vram, g_intro_red_battle_tiles);
     copy_intro_trainer_tiles(obj_vram + BATTLE_TRAINER_TILE * 8,
                              g_intro_rival_tiles);
@@ -1039,7 +1166,8 @@ void battle_init(void) {
 
     s_battle.state = BS_INTRO;
     char *p = s_battle.is_wild ? str_append(s_msg_buf, "Wild ") :
-                                 str_append(s_msg_buf, "[RIVAL] wants to fight!");
+                                 str_append(s_msg_buf, s_battle.trainer_name ? s_battle.trainer_name : "[RIVAL]");
+    if (!s_battle.is_wild) p = str_append(p, " wants to fight!");
     if (s_battle.is_wild) {
         p = str_append(p, species_name(s_battle.enemy_species));
         p = str_append(p, " appeared!");
@@ -1058,6 +1186,7 @@ void battle_update(void) {
     }
 
     update_player_slide();
+    update_ball_sprite();
     draw_sprites();
 
     switch (s_battle.state) {
@@ -1077,7 +1206,8 @@ void battle_update(void) {
                 p = str_append(p, "!");
             } else {
                 s_battle.state = BS_SEND_OUT_ENEMY;
-                p = str_append(s_msg_buf, "[RIVAL] sent out\n");
+                p = str_append(s_msg_buf, s_battle.trainer_name ? s_battle.trainer_name : "[RIVAL]");
+                p = str_append(p, " sent out\n");
                 p = str_append(p, species_name(s_battle.enemy_species));
                 p = str_append(p, "!");
             }
@@ -1155,6 +1285,8 @@ void battle_update(void) {
                 draw_party_menu();
             } else if (s_battle.menu_cursor == 2) {
                 s_battle.state = BS_ITEM_MENU;
+                s_battle_item_page = 0;
+                s_battle_item_cursor = 0;
                 clear_lower_ui();
                 draw_item_menu();
             } else {
@@ -1263,8 +1395,26 @@ void battle_update(void) {
         break;
 
     case BS_ITEM_MENU: {
-        u8 visible = battle_usable_item_count();
-        u8 total = (u8)(visible + 1);
+        u8 total_items = battle_usable_item_count();
+        u8 page_count = total_items == 0 ? 1 : (u8)((total_items + 2) / 3);
+        u8 page_start = (u8)(s_battle_item_page * 3);
+        u8 page_items = total_items > page_start
+            ? (u8)(total_items - page_start) : 0;
+        if (page_items > 3) page_items = 3;
+        u8 total = (u8)(page_items + 1);
+        if (input_pressed(KEY_LEFT) && page_count > 1) {
+            s_battle_item_page = s_battle_item_page == 0
+                ? (u8)(page_count - 1) : (u8)(s_battle_item_page - 1);
+            s_battle_item_cursor = 0;
+            draw_item_menu();
+            audio_sfx_play(AUDIO_SFX_BATTLE_SELECT);
+        }
+        if (input_pressed(KEY_RIGHT) && page_count > 1) {
+            s_battle_item_page = (u8)((s_battle_item_page + 1) % page_count);
+            s_battle_item_cursor = 0;
+            draw_item_menu();
+            audio_sfx_play(AUDIO_SFX_BATTLE_SELECT);
+        }
         if (input_pressed(KEY_UP)) {
             s_battle_item_cursor = s_battle_item_cursor == 0
                 ? (u8)(total - 1) : (u8)(s_battle_item_cursor - 1);
@@ -1288,7 +1438,7 @@ void battle_update(void) {
         if (input_pressed(KEY_A)) {
             audio_sfx_play(AUDIO_SFX_BATTLE_CONFIRM);
             clear_lower_ui();
-            if (s_battle_item_cursor >= visible || visible == 0) {
+            if (s_battle_item_cursor >= page_items || total_items == 0) {
                 // CANCEL selected
                 s_battle_item_cursor = 0;
                 s_battle.state = BS_PLAYER_MENU;
@@ -1298,12 +1448,14 @@ void battle_update(void) {
             }
             u8 ni = 0;
             ItemId sel = ITEM_NONE;
+            u8 target_index = (u8)(s_battle_item_page * 3 + s_battle_item_cursor);
             for (u8 i = 0; i < g_bag.count; i++) {
                 if (item_is_key_item((ItemId)g_bag.slots[i].id)) continue;
-                if (ni == s_battle_item_cursor) { sel = (ItemId)g_bag.slots[i].id; break; }
+                if (ni == target_index) { sel = (ItemId)g_bag.slots[i].id; break; }
                 ni++;
             }
             s_battle_item_cursor = 0;
+            s_battle_item_page = 0;
             if (sel == ITEM_POTION) {
                 BattlePokemon *pl = &s_battle.player_mon;
                 if (pl->current_hp >= pl->max_hp) {
@@ -1674,7 +1826,7 @@ void battle_update(void) {
         u16 rival_dv = 0x9888;
         battle_pokemon_init(&s_battle.enemy_mon, s_battle.enemy_species,
                             s_battle.enemy_level, rival_dv,
-                            s_starter_moves[s_battle.enemy_species], 2);
+                            pokemon_initial_moves(s_battle.enemy_species), 4);
         s_battle.enemy_mon.nickname = NULL;
         battle_sprite_load_front(s_battle.enemy_species, s_enemy_sprite_buf);
         vu32 *obj_vram = (vu32 *)(MEM_VRAM + 0x10000);
@@ -1803,14 +1955,8 @@ void battle_update(void) {
                                                   next_level);
             if (next_level <= 100 && s_battle.player_experience >= next_exp) {
                 s_battle.player_mon.level = next_level;
-                const PokemonBaseStats *pbase = &g_pokemon_base_stats[s_battle.player_species];
-                u16 old_max = s_battle.player_mon.max_hp;
-                s_battle.player_mon.max_hp = (u16)(((u32)(pbase->hp + dv_hp(s_battle.player_mon.dv)) * 2 * next_level) / 100 + next_level + 10);
-                s_battle.player_mon.attack = (u16)(((u32)(pbase->attack + dv_attack(s_battle.player_mon.dv)) * 2 * next_level) / 100 + 5);
-                s_battle.player_mon.defense = (u16)(((u32)(pbase->defense + dv_defense(s_battle.player_mon.dv)) * 2 * next_level) / 100 + 5);
-                s_battle.player_mon.speed = (u16)(((u32)(pbase->speed + dv_speed(s_battle.player_mon.dv)) * 2 * next_level) / 100 + 5);
-                s_battle.player_mon.special = (u16)(((u32)(pbase->special + dv_special(s_battle.player_mon.dv)) * 2 * next_level) / 100 + 5);
-                s_battle.player_mon.current_hp += s_battle.player_mon.max_hp - old_max;
+                battle_recalculate_player_stats(s_battle.player_species,
+                                                 next_level);
 
                 clear_lower_ui();
                 char *p = str_append(s_msg_buf, mon_display_name(&s_battle.player_mon));
@@ -1819,13 +1965,48 @@ void battle_update(void) {
                 p = str_append(p, "!");
                 *p = '\0';
                 battle_msg(s_msg_buf);
-                s_battle.state = BS_LEVEL_UP;
+                s_battle.state = battle_try_evolve_player()
+                    ? BS_EVOLUTION : BS_LEVEL_UP;
             } else {
                 s_battle.state = s_after_exp_state;
             }
         }
         break;
 
+    case BS_EVOLUTION:
+        if (dialog_update()) {
+            battle_sprite_load_back(s_evolution_to, s_player_sprite_buf);
+            vu32 *obj_vram = (vu32 *)(MEM_VRAM + 0x10000);
+            for (u32 i = 0; i < BATTLE_SPRITE_WORDS; i++)
+                obj_vram[i] = s_player_sprite_buf[i];
+            setup_species_obj_palette(PAL_OBJ, s_evolution_to);
+            s_evolution_anim_timer = 0;
+            s_evolution_sprite_hidden = TRUE;
+            s_battle.state = BS_EVOLUTION_ANIM;
+        }
+        break;
+
+    case BS_EVOLUTION_ANIM:
+        if (++s_evolution_anim_timer >= 18) {
+            s_evolution_sprite_hidden = FALSE;
+            clear_lower_ui();
+            char *p = str_append(s_msg_buf, species_name(s_evolution_from));
+            p = str_append(p, " evolved into\n");
+            p = str_append(p, species_name(s_evolution_to));
+            p = str_append(p, "!");
+            *p = '\0';
+            battle_msg(s_msg_buf);
+            s_battle.state = BS_EVOLUTION_MESSAGE;
+        }
+        break;
+
+    case BS_EVOLUTION_MESSAGE:
+        if (dialog_update())
+            s_battle.state = BS_LEVEL_UP;
+        break;
+
+    /* The species and palette are changed before this animation, so the
+     * replacement sprite is ready when it is revealed. */
     case BS_LEVEL_UP:
         if (dialog_update()) {
             MoveId new_move = learnset_move_at_level(s_battle.player_species,
@@ -2062,6 +2243,9 @@ void battle_update(void) {
                 clear_lower_ui();
                 s_ball_anim_phase = 1;
                 s_ball_anim_timer = 0;
+                s_ball_x = 40;
+                s_ball_y = 88;
+                s_ball_visible = TRUE;
             }
         } else if (s_ball_anim_phase == 1) {
             s_ball_anim_timer++;
@@ -2080,6 +2264,7 @@ void battle_update(void) {
                 if (s_ball_shake_count == 0) {
                     // Immediate break free
                     show_enemy_sprite();
+                    hide_ball_sprite();
                     battle_msg("Oh no!\nThe POKeMON broke\nfree!");
                     s_battle.state = BS_BALL_RESULT;
                 } else {
@@ -2109,6 +2294,7 @@ void battle_update(void) {
             } else if (!s_ball_caught_result && s_ball_shakes_done >= s_ball_shake_count) {
                 // Broke free after shaking
                 show_enemy_sprite();
+                hide_ball_sprite();
                 char *p = s_msg_buf;
                 p = str_append(p, species_name(s_battle.enemy_species));
                 p = str_append(p, "\nbroke free!");
@@ -2123,6 +2309,7 @@ void battle_update(void) {
     case BS_BALL_RESULT:
         if (dialog_update()) {
             clear_lower_ui();
+            hide_ball_sprite();
             if (s_ball_caught_result) {
                 PokedexSpecies dex_sp;
                 if (pokedex_species_to_entry(s_battle.enemy_species, &dex_sp)) {

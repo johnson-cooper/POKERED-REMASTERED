@@ -17,6 +17,8 @@
 #include "item.h"
 #include "town_map.h"
 #include "pc.h"
+#include "evolution.h"
+#include "tmhm.h"
 
 GameContext g_game = {
     .state      = GAME_STATE_BOOT,
@@ -60,6 +62,8 @@ static void trainer_card_draw(void);
 static void trainer_card_update(void);
 static void key_item_menu_draw(void);
 static void key_item_menu_update(void);
+static void item_target_update(void);
+static void move_teach_update(void);
 
 typedef enum {
     INTRO_OAK_DIALOG = 0,
@@ -110,6 +114,13 @@ static bool8 s_pause_key_item_active;
 static bool8 s_trainer_card_active;
 static bool8 s_pause_town_map_active;
 static u8 s_key_item_cursor;
+static bool8 s_item_target_active;
+static u8 s_item_target_cursor;
+static ItemId s_item_target_item;
+static bool8 s_move_teach_active;
+static ItemId s_move_teach_item;
+static u8 s_move_teach_slot;
+static u8 s_move_teach_cursor;
 static bool8 s_continue_load;
 
 static bool8 title_save_available(void) {
@@ -698,6 +709,7 @@ static void state_battle_update(void) {
 }
 
 static u8 s_item_cursor;
+static u8 s_item_scroll;
 
 static void item_menu_draw(void);
 static void item_menu_update(void);
@@ -875,6 +887,14 @@ static void state_menu_update(void) {
         item_menu_update();
         return;
     }
+    if (s_item_target_active) {
+        item_target_update();
+        return;
+    }
+    if (s_move_teach_active) {
+        move_teach_update();
+        return;
+    }
     if (s_pause_key_item_active) {
         key_item_menu_update();
         return;
@@ -952,6 +972,7 @@ static void pause_menu_select(void) {
             if (!item_is_key_item((ItemId)g_bag.slots[i].id)) { has_regular = TRUE; break; }
         if (has_regular) {
             s_item_cursor = 0;
+            s_item_scroll = 0;
             s_pause_item_active = TRUE;
             item_menu_draw();
         } else {
@@ -1034,10 +1055,23 @@ static void item_menu_draw(void) {
     title_draw_menu_box(0, 0, 29, 19);
     text_draw_str(2, 1, "ITEM");
 
+    u8 total_items = 0;
+    for (u8 i = 0; i < g_bag.count; i++)
+        if (!item_is_key_item((ItemId)g_bag.slots[i].id)) total_items++;
+
+    u8 total = (u8)(total_items + 1); // include CANCEL
+    if (s_item_scroll > 0 && s_item_scroll + 7 > total)
+        s_item_scroll = total > 7 ? (u8)(total - 7) : 0;
+
     u8 ni = 0;
-    for (u8 i = 0; i < g_bag.count && ni < 7; i++) {
+    for (u8 i = 0; i < g_bag.count; i++) {
         if (item_is_key_item((ItemId)g_bag.slots[i].id)) continue;
-        u8 row = (u8)(3 + ni * 2);
+        if (ni < s_item_scroll) {
+            ni++;
+            continue;
+        }
+        if (ni >= (u8)(s_item_scroll + 7)) break;
+        u8 row = (u8)(3 + (ni - s_item_scroll) * 2);
         text_draw_str(3, row, item_get_name((ItemId)g_bag.slots[i].id));
         char qty[5] = "x";
         u8 q = g_bag.slots[i].quantity;
@@ -1048,10 +1082,13 @@ static void item_menu_draw(void) {
         text_draw_str(20, row, qty);
         ni++;
     }
-    text_draw_str(3, 17, "CANCEL");
+    if (total_items >= s_item_scroll && total_items < (u8)(s_item_scroll + 7))
+        text_draw_str(3, (u8)(3 + (total_items - s_item_scroll) * 2), "CANCEL");
 
-    u8 cursor_row = (s_item_cursor < ni) ? (u8)(3 + s_item_cursor * 2) : 17;
-    text_draw_char(1, cursor_row, '>');
+    if (s_item_cursor >= s_item_scroll && s_item_cursor < (u8)(s_item_scroll + 7)) {
+        u8 cursor_row = (u8)(3 + (s_item_cursor - s_item_scroll) * 2);
+        text_draw_char(1, cursor_row, '>');
+    }
 }
 
 static void item_use_potion(void) {
@@ -1071,6 +1108,163 @@ static void item_use_potion(void) {
     s_pause_item_active = FALSE;
 }
 
+static void item_target_draw(void) {
+    text_clear();
+    title_draw_menu_box(0, 0, 29, 19);
+    text_draw_str(2, 1, "USE ON WHICH POKeMON?");
+    for (u8 i = 0; i < g_party.count && i < PARTY_SIZE; i++) {
+        PartyPokemon *mon = party_get_slot(i);
+        u8 row = (u8)(3 + i * 2);
+        text_draw_str(3, row, party_mon_display_name(mon));
+        text_draw_str(20, row, "Lv");
+        text_draw_char(22, row, (char)('0' + mon->level / 10));
+        text_draw_char(23, row, (char)('0' + mon->level % 10));
+    }
+    text_draw_str(3, 17, "CANCEL");
+    text_draw_char(1, s_item_target_cursor < g_party.count
+        ? (u8)(3 + s_item_target_cursor * 2) : 17, '>');
+}
+
+static void item_use_evolution_stone(ItemId item, u8 slot) {
+    PartyPokemon *mon = party_get_slot(slot);
+    const Evolution *evolution = mon
+        ? pokemon_evolution_for_item(mon->species, item) : NULL;
+    if (!evolution) {
+        pause_menu_message("It won't have any\neffect.");
+        s_pause_item_active = FALSE;
+        return;
+    }
+    PokemonId old_species = mon->species;
+    party_evolve_slot(slot, evolution->target);
+    bag_remove(item, 1);
+    char message[64];
+    char *p = message;
+    const char *old_name = g_pokedex_entries[old_species].name;
+    const char *new_name = g_pokedex_entries[evolution->target].name;
+    while (*old_name) *p++ = *old_name++;
+    const char *middle = " evolved into\n";
+    while (*middle) *p++ = *middle++;
+    while (*new_name) *p++ = *new_name++;
+    *p++ = '!';
+    *p = '\0';
+    pause_menu_message(message);
+    s_pause_item_active = FALSE;
+}
+
+static void move_teach_draw(void) {
+    PartyPokemon *mon = party_get_slot(s_move_teach_slot);
+    text_clear();
+    title_draw_menu_box(0, 0, 29, 19);
+    text_draw_str(2, 1, "WHICH MOVE TO FORGET?");
+    for (u8 i = 0; i < 4; i++) {
+        u8 row = (u8)(4 + i * 2);
+        text_draw_str(3, row, g_move_data[mon->moves[i]].name);
+    }
+    text_draw_str(3, 17, "CANCEL");
+    text_draw_char(1, s_move_teach_cursor < 4 ? (u8)(4 + s_move_teach_cursor * 2) : 17, '>');
+}
+
+static void item_use_tmhm(ItemId item, u8 slot) {
+    PartyPokemon *mon = party_get_slot(slot);
+    u8 number = item_tmhm_number(item);
+    MoveId move = tmhm_move(number);
+    if (!mon || !pokemon_can_learn_tmhm(mon->species, number)) {
+        pause_menu_message("It cannot learn that move.");
+        s_pause_item_active = FALSE;
+        return;
+    }
+    for (u8 i = 0; i < 4; i++) {
+        if (mon->moves[i] == move) {
+            pause_menu_message("It already knows that move.");
+            s_pause_item_active = FALSE;
+            return;
+        }
+    }
+    for (u8 i = 0; i < 4; i++) {
+        if (mon->moves[i] == MOVE_NONE) {
+            mon->moves[i] = move;
+            mon->pp[i] = g_move_data[move].pp;
+            if (item < ITEM_HM01) bag_remove(item, 1);
+            pause_menu_message("The move was learned!");
+            s_pause_item_active = FALSE;
+            return;
+        }
+    }
+    if (item >= ITEM_HM01) {
+        pause_menu_message("HM moves cannot be forgotten.");
+        s_pause_item_active = FALSE;
+        return;
+    }
+    s_move_teach_item = item;
+    s_move_teach_slot = slot;
+    s_move_teach_cursor = 0;
+    s_move_teach_active = TRUE;
+    s_pause_item_active = FALSE;
+    move_teach_draw();
+}
+
+static void move_teach_update(void) {
+    PartyPokemon *mon = party_get_slot(s_move_teach_slot);
+    if (input_pressed(KEY_UP)) {
+        s_move_teach_cursor = s_move_teach_cursor == 0 ? 4 : (u8)(s_move_teach_cursor - 1);
+        move_teach_draw();
+    } else if (input_pressed(KEY_DOWN)) {
+        s_move_teach_cursor = s_move_teach_cursor >= 4 ? 0 : (u8)(s_move_teach_cursor + 1);
+        move_teach_draw();
+    } else if (input_pressed(KEY_B) || s_move_teach_cursor >= 4) {
+        s_move_teach_active = FALSE;
+        s_pause_item_active = TRUE;
+        item_menu_draw();
+    } else if (input_pressed(KEY_A)) {
+        MoveId move = tmhm_move(item_tmhm_number(s_move_teach_item));
+        mon->moves[s_move_teach_cursor] = move;
+        mon->pp[s_move_teach_cursor] = g_move_data[move].pp;
+        bag_remove(s_move_teach_item, 1);
+        s_move_teach_active = FALSE;
+        pause_menu_message("The move was learned!");
+    }
+}
+
+static void item_target_update(void) {
+    if (dialog_is_open()) {
+        if (dialog_update()) {
+            s_item_target_active = FALSE;
+            pause_menu_draw();
+        }
+        return;
+    }
+    u8 total = (u8)(g_party.count + 1);
+    if (input_pressed(KEY_UP)) {
+        s_item_target_cursor = s_item_target_cursor == 0
+            ? (u8)(total - 1) : (u8)(s_item_target_cursor - 1);
+        item_target_draw();
+        audio_sfx_play(AUDIO_SFX_SELECT);
+    } else if (input_pressed(KEY_DOWN)) {
+        s_item_target_cursor = s_item_target_cursor >= (u8)(total - 1)
+            ? 0 : (u8)(s_item_target_cursor + 1);
+        item_target_draw();
+        audio_sfx_play(AUDIO_SFX_SELECT);
+    } else if (input_pressed(KEY_B)) {
+        s_item_target_active = FALSE;
+        s_pause_item_active = TRUE;
+        item_menu_draw();
+        audio_sfx_play(AUDIO_SFX_PAUSE_CLOSE);
+    } else if (input_pressed(KEY_A)) {
+        audio_sfx_play(AUDIO_SFX_CONFIRM);
+        if (s_item_target_cursor >= g_party.count) {
+            s_item_target_active = FALSE;
+            s_pause_item_active = TRUE;
+            item_menu_draw();
+            return;
+        }
+        if (item_is_tmhm(s_item_target_item))
+            item_use_tmhm(s_item_target_item, s_item_target_cursor);
+        else
+            item_use_evolution_stone(s_item_target_item, s_item_target_cursor);
+        s_item_target_active = FALSE;
+    }
+}
+
 static void item_menu_update(void) {
     if (dialog_is_open()) {
         if (dialog_update()) pause_menu_draw();
@@ -1080,16 +1274,18 @@ static void item_menu_update(void) {
     u8 ni = 0;
     for (u8 i = 0; i < g_bag.count; i++)
         if (!item_is_key_item((ItemId)g_bag.slots[i].id)) ni++;
-    if (ni > 7) ni = 7;
     u8 total = (u8)(ni + 1);
     if (input_pressed(KEY_UP)) {
         s_item_cursor = s_item_cursor == 0 ? (u8)(total - 1) : (u8)(s_item_cursor - 1);
+        if (s_item_cursor < s_item_scroll) s_item_scroll = s_item_cursor;
         item_menu_draw();
         audio_sfx_play(AUDIO_SFX_SELECT);
         return;
     }
     if (input_pressed(KEY_DOWN)) {
         s_item_cursor = s_item_cursor >= (u8)(total - 1) ? 0 : (u8)(s_item_cursor + 1);
+        if (s_item_cursor >= (u8)(s_item_scroll + 7))
+            s_item_scroll = (u8)(s_item_cursor - 6);
         item_menu_draw();
         audio_sfx_play(AUDIO_SFX_SELECT);
         return;
@@ -1117,6 +1313,12 @@ static void item_menu_update(void) {
         }
         if (id == ITEM_POTION) {
             item_use_potion();
+        } else if ((id >= ITEM_FIRE_STONE && id <= ITEM_MOON_STONE) || item_is_tmhm(id)) {
+            s_item_target_item = id;
+            s_item_target_cursor = 0;
+            s_pause_item_active = FALSE;
+            s_item_target_active = TRUE;
+            item_target_draw();
         } else if (id == ITEM_ANTIDOTE || id == ITEM_PARLYZ_HEAL ||
                    id == ITEM_BURN_HEAL) {
             pause_menu_message("Can't use that here.");

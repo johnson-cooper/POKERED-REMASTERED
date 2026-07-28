@@ -56,7 +56,7 @@ static void process_cmd(const RenderCmd *cmd) {
             // opaque and always cover NPCs and the player.
             s_oam_shadow[s_oam_index].attr2 =
                 (u16)(cmd->id | (1 << 10) |
-                      ((cmd->param & 0x10) ? (1 << 12) : 0));
+                      (((cmd->param >> 4) & 0xF) << 12));
             s_oam_index++;
         }
         break;

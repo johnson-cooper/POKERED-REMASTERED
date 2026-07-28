@@ -7,11 +7,13 @@
 #include "world.h"
 #include "audio.h"
 #include "save.h"
+#include "pokemon_palette.h"
 
 #define POKEDEX_SPRITE_TILE 140
 #define POKEDEX_PAL 14
 #define POKEDEX_TILE_VRAM ((u32 *)(MEM_VRAM + 0x4000))
 
+#if 0
 typedef struct {
     const char *name;
     const char *category;
@@ -96,6 +98,7 @@ static const PokedexEntry s_entries[] = {
         2,
     },
 };
+#endif
 
 static bool8 s_open;
 static u8 s_page;
@@ -228,24 +231,16 @@ static void load_pokemon_picture(const u32 *tiles, u8 palette) {
 }
 
 bool8 pokedex_species_to_entry(PokemonId species, PokedexSpecies *out) {
-    switch (species) {
-    case MON_BULBASAUR:  *out = POKEDEX_BULBASAUR; return TRUE;
-    case MON_CHARMANDER: *out = POKEDEX_CHARMANDER; return TRUE;
-    case MON_SQUIRTLE:   *out = POKEDEX_SQUIRTLE; return TRUE;
-    case MON_PIDGEY:     *out = POKEDEX_PIDGEY; return TRUE;
-    case MON_RATTATA:    *out = POKEDEX_RATTATA; return TRUE;
-    case MON_NIDORINO:   *out = POKEDEX_NIDORINO; return TRUE;
-    case MON_SPEAROW:    *out = POKEDEX_SPEAROW; return TRUE;
-    case MON_NIDORAN_F:  *out = POKEDEX_NIDORAN_F; return TRUE;
-    case MON_NIDORAN_M:  *out = POKEDEX_NIDORAN_M; return TRUE;
-    case MON_WEEDLE:     *out = POKEDEX_WEEDLE; return TRUE;
-    default: return FALSE;
-    }
+    if (!out || species < MON_BULBASAUR || species > NUM_POKEMON)
+        return FALSE;
+    *out = species;
+    return TRUE;
 }
 
 void pokedex_open(PokedexSpecies species) {
-    if (species >= POKEDEX_ENTRY_COUNT) species = POKEDEX_BULBASAUR;
-    const PokedexEntry *entry = &s_entries[species];
+    if (species < MON_BULBASAUR || species > NUM_POKEMON)
+        species = MON_BULBASAUR;
+    const PokedexEntry *entry = &g_pokedex_entries[species];
     s_entry = entry;
     s_page = 0;
     if (species == POKEDEX_BULBASAUR)
@@ -259,11 +254,12 @@ void pokedex_open(PokedexSpecies species) {
 
     text_clear();
     prepare_pokedex_palettes();
+    pokemon_palette_load((vu16 *)MEM_PAL + POKEDEX_PAL * 16, species);
     s_saved_dispcnt = REG_DISPCNT;
     REG_DISPCNT = (u16)((s_saved_dispcnt & (u16)~(DCNT_BG1 | DCNT_BG2 | DCNT_OBJ)) |
                         DCNT_BG0);
     draw_frame();
-    load_pokemon_picture(entry->tiles, entry->sprite_palette);
+    load_pokemon_picture(pokedex_sprite_tiles(species), POKEDEX_PAL);
 
     text_draw_str_pal(9, 2, entry->name, POKEDEX_PAL);
     text_draw_str_pal(9, 4, entry->category, POKEDEX_PAL);

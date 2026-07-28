@@ -17,9 +17,25 @@ static const ItemDef s_item_defs[ITEM_COUNT] = {
     [ITEM_BURN_HEAL]   = { "BURN HEAL",   250, FALSE },
     [ITEM_OAKS_PARCEL] = { "OAK's PARCEL", 0,  TRUE  },
     [ITEM_TOWN_MAP]    = { "TOWN MAP",     0,  TRUE  },
+    [ITEM_FIRE_STONE]  = { "FIRE STONE",   2100, FALSE },
+    [ITEM_THUNDER_STONE] = { "THUNDERSTONE", 2100, FALSE },
+    [ITEM_WATER_STONE] = { "WATER STONE",  2100, FALSE },
+    [ITEM_LEAF_STONE]  = { "LEAF STONE",   2100, FALSE },
+    [ITEM_MOON_STONE]  = { "MOON STONE",   2100, FALSE },
 };
 
 const char *item_get_name(ItemId id) {
+    static char machine_name[6];
+    if (id >= ITEM_TM01 && id <= ITEM_HM05) {
+        u8 number = (u8)(id - ITEM_TM01);
+        machine_name[0] = number < 50 ? 'T' : 'H';
+        machine_name[1] = number < 50 ? 'M' : 'M';
+        number = number < 50 ? (u8)(number + 1) : (u8)(number - 49);
+        machine_name[2] = (char)('0' + number / 10);
+        machine_name[3] = (char)('0' + number % 10);
+        machine_name[4] = '\0';
+        return machine_name;
+    }
     if (id >= ITEM_COUNT) return "?????";
     return s_item_defs[id].name;
 }
@@ -32,6 +48,15 @@ u16 item_get_price(ItemId id) {
 bool8 item_is_key_item(ItemId id) {
     if (id >= ITEM_COUNT) return FALSE;
     return s_item_defs[id].key_item;
+}
+
+bool8 item_is_tmhm(ItemId id) {
+    return id >= ITEM_TM01 && id <= ITEM_HM05;
+}
+
+u8 item_tmhm_number(ItemId id) {
+    if (!item_is_tmhm(id)) return 0;
+    return (u8)(id - ITEM_TM01 + 1);
 }
 
 void bag_init(void) {

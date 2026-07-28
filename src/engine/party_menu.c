@@ -8,6 +8,8 @@
 #include "party.h"
 #include "text.h"
 #include "world.h"
+#include "pokemon_palette.h"
+#include "pokedex.h"
 
 #define PARTY_ICON_TILE 148
 // Each of the 6 party slots gets 4 tiles (2×2 icon); sprite follows.
@@ -20,6 +22,7 @@
 typedef enum {
     PARTY_MENU_LIST = 0,
     PARTY_MENU_STATUS,
+    PARTY_MENU_MOVES,
 } PartyMenuMode;
 
 static bool8 s_open;
@@ -91,19 +94,7 @@ static void prepare_party_palettes(void) {
 }
 
 static const u32 *party_sprite_tiles(PokemonId species) {
-    switch (species) {
-    case MON_CHARMANDER: return g_pokedex_charmander_tiles;
-    case MON_SQUIRTLE:   return g_pokedex_squirtle_tiles;
-    case MON_PIDGEY:     return g_pokedex_pidgey_tiles;
-    case MON_RATTATA:    return g_pokedex_rattata_tiles;
-    case MON_NIDORAN_F:  return g_pokedex_nidoran_f_tiles;
-    case MON_NIDORAN_M:  return g_pokedex_nidoran_m_tiles;
-    case MON_NIDORINO:   return g_pokedex_nidorino_tiles;
-    case MON_SPEAROW:    return g_pokedex_spearow_tiles;
-    case MON_WEEDLE:     return g_pokedex_weedle_tiles;
-    case MON_BULBASAUR:
-    default:             return g_pokedex_bulbasaur_tiles;
-    }
+    return pokedex_sprite_tiles(species);
 }
 
 static const u32 *party_icon_tiles(PokemonId species) {
@@ -120,8 +111,14 @@ static const u32 *party_icon_tiles(PokemonId species) {
 }
 
 static u8 party_sprite_palette(PokemonId species) {
+    return PARTY_SPRITE_PAL;
+}
+
+#if 0
+static u8 party_sprite_palette(PokemonId species) {
     switch (species) {
     case MON_CHARMANDER: return 12;
+    case MON_CHARMELEON: return 12;
     case MON_SQUIRTLE:   return 13;
     case MON_PIDGEY:     return 8;
     case MON_RATTATA:    return 9;
@@ -134,21 +131,13 @@ static u8 party_sprite_palette(PokemonId species) {
     default:             return PARTY_SPRITE_PAL;
     }
 }
+#endif
 
 static const char *party_species_name(PokemonId species) {
-    switch (species) {
-    case MON_BULBASAUR:  return "BULBASAUR";
-    case MON_CHARMANDER: return "CHARMANDER";
-    case MON_SQUIRTLE:   return "SQUIRTLE";
-    case MON_PIDGEY:     return "PIDGEY";
-    case MON_RATTATA:    return "RATTATA";
-    case MON_NIDORAN_F:  return "NIDORAN\xf1"; // ♀
-    case MON_NIDORAN_M:  return "NIDORAN\xf0"; // ♂
-    case MON_NIDORINO:   return "NIDORINO";
-    case MON_SPEAROW:    return "SPEAROW";
-    case MON_WEEDLE:     return "WEEDLE";
-    default: return "POKEMON";
-    }
+    if (species > MON_NONE && species <= NUM_POKEMON &&
+        g_pokedex_entries[species].name)
+        return g_pokedex_entries[species].name;
+    return "POKEMON";
 }
 
 static const char *party_status_name(u8 status) {
@@ -165,6 +154,7 @@ static const char *party_status_name(u8 status) {
 static const char *party_type1(PokemonId species) {
     switch (species) {
     case MON_CHARMANDER: return "FIRE";
+    case MON_CHARMELEON: return "FIRE";
     case MON_SQUIRTLE:   return "WATER";
     case MON_PIDGEY:
     case MON_RATTATA:
@@ -243,6 +233,7 @@ static void party_box(u8 left, u8 top, u8 right, u8 bottom) {
 static void load_party_picture(const PartyPokemon *mon, u8 col, u8 row) {
     const u32 *tiles = party_sprite_tiles(mon->species);
     u8 palette = party_sprite_palette(mon->species);
+    pokemon_palette_load((vu16 *)MEM_PAL + palette * 16, mon->species);
     vu32 *vram = (vu32 *)(MEM_VRAM + 0x4000);
     for (u32 i = 0; i < 200; i++)
         vram[(PARTY_SPRITE_TILE * 8) + i] = tiles[i];
@@ -360,6 +351,25 @@ static void draw_status(void) {
         text_draw_str(14, 18, "A:LEAD  B:BACK");
 }
 
+static void draw_moves(void) {
+    const PartyPokemon *mon = &g_party.mons[s_cursor];
+    party_fill();
+    party_box(0, 0, 29, 19);
+    text_draw_str(2, 1, party_mon_display_name(mon));
+    text_draw_str(2, 3, "MOVES");
+    for (u8 i = 0; i < 4; i++) {
+        u8 row = (u8)(6 + i * 3);
+        if (mon->moves[i] == MOVE_NONE) {
+            text_draw_str(4, row, "--");
+        } else {
+            text_draw_str(4, row, g_move_data[mon->moves[i]].name);
+            text_draw_str(21, row, "PP");
+            text_draw_str(24, row, party_number(mon->pp[i]));
+        }
+    }
+    text_draw_str(2, 18, "B:BACK  LEFT:STATUS");
+}
+
 void party_menu_open(void) {
     s_open = TRUE;
     s_mode = PARTY_MENU_LIST;
@@ -399,10 +409,25 @@ bool8 party_menu_update(void) {
         draw_list();
         return FALSE;
     }
+    if (s_mode == PARTY_MENU_STATUS && input_pressed(KEY_RIGHT)) {
+        s_mode = PARTY_MENU_MOVES;
+        draw_moves();
+        return FALSE;
+    }
+    if (s_mode == PARTY_MENU_MOVES && input_pressed(KEY_LEFT)) {
+        s_mode = PARTY_MENU_STATUS;
+        draw_status();
+        return FALSE;
+    }
     if (input_pressed(KEY_B)) {
         if (s_mode == PARTY_MENU_STATUS) {
             s_mode = PARTY_MENU_LIST;
             draw_list();
+            return FALSE;
+        }
+        if (s_mode == PARTY_MENU_MOVES) {
+            s_mode = PARTY_MENU_STATUS;
+            draw_status();
             return FALSE;
         }
         party_menu_close();

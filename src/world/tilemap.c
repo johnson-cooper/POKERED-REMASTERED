@@ -334,18 +334,6 @@ void tilemap_apply_roof_palette(const RoofPalette *roof) {
     pal6[ 1] = roof->darkest;
 }
 
-// Swap nibbles 0 and F in a u32.
-// grit puts white background at nibble F; GBA OBJ transparency needs nibble 0.
-static inline u32 remap_sprite_nibbles(u32 v) {
-    u32 result = v;
-    for (u32 shift = 0; shift < 32; shift += 4) {
-        u32 n = (v >> shift) & 0xF;
-        if (n == 0x0 || n == 0xF)
-            result ^= (0xFu << shift);
-    }
-    return result;
-}
-
 void tilemap_load_player_sprite(void) {
     u32 *obj_vram = (u32*)(MEM_VRAM + 0x10000);
     for (u32 i = 0; i < g_player_tile_count * 8; i++)

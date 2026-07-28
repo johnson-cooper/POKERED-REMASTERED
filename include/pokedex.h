@@ -3,19 +3,31 @@
 #include "types.h"
 #include "pokemon.h"
 
-typedef enum {
-    POKEDEX_BULBASAUR = 0,
-    POKEDEX_CHARMANDER,
-    POKEDEX_SQUIRTLE,
-    POKEDEX_PIDGEY,
-    POKEDEX_RATTATA,
-    POKEDEX_NIDORINO,
-    POKEDEX_SPEAROW,
-    POKEDEX_NIDORAN_F,
-    POKEDEX_NIDORAN_M,
-    POKEDEX_WEEDLE,
-    POKEDEX_ENTRY_COUNT,
-} PokedexSpecies;
+typedef PokemonId PokedexSpecies;
+
+#define POKEDEX_BULBASAUR  MON_BULBASAUR
+#define POKEDEX_CHARMANDER MON_CHARMANDER
+#define POKEDEX_SQUIRTLE   MON_SQUIRTLE
+#define POKEDEX_PIDGEY     MON_PIDGEY
+#define POKEDEX_RATTATA    MON_RATTATA
+#define POKEDEX_NIDORINO   MON_NIDORINO
+#define POKEDEX_SPEAROW    MON_SPEAROW
+#define POKEDEX_NIDORAN_F  MON_NIDORAN_F
+#define POKEDEX_NIDORAN_M  MON_NIDORAN_M
+#define POKEDEX_WEEDLE     MON_WEEDLE
+#define POKEDEX_ENTRY_COUNT (NUM_POKEMON + 1)
+
+typedef struct {
+    const char *name;
+    const char *category;
+    const char *height;
+    const char *weight;
+    const char *number;
+    const char *description[3];
+    const char *description_page2[3];
+} PokedexEntry;
+
+extern const PokedexEntry g_pokedex_entries[NUM_POKEMON + 1];
 
 void  pokedex_open(PokedexSpecies species);
 bool8 pokedex_update(void);
