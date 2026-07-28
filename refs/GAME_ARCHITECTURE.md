@@ -929,7 +929,10 @@ The overall port % is the simple average of all eight bar fractions above.
 
 ---
 
-## 24. Current Progress (as of 2026-07-27)
+## 24. Current Progress (historical snapshot — superseded)
+
+The original progress snapshot below records the early nine-Pokémon milestone.
+The current implementation status is maintained in §25.
 
 ### Implemented
 - Full intro sequence (Oak's monologue, player/rival naming)
@@ -962,3 +965,103 @@ Bulbasaur, Charmander, Squirtle, Pidgey, Rattata, Nidoran♀, Nidoran♂, Nidori
 - Trainer card shows "0:00" (no play-time tracking)
 - Badge section on trainer card is a placeholder
 - No Fearow or Nidorina/Nidoqueen/Nidoking evolution paths yet
+
+---
+
+## 25. Current Architecture Update (2026-07-28)
+
+This section supersedes the early progress snapshot in Section 24.
+
+### Complete species data
+
+- All 151 species have data-driven base stats, types, catch rates, base EXP,
+  growth/experience handling, initial moves, level-up learnsets, palettes,
+  party sprites, front/back battle sprites, Pokédex sprites, and Pokédex entries.
+- `src/data/pokemon_species_data.c` provides initial moves through
+  `pokemon_initial_moves()`.
+- `src/data/learnsets.c` contains the generated level-up move progression.
+- New species should be added through the data generators rather than by adding
+  screen-specific initialization logic.
+
+### Evolution system
+
+- Evolution records live in `src/data/evolutions.c` and are queried through
+  `include/evolution.h`.
+- Level evolutions are checked once during the post-battle experience sequence;
+  they do not trigger during ordinary overworld updates.
+- Stone evolutions are initiated from the field Item menu after selecting a
+  party member. Supported stones are Fire, Thunder, Water, Leaf, and Moon.
+- Evolution changes the species and recalculates species-dependent stats while
+  retaining nickname, moves, PP, status, and experience.
+- The data format supports multiple item branches, including Eevee's stone
+  choices. Trade evolutions are intentionally represented as level-up paths for
+  this project and are not implemented as trade requirements.
+- Battle evolution includes a sprite/palette reload and a hide/reveal animation.
+
+### Move, TM, and HM progression
+
+- `src/data/tmhm.c` contains the pokered-compatible 50 TM and 5 HM move mapping
+  and compatibility matrix for all 151 species.
+- The Item menu treats TMs/HMs as regular items. The field menu displays seven
+  entries at a time and scrolls through the complete bag, so later TM/HM slots
+  remain reachable.
+- Selecting a TM/HM opens party-member selection, validates compatibility,
+  prevents duplicate moves, fills empty slots, and provides four-move replacement
+  when necessary.
+- TMs are consumed after successful teaching; HMs are retained and cannot be
+  forgotten through the teaching flow.
+- The in-battle Item menu has three entries per page and uses Left/Right for
+  page navigation. TMs/HMs are visible there but are only usable through the
+  field teaching flow, matching their non-battle role.
+
+### Encounters and trainer parties
+
+- `src/data/wild_encounters.c` defines per-map encounter rates and weighted slots
+  with species and minimum/maximum levels. Route 1, Route 2, and Route 22 use
+  the shared data-driven selector.
+- `include/trainer_parties.h` and `src/data/trainer_parties.c` define reusable
+  trainer parties with arbitrary species and levels. Future trainers should add
+  a `TrainerParty` record and call the generic trainer setup path; the scripted
+  Oak's Lab rival remains a separate story-specific path.
+- Encountered and trainer Pokémon initialize through the same species data as
+  party Pokémon, including stats, initial/level-up moves, sprites, palettes,
+  and Pokédex seen/owned handling.
+
+### Battle capture and sprite rendering
+
+- Wild capture uses the Gen 1 catch formula and now includes the pokered-style
+  Poké Ball throw arc, capture poof, timed shake animation, and success/failure
+  sprite transitions.
+- The imported Poké Ball graphics use a dedicated battle OBJ tile range and
+  palette bank; it must not overlap the player, enemy, or trainer sprite ranges.
+- Battle, party, and Pokédex palette data are shared by species so a Pokémon's
+  colors remain consistent across all three views. Party/Pokédex sprite
+  backgrounds are white; battle sprite backgrounds are transparent.
+
+### Party, PC, and Pokédex UI
+
+- The party status screen supports Right to open a selected Pokémon's move list,
+  showing all four moves and current PP. Left or B returns to status.
+- The PC withdraw-item list scrolls through all stored items, including TMs/HMs,
+  instead of limiting the visible selection to the first seven entries.
+- All 151 Pokédex descriptions, sprites, and palettes are present. The entry
+  viewer is used both from the Pokédex list and after a successful catch.
+
+### Save and test tooling
+
+- Current save format is version 5 (`SAVE_VERSION_CURRENT`), with party,
+  experience, healing point, money, bag, Pokédex state, PC boxes/items, and
+  checksum support. Legacy versions 1-4 are migrated on read.
+- `tools/create_test_save.py` creates a current-format test save. The save
+  generator uses one-byte enum storage to match the ARM GCC build layout.
+- `tools/augment_existing_save.py` upgrades a user save while preserving common
+  progress and can populate PC boxes, bag items, and Pokédex state for testing.
+
+### Patcher status
+
+- `make patcher` regenerates `patcher/index.html` from the current ROM and bumps
+  `patcher/VERSION`.
+- The patcher was last rebuilt as v0.0.29 and embeds the current 1,041,376-byte
+  ROM. Its progress scanner now reports all 151 Pokemon, 165 moves, 151 sprite
+  sets, 151 learnsets, and the generated Pokédex data; map/music/item totals
+  remain based on the currently ported content rather than the full reference.

@@ -101,14 +101,18 @@ def _count_ported() -> dict:
     # Music: each *_audio_data.c in src/audio/ is one ported track.
     music = len(list((src / "audio").glob("*_audio_data.c")))
 
-    # Items: count [ITEM_X] = { entries in item.c, skipping ITEM_NONE.
+    # Items: count every supported ItemId, including TM/HM IDs whose names are
+    # generated at runtime rather than stored as individual ItemDef entries.
     items = 0
-    it = src / "engine" / "item.c"
-    if it.exists():
-        for line in it.read_text(encoding="utf-8").splitlines():
-            s = line.strip()
-            if s.startswith("[ITEM_") and "ITEM_NONE" not in s:
-                items += 1
+    item_header = Path("include/item.h")
+    if item_header.exists():
+        import re
+        text = item_header.read_text(encoding="utf-8")
+        enum = re.search(r"typedef enum\s*\{(.*?)\bITEM_COUNT\b", text, re.DOTALL)
+        if enum:
+            item_ids = set(re.findall(r"\bITEM_[A-Z0-9_]+\b", enum.group(1)))
+            item_ids.discard("ITEM_NONE")
+            items = len(item_ids)
 
     return {
         "maps":    {"ported": maps,    "total": REF_MAPS},
@@ -135,7 +139,11 @@ def _pokemon_with_sprites() -> set[str]:
         ):
             values = re.findall(r"0x([0-9a-fA-F]+)", m.group(2))
             if any(v != "00000000" for v in values):
-                names.add(m.group(1))
+                name = m.group(1)
+                # The imported pokered symbol omits the separator in Mr. Mime,
+                # while learnsets and Pokédex data use MON_MR_MIME.
+                name = {"mrmime": "mr_mime"}.get(name, name)
+                names.add(name)
     return names
 
 
@@ -160,11 +168,20 @@ def _pokemon_with_learnsets() -> set[str]:
 def _pokemon_with_pokedex() -> set[str]:
     """
     Return the set of Pokémon names (lowercase) wired into
-    pokedex_species_to_entry() in src/engine/pokedex.c.
+    generated src/data/pokedex_entries.c entries.
     """
     import re
-    pokedex_file = Path("src/engine/pokedex.c")
     names: set[str] = set()
+    generated_file = Path("src/data/pokedex_entries.c")
+    if generated_file.exists():
+        for line in generated_file.read_text(encoding="utf-8").splitlines():
+            m = re.match(r"\s*\[MON_(\w+)\]\s*=", line)
+            if m and m.group(1) != "NONE":
+                names.add(m.group(1).lower())
+        if names:
+            return names
+
+    pokedex_file = Path("src/engine/pokedex.c")
     if pokedex_file.exists():
         in_func = False
         for line in pokedex_file.read_text(encoding="utf-8").splitlines():
