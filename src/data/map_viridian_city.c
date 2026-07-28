@@ -56,7 +56,6 @@ static const WarpEvent s_warps[] = {
     // and include the three tiles directly north of it as the same route
     // transition.
     { .x = 0,  .y = 17, .dest_map = MAP_ROUTE_22, .dest_warp = 0 },
-    { .x = 0,  .y = 18, .dest_map = MAP_ROUTE_22, .dest_warp = 0 },
     { .x = 0,  .y = 14, .dest_map = MAP_ROUTE_22, .dest_warp = 0 },
     { .x = 0,  .y = 15, .dest_map = MAP_ROUTE_22, .dest_warp = 0 },
     { .x = 0,  .y = 16, .dest_map = MAP_ROUTE_22, .dest_warp = 0 },
