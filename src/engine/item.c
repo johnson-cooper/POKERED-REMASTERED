@@ -23,6 +23,7 @@ static const ItemDef s_item_defs[ITEM_COUNT] = {
     [ITEM_LEAF_STONE]  = { "LEAF STONE",   2100, FALSE },
     [ITEM_MOON_STONE]  = { "MOON STONE",   2100, FALSE },
     [ITEM_HP_UP]       = { "HP UP",        9800, FALSE },
+    [ITEM_OLD_AMBER]   = { "OLD AMBER",    0,    TRUE  },
 };
 
 const char *item_get_name(ItemId id) {
@@ -46,9 +47,29 @@ u16 item_get_price(ItemId id) {
     return s_item_defs[id].price;
 }
 
+u16 item_get_sell_price(ItemId id) {
+    static const u16 s_tm_prices[50] = {
+        3000,2000,2000,1000,3000,4000,2000,4000,3000,4000,
+        2000,1000,4000,5000,5000,5000,3000,2000,3000,2000,
+        5000,5000,5000,2000,5000,4000,5000,2000,4000,1000,
+        2000,1000,1000,2000,4000,2000,2000,5000,2000,4000,
+        2000,2000,5000,2000,2000,4000,3000,4000,4000,2000,
+    };
+    if (!item_is_sellable(id)) return 0;
+    if (id >= ITEM_TM01 && id <= ITEM_TM50)
+        return s_tm_prices[id - ITEM_TM01] / 2;
+    return (u16)(item_get_price(id) / 2);
+}
+
 bool8 item_is_key_item(ItemId id) {
     if (id >= ITEM_COUNT) return FALSE;
     return s_item_defs[id].key_item;
+}
+
+bool8 item_is_sellable(ItemId id) {
+    if (id == ITEM_NONE || id >= ITEM_COUNT || item_is_key_item(id))
+        return FALSE;
+    return !(id >= ITEM_HM01 && id <= ITEM_HM05);
 }
 
 bool8 item_is_tmhm(ItemId id) {

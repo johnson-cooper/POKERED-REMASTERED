@@ -3,15 +3,19 @@
 #include "map_ids.h"
 #include "gfx_npcs.h"
 #include "gfx_npcs_extra.h"
+#include "gfx_pokeball.h"
+#include "item.h"
+#include "trainer_parties.h"
+#include "flags.h"
 
-extern const Tileset g_tileset_overworld;
-extern const Tileset g_tileset_mart;
+extern const Tileset g_tileset_route1;
 extern const Tileset g_tileset_pokecenter;
 extern const Tileset g_tileset_gym;
+extern const Tileset g_tileset_gate;
 extern const Tileset g_tileset_house_general;
 #define P(m) MAPCELL_MAKE((m), 0, 0)
 
-static const MapCell s_pewter_city_cells[10 * 36] = {
+static const MapCell s_pewter_city_cells[20 * 18] = {
     P(0x0A), P(0x0A), P(0x52), P(0x52), P(0x52), P(0x52), P(0x52), P(0x52), P(0x52), P(0x52),
     P(0x52), P(0x52), P(0x52), P(0x52), P(0x52), P(0x52), P(0x52), P(0x6F), P(0x6F), P(0x6F),
     P(0x3F), P(0x3B), P(0x01), P(0x74), P(0x74), P(0x0C), P(0x0D), P(0x0D), P(0x0E), P(0x20),
@@ -50,16 +54,20 @@ static const MapCell s_pewter_city_cells[10 * 36] = {
     P(0x0F), P(0x0F), P(0x0F), P(0x0A), P(0x0A), P(0x0A), P(0x0A), P(0x0A), P(0x0A), P(0x0A),
 };
 static const MapLayout s_pewter_city_layout = {
-    .width = 10, .height = 36, .tileset = &g_tileset_overworld,
+    // PewterCity.blk uses the complete overworld blockset. The route1
+    // tileset is the shared converted pokered overworld block table; the
+    // smaller g_tileset_overworld only contains the early partial subset.
+    .width = 20, .height = 18, .tileset = &g_tileset_route1,
     .cells = s_pewter_city_cells,
 };
 
+// Exact pokered PewterMart.blk: 4 blocks wide by 4 blocks high.
 static const MapCell s_pewter_mart_cells[4 * 4] = {
     P(0x12), P(0x13), P(0x13), P(0x09), P(0x16), P(0x0F), P(0x14), P(0x14), P(0x18), P(0x19),
     P(0x15), P(0x15), P(0x17), P(0x1A), P(0x0B), P(0x0F),
 };
 static const MapLayout s_pewter_mart_layout = {
-    .width = 4, .height = 4, .tileset = &g_tileset_mart,
+    .width = 4, .height = 4, .tileset = &g_tileset_pokecenter,
     .cells = s_pewter_mart_cells,
 };
 
@@ -84,15 +92,26 @@ static const MapLayout s_pewter_gym_layout = {
     .cells = s_pewter_gym_cells,
 };
 
-static const MapCell s_museum_1f_cells[5 * 8] = {
+static const MapCell s_museum_1f_cells[10 * 4] = {
     P(0x3C), P(0x3C), P(0x3C), P(0x50), P(0x50), P(0x43), P(0x4D), P(0x4D), P(0x4D), P(0x4D),
     P(0x40), P(0x41), P(0x53), P(0x00), P(0x00), P(0x4C), P(0x4E), P(0x00), P(0x4F), P(0x00),
     P(0x44), P(0x45), P(0x57), P(0x00), P(0x47), P(0x4A), P(0x54), P(0x60), P(0x00), P(0x00),
     P(0x48), P(0x49), P(0x5B), P(0x52), P(0x46), P(0x0B), P(0x74), P(0x09), P(0x0B), P(0x74),
 };
 static const MapLayout s_museum_1f_layout = {
-    .width = 5, .height = 8, .tileset = &g_tileset_house_general,
+    .width = 10, .height = 4, .tileset = &g_tileset_gate,
     .cells = s_museum_1f_cells,
+};
+
+static const MapCell s_museum_2f_cells[7 * 4] = {
+    P(0x3C), P(0x3C), P(0x3C), P(0x3C), P(0x3C), P(0x3D), P(0x3E),
+    P(0x00), P(0x00), P(0x00), P(0x00), P(0x00), P(0x3F), P(0x4B),
+    P(0x58), P(0x59), P(0x5A), P(0x00), P(0x47), P(0x00), P(0x00),
+    P(0x00), P(0x00), P(0x00), P(0x56), P(0x46), P(0x00), P(0x00),
+};
+static const MapLayout s_museum_2f_layout = {
+    .width = 7, .height = 4, .tileset = &g_tileset_gate,
+    .cells = s_museum_2f_cells,
 };
 
 static const MapCell s_pewter_nidoran_house_cells[4 * 4] = {
@@ -115,7 +134,7 @@ static const MapLayout s_pewter_speech_house_layout = {
 
 static const WarpEvent s_pewter_city_warps[] = {
     { .x=14, .y=7, .dest_map=MAP_MUSEUM_1F, .dest_warp=0 },
-    { .x=19, .y=5, .dest_map=MAP_MUSEUM_1F, .dest_warp=0 },
+    { .x=19, .y=5, .dest_map=MAP_MUSEUM_1F, .dest_warp=2 },
     { .x=16, .y=17, .dest_map=MAP_PEWTER_GYM, .dest_warp=0 },
     { .x=29, .y=13, .dest_map=MAP_PEWTER_NIDORAN_HOUSE, .dest_warp=0 },
     { .x=23, .y=17, .dest_map=MAP_PEWTER_MART, .dest_warp=0 },
@@ -123,7 +142,9 @@ static const WarpEvent s_pewter_city_warps[] = {
     { .x=13, .y=25, .dest_map=MAP_PEWTER_POKECENTER, .dest_warp=0 },
 };
 static const MapConnection s_pewter_connections[] = {
-    { .direction=DIR_DOWN, .dest_map=MAP_ROUTE_2, .offset=5 },
+    // Align the two-tile Route 2 entrance four tiles east of the original
+    // connection position. Route 2 carries the reciprocal -10 offset.
+    { .direction=DIR_DOWN, .dest_map=MAP_ROUTE_2, .offset=10 },
 };
 static const BackgroundEvent s_pewter_bg_events[] = {
     { .x=19, .y=29, .text="TRAINER TIPS\fAny POKeMON that\ntakes part in battle,\nhowever short, earns EXP!" },
@@ -166,6 +187,10 @@ static const WarpEvent s_museum_1f_warps[] = {
     { .x=11, .y=7, .dest_map=WARP_LAST_MAP, .dest_warp=0 },
     { .x=16, .y=7, .dest_map=WARP_LAST_MAP, .dest_warp=1 },
     { .x=17, .y=7, .dest_map=WARP_LAST_MAP, .dest_warp=1 },
+    { .x=7, .y=7, .dest_map=MAP_MUSEUM_2F, .dest_warp=0 },
+};
+static const WarpEvent s_museum_2f_warps[] = {
+    { .x=7, .y=7, .dest_map=MAP_MUSEUM_1F, .dest_warp=4 },
 };
 static const WarpEvent s_pewter_nidoran_house_warps[] = {
     { .x=2, .y=7, .dest_map=WARP_LAST_MAP, .dest_warp=3 },
@@ -190,12 +215,40 @@ static const NpcDef s_pewter_center_npcs[] = {
       .text="What!? TEAM ROCKET is\nat MT.MOON? Huh?\nI'm on the phone!" },
 };
 static const NpcDef s_pewter_gym_npcs[] = {
-    { .x=4, .y=1, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_DOWN, .text="I'm BROCK's first\nopponent!" },
-    { .x=7, .y=10, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_DOWN, .text="Yo! Champ in making!" },
+    { .x=4, .y=1, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_DOWN,
+      .flags=NPCF_TRAINER, .trainer_id=TRAINER_BROCK, .trainer_sight=2,
+      .trainer_flag=FLAG_BEAT_PEWTER_GYM,
+      .trainer_text="I'm BROCK!\nI'm PEWTER's\nGYM LEADER!" },
+    { .x=3, .y=6, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_RIGHT,
+      .flags=NPCF_TRAINER, .trainer_id=TRAINER_JR_TRAINER_M, .trainer_sight=2,
+      .trainer_flag=FLAG_PEWTER_GYM_TRAINER,
+      .trainer_text="You'd better have\nstrong POKeMON!" },
+    { .x=7, .y=10, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_DOWN,
+      .text="Yo! Champ in making!" },
 };
 static const NpcDef s_museum_npcs[] = {
     { .x=12, .y=4, .sprite_tile=GFX_SCIENTIST_TILE_BASE, .facing=DIR_LEFT, .text="Welcome to the\nPEWTER MUSEUM." },
     { .x=1, .y=4, .sprite_tile=GFX_GAMBLER_TILE_BASE, .facing=DIR_DOWN, .text="These fossils are\nfrom MT.MOON." },
+    { .x=15, .y=2, .sprite_tile=GFX_SCIENTIST_TILE_BASE, .facing=DIR_DOWN, .text="We have fossils from\nMT.MOON on display." },
+    { .x=17, .y=4, .sprite_tile=GFX_SCIENTIST_TILE_BASE, .facing=DIR_DOWN, .text="Scientists are studying\nthese ancient fossils." },
+    { .x=16, .y=2, .sprite_tile=GFX_POKEBALL_TILE_BASE, .facing=DIR_DOWN,
+      .flags=NPCF_ITEM, .item_id=ITEM_OLD_AMBER, .item_flag=FLAG_GOT_OLD_AMBER },
+};
+static const BackgroundEvent s_museum_2f_bg_events[] = {
+    { .x=11, .y=2, .text="SPACE SHUTTLE\nCOLUMBIA" },
+    { .x=2, .y=5, .text="Meteorite that\nfell on MT.MOON.\n(MOON STONE?)" },
+};
+static const NpcDef s_museum_2f_npcs[] = {
+    { .x=1, .y=7, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_DOWN,
+      .movement=NPC_MOVE_LEFT_RIGHT, .text="MOON STONE?\nWhat's so special\nabout it?" },
+    { .x=0, .y=5, .sprite_tile=GFX_GAMBLER_TILE_BASE, .facing=DIR_DOWN,
+      .text="July 20, 1969!\nThe 1st lunar\nlanding!\nI bought a color TV\nto watch it!" },
+    { .x=7, .y=5, .sprite_tile=GFX_SCIENTIST_TILE_BASE, .facing=DIR_DOWN,
+      .text="We have a space\nexhibit now." },
+    { .x=11, .y=5, .sprite_tile=GFX_GIRL_TILE_BASE, .facing=DIR_DOWN,
+      .text="I want a PIKACHU!\nIt's so cute!\nI asked my Daddy\nto catch me one!" },
+    { .x=12, .y=5, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_DOWN,
+      .text="Yeah, a PIKACHU\nsoon, I promise!" },
 };
 static const NpcDef s_nidoran_npcs[] = {
     { .x=4, .y=5, .sprite_tile=GFX_GIRL_TILE_BASE, .facing=DIR_LEFT, .text="NIDORAN!" },
@@ -236,6 +289,14 @@ const MapHeader g_map_museum_1f = {
     .map_id=MAP_MUSEUM_1F, .name="Pewter Museum", .layout=&s_museum_1f_layout,
     .warps=s_museum_1f_warps, .warp_count=ARRAY_COUNT(s_museum_1f_warps),
     .npcs=s_museum_npcs, .npc_count=ARRAY_COUNT(s_museum_npcs),
+    .music_id=AUDIO_MUSIC_VIRIDIAN_CITY,
+};
+const MapHeader g_map_museum_2f = {
+    .map_id=MAP_MUSEUM_2F, .name="Pewter Museum 2F", .layout=&s_museum_2f_layout,
+    .warps=s_museum_2f_warps, .warp_count=ARRAY_COUNT(s_museum_2f_warps),
+    .npcs=s_museum_2f_npcs, .npc_count=ARRAY_COUNT(s_museum_2f_npcs),
+    .bg_events=s_museum_2f_bg_events,
+    .bg_event_count=ARRAY_COUNT(s_museum_2f_bg_events),
     .music_id=AUDIO_MUSIC_VIRIDIAN_CITY,
 };
 const MapHeader g_map_pewter_nidoran_house = {

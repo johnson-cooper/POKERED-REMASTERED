@@ -35,5 +35,7 @@ typedef enum {
     MAP_MUSEUM_1F,
     MAP_PEWTER_NIDORAN_HOUSE,
     MAP_PEWTER_SPEECH_HOUSE,
+    // Append new map IDs so existing serialized saves retain their meanings.
+    MAP_MUSEUM_2F,
     MAP_COUNT,
 } MapId;

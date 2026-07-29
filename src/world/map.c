@@ -167,7 +167,8 @@ bool8 map_is_subtile_passable_from(s32 x, s32 y, Direction dir) {
     if (g_world.map->map_id == MAP_PALLET_TOWN ||
         g_world.map->map_id == MAP_ROUTE_1 ||
         g_world.map->map_id == MAP_ROUTE_22 ||
-        g_world.map->map_id == MAP_VIRIDIAN_CITY) {
+        g_world.map->map_id == MAP_VIRIDIAN_CITY ||
+        g_world.map->map_id == MAP_PEWTER_CITY) {
         u8 edges = map_get_subtile_collision_edges(x, y);
         u8 edge = (dir == DIR_DOWN)  ? COLLISION_EDGE_NORTH :
                    (dir == DIR_UP)    ? COLLISION_EDGE_SOUTH :
@@ -349,6 +350,7 @@ extern const MapHeader g_map_pewter_mart;
 extern const MapHeader g_map_pewter_pokecenter;
 extern const MapHeader g_map_pewter_gym;
 extern const MapHeader g_map_museum_1f;
+extern const MapHeader g_map_museum_2f;
 extern const MapHeader g_map_pewter_nidoran_house;
 extern const MapHeader g_map_pewter_speech_house;
 
@@ -376,6 +378,7 @@ static const MapHeader * const s_map_table[MAP_COUNT] = {
     [MAP_PEWTER_POKECENTER] = &g_map_pewter_pokecenter,
     [MAP_PEWTER_GYM] = &g_map_pewter_gym,
     [MAP_MUSEUM_1F] = &g_map_museum_1f,
+    [MAP_MUSEUM_2F] = &g_map_museum_2f,
     [MAP_PEWTER_NIDORAN_HOUSE] = &g_map_pewter_nidoran_house,
     [MAP_PEWTER_SPEECH_HOUSE] = &g_map_pewter_speech_house,
 };

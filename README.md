@@ -38,7 +38,7 @@ ported gates, and the implemented reference-linked interiors. It includes:
   bag contents, party, PC boxes, Pokédex state, healing points, map position,
   flags, hidden objects, and completed scripts.
 - The single-file ownership-verification patcher, currently generated as
-  v0.0.58 in `patcher/index.html`, with progress counts for maps, Pokémon,
+  v0.0.75 in `patcher/index.html`, with progress counts for maps, Pokémon,
   moves, music, items, sprites, learnsets, and Pokédex entries.
 
 ## Current limitations and next work

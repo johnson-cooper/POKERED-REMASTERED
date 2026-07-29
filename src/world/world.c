@@ -281,6 +281,31 @@ void world_do_warp(const WarpEvent *w) {
 void world_do_connection(u8 dest_map, Direction direction, s16 source_coordinate,
                          s8 offset) {
     if (s_transition_phase != WORLD_TRANSITION_NONE) return;
+
+    // Pokered stores a connection offset from each map's own point of view.
+    // When crossing an edge, the source map's record identifies the neighbor,
+    // but the destination map's reciprocal record supplies the coordinate
+    // offset that must be applied to the incoming player position. Using the
+    // source offset directly mirrors the sign incorrectly (for example,
+    // Route 2 -> Pewter uses Route 2's -5 instead of Pewter's +5).
+    const MapHeader *destination = map_get_by_id(dest_map);
+    if (destination && destination->connections) {
+        Direction reciprocal = direction;
+        if (direction == DIR_UP) reciprocal = DIR_DOWN;
+        else if (direction == DIR_DOWN) reciprocal = DIR_UP;
+        else if (direction == DIR_LEFT) reciprocal = DIR_RIGHT;
+        else if (direction == DIR_RIGHT) reciprocal = DIR_LEFT;
+
+        for (u8 i = 0; i < destination->connection_count; i++) {
+            const MapConnection *connection = &destination->connections[i];
+            if (connection->dest_map == g_world.map->map_id &&
+                connection->direction == reciprocal) {
+                offset = connection->offset;
+                break;
+            }
+        }
+    }
+
     s_connection_dest_map = dest_map;
     s_connection_direction = direction;
     s_connection_coordinate = source_coordinate;

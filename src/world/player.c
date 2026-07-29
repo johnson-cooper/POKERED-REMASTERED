@@ -151,6 +151,9 @@ static bool8 player_tile_occupied_by_npc(s32 x, s32 y) {
     for (u8 i = 0; i < g_world.npc_count; i++) {
         const NpcState *npc = &g_world.npcs[i];
         if (npc->flags & (NPCF_HIDDEN | NPCF_NO_SPRITE)) continue;
+        if (g_world.map->map_id == MAP_PEWTER_CITY &&
+            npc->x == 35 && npc->y == 16 && flags_get(FLAG_GOT_BOULDER_BADGE))
+            continue;
         if ((s32)npc->x == x && (s32)npc->y == y) return TRUE;
     }
     return FALSE;
@@ -265,7 +268,8 @@ static bool8 player_check_npc_interact(void) {
     // tiles apart. Run this only after ordinary NPC targeting has had a
     // chance, and keep it to the single reference counter approach tile so
     // it does not consume interactions across the south end.
-    if (map->map_id == MAP_VIRIDIAN_POKECENTER &&
+    if ((map->map_id == MAP_VIRIDIAN_POKECENTER ||
+         map->map_id == MAP_PEWTER_POKECENTER) &&
         p->tile_x == 3 && p->tile_y == 3) {
         for (u8 i = 0; i < g_world.npc_count; i++) {
             const NpcState *npc = &g_world.npcs[i];
@@ -279,7 +283,8 @@ static bool8 player_check_npc_interact(void) {
     // Viridian Mart clerk is behind the left counter at (0,5). The player
     // stands at x=2 facing LEFT (counter-side interaction, matching pokered's
     // counter NPC mechanic where the player talks across an impassable tile).
-    if (map->map_id == MAP_VIRIDIAN_MART &&
+    if ((map->map_id == MAP_VIRIDIAN_MART ||
+         map->map_id == MAP_PEWTER_MART) &&
         p->tile_x == 2 && p->facing == DIR_LEFT) {
         for (u8 i = 0; i < g_world.npc_count; i++) {
             const NpcState *npc = &g_world.npcs[i];
@@ -362,6 +367,18 @@ bool8 player_script_start_step(Direction dir) {
 
     if (player_try_ledge_jump(dir))
         return TRUE;
+
+    // Pewter's northern-right route is a map-script gate. Handle the three
+    // tiles directly south of the NPC before ordinary terrain collision so
+    // the approach is blocked until Brock has been defeated.
+    if (script_pewter_city_gate_blocks(nx, ny)) {
+        script_trigger_npc(0, 4);
+        p->move_state = MOVE_STATE_TURNING;
+        p->step_frame = 4;
+        p->step_dx = 0;
+        p->step_dy = 0;
+        return FALSE;
+    }
 
     // Boundary warps must resolve before movement because their destination
     // is outside the current map. Exact warp tiles, however, are walkable:

@@ -9,6 +9,8 @@ typedef enum {
     TRAINER_NONE = 0,
     TRAINER_YOUNGSTER,
     TRAINER_BUG_CATCHER,
+    TRAINER_JR_TRAINER_M,
+    TRAINER_BROCK,
     TRAINER_COUNT,
 } TrainerId;
 

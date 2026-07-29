@@ -16,6 +16,7 @@ void script_trigger_background(u16 script_id);
 void script_trigger_background_event(const BackgroundEvent *event);
 void script_trainer_battle_complete(bool8 won);
 bool8 script_viridian_old_man_blocks(s32 x, s32 y);
+bool8 script_pewter_city_gate_blocks(s32 x, s32 y);
 
 // Advances generic NPC dialogs on every map, including maps without a
 // dedicated map-script callback.

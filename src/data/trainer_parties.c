@@ -10,6 +10,14 @@ const TrainerParty g_trainer_parties[TRAINER_COUNT] = {
         "BUG CATCHER", 2,
         {{ MON_WEEDLE, 3 }, { MON_CATERPIE, 3 }, { MON_NONE, 0 }}
     },
+    [TRAINER_JR_TRAINER_M] = {
+        "JR.TRAINER", 2,
+        {{ MON_DIGLETT, 11 }, { MON_SANDSHREW, 11 }, { MON_NONE, 0 }}
+    },
+    [TRAINER_BROCK] = {
+        "BROCK", 2,
+        {{ MON_GEODUDE, 12 }, { MON_ONIX, 14 }, { MON_NONE, 0 }}
+    },
 };
 
 static const TrainerParty s_bug_catcher_forest[] = {

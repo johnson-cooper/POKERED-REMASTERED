@@ -1081,8 +1081,8 @@ This section supersedes the early progress snapshot in Section 24.
 
 ### Patcher status
 
-Current committed artifact: `patcher/index.html` v0.0.58, embedding the
-1,087,500-byte ROM. The current scan reports 151/151 Pokémon, sprites,
+Current committed artifact: `patcher/index.html` v0.0.75, embedding the
+1,082,608-byte ROM. The current scan reports 151/151 Pokémon, sprites,
 learnsets, and Pokédex entries; map, music, and item values remain progress
 counts for the currently ported content.
 
@@ -1141,6 +1141,21 @@ counts for the currently ported content.
   reference-linked Mart, Pokécenter, Gym, Museum, Nidoran House, and Speech
   House interiors. Those interiors use `WARP_LAST_MAP` so their exits return
   to the correct Pewter City warp, matching pokered's parent-map behavior.
+- Pewter City now uses the complete converted overworld block table shared by
+  Route 1 and Route 2. This is required because `PewterCity.blk` references
+  high-numbered pokered overworld blocks that are absent from the partial
+  starter overworld table; using the partial table produces blank and
+  forest-like regions on arrival.
+- Pewter City is 20 blocks wide by 18 blocks high, matching pokered's
+  `map_const PEWTER_CITY, 20, 18` and its 360-byte `PewterCity.blk`. The
+  block bytes remain row-major; declaring this as 10×36 transposed the map.
+- Pewter Museum 2F is now registered from `Museum2F.blk`, uses the shared
+  pokered Museum/Gate tileset, includes the reference upstairs warp, signs,
+  and five museum object-event dialogues.
+- Pewter Museum 1F now includes all five pokered object events, including the
+  persistent Old Amber item pickup. Pewter Gym trainers use the reference
+  Diglett/Sandshrew and Geodude/Onix parties; defeating Brock now awards the
+  Boulder Badge and TM34 in the post-battle flow.
 - Forest Gate map headers now use an explicit `g_tileset_forest_gate` symbol.
   This preserves pokered's `FOREST_GATE` identity while correctly sharing the
   reference `gate.png`/`gate.bst` assets that pokered aliases for both gate
@@ -1180,3 +1195,27 @@ counts for the currently ported content.
   map is its parent, but is ambiguous for a gate entered from Viridian Forest.
   The resulting reference route is now Viridian Forest → Forest Gate → Route 2
   → Pewter City, with the Forest-side warp indices aligned to both gate tiles.
+- Outdoor connection transitions resolve the reciprocal destination-map offset
+  from pokered's map headers. Pewter's Route 2 entrance is intentionally shifted
+  four tiles east from the original reference position: the project uses the
+  reciprocal `+10`/`-10` connection pair for Pewter ↔ Route 2, keeping the
+  two-tile entrance aligned with the requested tile 4/5 landing area.
+- Pewter Museum 1F uses the pokered dimensions of 10 blocks wide by 4 blocks
+  high. Its 40-byte `Museum1F.blk` is kept row-major; declaring it as 5×8
+  transposed the block grid and scattered the museum tiles.
+- Pewter Mart and Pewter Pokécenter use the exact pokered 4×4 and 7×4 block
+  dimensions respectively. Pokered's `MART` header aliases the Pokécenter
+  graphics/blockset, so both maps use `g_tileset_pokecenter`; the nurse
+  interaction and healing-point counter flow are shared with Viridian
+  Pokécenter.
+- Pewter City's northern-right youngster now blocks the three tiles directly
+  south of him until the Boulder Badge is obtained. Pewter outdoor movement
+  also uses directional collision
+- All Poké Mart inventories now support quantity purchases. Up/down changes the
+  quantity by one, left/right changes it by ten, A confirms, and B returns to
+  the item list; money and bag capacity are validated for the full purchase.
+  edges so the reference mountain/rock borders cannot be entered from their
+  walkable-looking neighboring rows.
+- Overworld rendering now honors each converted pokered metatile's explicit
+  per-tile palette assignment, preserving Pewter's city roads, roofs, walls,
+  grass, and rock borders instead of applying a global source-tile color.

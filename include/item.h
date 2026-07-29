@@ -23,6 +23,8 @@ typedef enum {
     ITEM_TM41, ITEM_TM42, ITEM_TM43, ITEM_TM44, ITEM_TM45, ITEM_TM46, ITEM_TM47, ITEM_TM48, ITEM_TM49, ITEM_TM50,
     ITEM_HM01, ITEM_HM02, ITEM_HM03, ITEM_HM04, ITEM_HM05,
     ITEM_HP_UP,
+    // Appended so existing save item IDs remain stable.
+    ITEM_OLD_AMBER,
     ITEM_COUNT,
 } ItemId;
 
@@ -43,7 +45,9 @@ extern BagState g_bag;
 
 const char *item_get_name(ItemId id);
 u16         item_get_price(ItemId id);
+u16         item_get_sell_price(ItemId id);
 bool8       item_is_key_item(ItemId id);
+bool8       item_is_sellable(ItemId id);
 bool8       item_is_tmhm(ItemId id);
 u8          item_tmhm_number(ItemId id);
 void        bag_init(void);

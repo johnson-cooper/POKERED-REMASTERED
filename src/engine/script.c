@@ -127,6 +127,8 @@ typedef enum {
     SHOP_WELCOME,
     SHOP_MENU,
     SHOP_BUY_SELECT,
+    SHOP_SELL_SELECT,
+    SHOP_QUANTITY,
     SHOP_BUY_CONFIRM,
     SHOP_BUY_DONE,
     SHOP_GOODBYE,
@@ -134,6 +136,11 @@ typedef enum {
 
 static ShopState s_shop_state = SHOP_IDLE;
 static u8 s_shop_cursor = 0;
+static u8 s_shop_quantity = 1;
+static u8 s_shop_sell_offset = 0;
+static bool8 s_shop_selling = FALSE;
+static ItemId s_shop_item = ITEM_NONE;
+static u16 s_shop_unit_price = 0;
 
 typedef struct {
     ItemId id;
@@ -193,9 +200,10 @@ static void shop_draw_money(void) {
 static void shop_draw_menu(void) {
     text_clear();
     shop_draw_money();
-    shop_draw_box(14, 0, 29, 4);
+    shop_draw_box(14, 0, 29, 6);
     text_draw_str(16, 1, "BUY");
-    text_draw_str(16, 3, "SEE YA!");
+    text_draw_str(16, 3, "SELL");
+    text_draw_str(16, 5, "SEE YA!");
     text_draw_char(15, (u8)(1 + s_shop_cursor * 2), '>');
 }
 
@@ -205,10 +213,10 @@ static void shop_draw_items(void) {
     shop_draw_box(0, 3, 29, 19);
     for (u8 i = 0; i < s_active_shop_count; i++) {
         u8 row = (u8)(5 + i * 2);
-        text_draw_str(3, row, item_get_name(s_viridian_shop[i].id));
+        text_draw_str(3, row, item_get_name(s_active_shop[i].id));
         char price[8] = "$";
         char *p = price + 1;
-        u16 pr = s_viridian_shop[i].price;
+        u16 pr = s_active_shop[i].price;
         if (pr >= 1000) *p++ = (char)('0' + pr / 1000 % 10);
         if (pr >= 100) *p++ = (char)('0' + pr / 100 % 10);
         if (pr >= 10) *p++ = (char)('0' + pr / 10 % 10);
@@ -227,6 +235,99 @@ static void shop_draw_items(void) {
     text_draw_char(1, cursor_row, '>');
 }
 
+static void shop_format_number(char *buffer, u32 value) {
+    char reversed[10];
+    u8 count = 0;
+    do {
+        reversed[count++] = (char)('0' + value % 10);
+        value /= 10;
+    } while (value != 0);
+
+    u8 i = 0;
+    while (count != 0)
+        buffer[i++] = reversed[--count];
+    buffer[i] = '\0';
+}
+
+#define SHOP_SELL_VISIBLE 13
+
+static u8 shop_sell_count(void) {
+    u8 count = 0;
+    for (u8 i = 0; i < g_bag.count; i++) {
+        if (item_is_sellable((ItemId)g_bag.slots[i].id)) count++;
+    }
+    return count;
+}
+
+static ItemId shop_sell_item_at(u8 sell_index) {
+    for (u8 i = 0; i < g_bag.count; i++) {
+        ItemId id = (ItemId)g_bag.slots[i].id;
+        if (item_is_sellable(id)) {
+            if (sell_index == 0) return id;
+            sell_index--;
+        }
+    }
+    return ITEM_NONE;
+}
+
+static void shop_draw_sell_items(void) {
+    u8 count = shop_sell_count();
+    if (count <= SHOP_SELL_VISIBLE) {
+        s_shop_sell_offset = 0;
+    } else if (s_shop_cursor < s_shop_sell_offset) {
+        s_shop_sell_offset = s_shop_cursor;
+    } else if (s_shop_cursor >= s_shop_sell_offset + SHOP_SELL_VISIBLE) {
+        s_shop_sell_offset = (u8)(s_shop_cursor - SHOP_SELL_VISIBLE + 1);
+    }
+
+    text_clear();
+    shop_draw_money();
+    shop_draw_box(0, 3, 29, 19);
+    for (u8 row_index = 0; row_index < SHOP_SELL_VISIBLE; row_index++) {
+        u8 item_index = (u8)(s_shop_sell_offset + row_index);
+        if (item_index >= count) break;
+        ItemId id = shop_sell_item_at(item_index);
+        u8 row = (u8)(5 + row_index);
+        text_draw_str(3, row, item_get_name(id));
+        char price[8] = "$";
+        char *p = price + 1;
+        shop_format_number(p, item_get_sell_price(id));
+        text_draw_str(20, row, price);
+        if (item_index == s_shop_cursor) text_draw_char(1, row, '>');
+    }
+    text_draw_str(3, 18, "B BACK");
+}
+
+static u8 shop_max_quantity(void) {
+    u32 max = s_shop_selling ? bag_count(s_shop_item) :
+                               BAG_MAX_STACK - bag_count(s_shop_item);
+    if (!s_shop_selling && s_shop_unit_price != 0) {
+        u32 affordable = g_player_money / s_shop_unit_price;
+        if (max > affordable) max = affordable;
+    }
+    return max > 99 ? 99 : (u8)max;
+}
+
+static void shop_draw_quantity(void) {
+    text_clear();
+    shop_draw_money();
+    shop_draw_box(0, 3, 29, 19);
+    text_draw_str(3, 5, item_get_name(s_shop_item));
+    text_draw_str(3, 8, "HOW MANY?");
+    text_draw_str(3, 11, "QUANTITY");
+    text_draw_str(20, 11, "x");
+    char number[11];
+    shop_format_number(number, s_shop_quantity);
+    text_draw_str(22, 11, number);
+    text_draw_str(3, 14, "TOTAL");
+    char total[11];
+    shop_format_number(total, (u32)s_shop_unit_price * s_shop_quantity);
+    text_draw_str(20, 14, "$");
+    text_draw_str(22, 14, total);
+    text_draw_str(3, 17, s_shop_selling ? "A SELL  B BACK" : "A BUY   B BACK");
+    text_draw_char(1, 8, '>');
+}
+
 static void shop_update(void) {
     switch (s_shop_state) {
     case SHOP_IDLE:
@@ -242,19 +343,32 @@ static void shop_update(void) {
 
     case SHOP_MENU:
         if (input_pressed(KEY_UP)) {
-            s_shop_cursor = s_shop_cursor == 0 ? 1 : 0;
+            s_shop_cursor = s_shop_cursor == 0 ? 2 : (u8)(s_shop_cursor - 1);
             shop_draw_menu();
             audio_sfx_play(AUDIO_SFX_SELECT);
         } else if (input_pressed(KEY_DOWN)) {
-            s_shop_cursor = s_shop_cursor >= 1 ? 0 : 1;
+            s_shop_cursor = s_shop_cursor >= 2 ? 0 : (u8)(s_shop_cursor + 1);
             shop_draw_menu();
             audio_sfx_play(AUDIO_SFX_SELECT);
         } else if (input_pressed(KEY_A)) {
             audio_sfx_play(AUDIO_SFX_CONFIRM);
             if (s_shop_cursor == 0) {
+                s_shop_selling = FALSE;
                 s_shop_cursor = 0;
                 shop_draw_items();
                 s_shop_state = SHOP_BUY_SELECT;
+            } else if (s_shop_cursor == 1) {
+                s_shop_selling = TRUE;
+                s_shop_cursor = 0;
+                s_shop_sell_offset = 0;
+                if (shop_sell_count() == 0) {
+                    dialog_open();
+                    dialog_set_text("You have nothing\nto sell.");
+                    s_shop_state = SHOP_BUY_DONE;
+                } else {
+                    shop_draw_sell_items();
+                    s_shop_state = SHOP_SELL_SELECT;
+                }
             } else {
                 dialog_open();
                 dialog_set_text("Thank you!\nCome again!");
@@ -285,26 +399,16 @@ static void shop_update(void) {
                 shop_draw_menu();
                 s_shop_state = SHOP_MENU;
             } else {
-                u16 price = s_active_shop[s_shop_cursor].price;
-                ItemId id = s_active_shop[s_shop_cursor].id;
-                if (g_player_money < price) {
+                s_shop_quantity = 1;
+                s_shop_item = s_active_shop[s_shop_cursor].id;
+                s_shop_unit_price = s_active_shop[s_shop_cursor].price;
+                if (shop_max_quantity() == 0) {
                     dialog_open();
-                    dialog_set_text("You don't have\nenough money.");
-                    s_shop_state = SHOP_BUY_DONE;
-                } else if (!bag_add(id, 1)) {
-                    dialog_open();
-                    dialog_set_text("You can't carry\nany more items.");
+                    dialog_set_text("You don't have\nenough money or\nbag space.");
                     s_shop_state = SHOP_BUY_DONE;
                 } else {
-                    game_subtract_money(price);
-                    dialog_open();
-                    static char buy_msg[48];
-                    char *p = buy_msg;
-                    p[0]='H';p[1]='e';p[2]='r';p[3]='e';p[4]=' ';
-                    p[5]='y';p[6]='o';p[7]='u';p[8]=' ';p[9]='a';
-                    p[10]='r';p[11]='e';p[12]='!';p[13]='\0';
-                    dialog_set_text(buy_msg);
-                    s_shop_state = SHOP_BUY_DONE;
+                    shop_draw_quantity();
+                    s_shop_state = SHOP_QUANTITY;
                 }
             }
         } else if (input_pressed(KEY_B)) {
@@ -316,11 +420,102 @@ static void shop_update(void) {
         break;
     }
 
+    case SHOP_SELL_SELECT: {
+        u8 count = shop_sell_count();
+        if (input_pressed(KEY_UP)) {
+            if (count != 0)
+                s_shop_cursor = s_shop_cursor == 0 ? (u8)(count - 1) : (u8)(s_shop_cursor - 1);
+            shop_draw_sell_items();
+            audio_sfx_play(AUDIO_SFX_SELECT);
+        } else if (input_pressed(KEY_DOWN)) {
+            if (count != 0)
+                s_shop_cursor = s_shop_cursor + 1 >= count ? 0 : (u8)(s_shop_cursor + 1);
+            shop_draw_sell_items();
+            audio_sfx_play(AUDIO_SFX_SELECT);
+        } else if (input_pressed(KEY_A)) {
+            if (count == 0) {
+                s_shop_cursor = 0;
+                shop_draw_menu();
+                s_shop_state = SHOP_MENU;
+            } else {
+                s_shop_item = shop_sell_item_at(s_shop_cursor);
+                s_shop_unit_price = item_get_sell_price(s_shop_item);
+                s_shop_quantity = 1;
+                shop_draw_quantity();
+                s_shop_state = SHOP_QUANTITY;
+            }
+        } else if (input_pressed(KEY_B)) {
+            s_shop_cursor = 1;
+            shop_draw_menu();
+            s_shop_state = SHOP_MENU;
+        }
+        break;
+    }
+
+    case SHOP_QUANTITY: {
+        u8 maximum = shop_max_quantity();
+        if (input_pressed(KEY_UP)) {
+            if (s_shop_quantity < maximum) s_shop_quantity++;
+            shop_draw_quantity();
+            audio_sfx_play(AUDIO_SFX_SELECT);
+        } else if (input_pressed(KEY_DOWN)) {
+            if (s_shop_quantity > 1) s_shop_quantity--;
+            shop_draw_quantity();
+            audio_sfx_play(AUDIO_SFX_SELECT);
+        } else if (input_pressed(KEY_RIGHT)) {
+            s_shop_quantity = (u8)(s_shop_quantity + 10 > maximum ? maximum : s_shop_quantity + 10);
+            shop_draw_quantity();
+            audio_sfx_play(AUDIO_SFX_SELECT);
+        } else if (input_pressed(KEY_LEFT)) {
+            s_shop_quantity = s_shop_quantity > 10 ? (u8)(s_shop_quantity - 10) : 1;
+            shop_draw_quantity();
+            audio_sfx_play(AUDIO_SFX_SELECT);
+        } else if (input_pressed(KEY_A)) {
+            u32 total = (u32)s_shop_unit_price * s_shop_quantity;
+            bool8 success;
+            if (s_shop_selling)
+                success = s_shop_quantity != 0 && bag_remove(s_shop_item, s_shop_quantity);
+            else
+                success = s_shop_quantity != 0 && total <= g_player_money &&
+                          bag_add(s_shop_item, s_shop_quantity);
+            if (!success) {
+                dialog_open();
+                dialog_set_text(s_shop_selling ? "You can't sell\nthat many." :
+                                                "You can't buy\nthat many.");
+            } else {
+                if (s_shop_selling)
+                    game_add_money(total);
+                else
+                    game_subtract_money(total);
+                dialog_open();
+                dialog_set_text(s_shop_selling ? "Thank you!\nCome again!" :
+                                                "Here you are!\nThank you!");
+            }
+            s_shop_state = SHOP_BUY_DONE;
+        } else if (input_pressed(KEY_B)) {
+            s_shop_quantity = 1;
+            if (s_shop_selling) {
+                shop_draw_sell_items();
+                s_shop_state = SHOP_SELL_SELECT;
+            } else {
+                shop_draw_items();
+                s_shop_state = SHOP_BUY_SELECT;
+            }
+        }
+        break;
+    }
+
     case SHOP_BUY_DONE:
         if (dialog_update()) {
             s_shop_cursor = 0;
-            shop_draw_items();
-            s_shop_state = SHOP_BUY_SELECT;
+            if (s_shop_selling) {
+                s_shop_sell_offset = 0;
+                shop_draw_sell_items();
+                s_shop_state = SHOP_SELL_SELECT;
+            } else {
+                shop_draw_items();
+                s_shop_state = SHOP_BUY_SELECT;
+            }
         }
         break;
 
@@ -347,6 +542,12 @@ bool8 script_viridian_old_man_blocks(s32 x, s32 y) {
     // Close both approach tiles and the gap beside the sleepy Old Man until
     // the parcel/Pokédex sequence is complete.
     return y == 9 && (x == 18 || x == 19);
+}
+
+bool8 script_pewter_city_gate_blocks(s32 x, s32 y) {
+    return g_world.map && g_world.map->map_id == MAP_PEWTER_CITY &&
+           x == 35 && y >= 17 && y <= 19 &&
+           !flags_get(FLAG_GOT_BOULDER_BADGE);
 }
 
 // Pokered's Pokécenter nurse interaction is a small multi-step script rather
@@ -660,6 +861,25 @@ void script_trainer_battle_complete(bool8 won) {
         trainer->flags |= NPCF_TRAINER_DEFEATED;
         if (trainer->trainer_flag != 0 && trainer->trainer_flag < FLAG_COUNT) {
             flags_set((GameFlag)trainer->trainer_flag);
+        }
+        // Pokered's Pewter Gym post-battle script runs after the battle has
+        // ended, never during it: Brock awards the Boulder Badge and TM34.
+        if (g_world.map->map_id == MAP_PEWTER_GYM &&
+            trainer->trainer_id == TRAINER_BROCK &&
+            !flags_get(FLAG_GOT_BOULDER_BADGE)) {
+            flags_set(FLAG_GOT_BOULDER_BADGE);
+            dialog_open();
+            dialog_set_text("[NAME] received the\nBOULDER BADGE!\f"
+                            "BROCK: The BOULDER BADGE\n"
+                            "makes POKeMON up to Lv20\n"
+                            "obey you. It also lets you\n"
+                            "use FLASH outside of battle.\f"
+                            "Wait! Take this with you.\f"
+                            "[NAME] received TM34!\f"
+                            "TM34 contains BIDE.\n"
+                            "A POKeMON will absorb damage\n"
+                            "and return it double.");
+            bag_add(ITEM_TM34, 1);
         }
     }
     s_active_trainer_battle = FALSE;

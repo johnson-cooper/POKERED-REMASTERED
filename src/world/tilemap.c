@@ -63,6 +63,7 @@ static u8 tile_palette_for(const Tileset *ts, u16 tile_id, u8 explicit_palette,
     // by the metatile definition (roof, sign, wall, etc.).
     if (tile_id >= OVERWORLD_OVERLAY_TRANSPARENT_WHITE_BASE)
         return explicit_palette;
+
     if (ts->tile_palette_map)
         return ts->tile_palette_map[tile_id];
     return explicit_palette;

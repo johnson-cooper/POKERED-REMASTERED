@@ -77,7 +77,8 @@ static const BackgroundEvent s_bg_events[] = {
 };
 
 static const MapConnection s_connections[] = {
-    { .direction = DIR_UP, .dest_map = MAP_PEWTER_CITY, .offset = -5 },
+    // Reciprocal of Pewter City's east-shifted +10 connection offset.
+    { .direction = DIR_UP, .dest_map = MAP_PEWTER_CITY, .offset = -10 },
     { .direction = DIR_DOWN, .dest_map = MAP_VIRIDIAN_CITY, .offset = -5 },
 };
 
