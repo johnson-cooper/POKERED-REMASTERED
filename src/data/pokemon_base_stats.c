@@ -304,5 +304,5 @@ const PokemonBaseStats g_pokemon_base_stats[NUM_POKEMON + 1] = {
     [150] = {106, 110,  90, 130, 154, TYPE_PSYCHIC,  TYPE_PSYCHIC,   3, 220 }, // Mewtwo
 
     // ── Mew ───────────────────────────────────────────────────────────────────
-    [151] = {100, 100, 100, 100, 100, TYPE_NORMAL,   TYPE_NORMAL,  45, 64  }, // Mew
+    [151] = {100, 100, 100, 100, 100, TYPE_PSYCHIC,  TYPE_PSYCHIC, 45, 64  }, // Mew
 };

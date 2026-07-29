@@ -457,8 +457,13 @@ Key rules:
   3. Else W = `(MaxHP × 255) / (12 × max(CurHP/4, 1))`; if W > 255 → caught
   4. Else `rand2 <= W` → caught; else shake count Z = `(W × (catch_rate×100/255)) / 255 + status2`
 - Trainer battles: run ends battle (escape); no Poké Balls against trainers
-- On DEFEAT: `s_blackout = TRUE`, `battle_is_blackout()` used by overworld to
-  warp player to `g_last_healing_point`
+- On DEFEAT: `s_blackout = TRUE`, `battle_is_blackout()` is used by the
+  overworld to warp the player to `g_last_healing_point`. Non-scripted
+  blackouts halve money, display the exact amount lost, heal the party, and
+  return to the saved healing center.
+- Status effects are stored on the party record, applied by move effects, shown
+  below the battle level, and rendered with status-specific colors in the party
+  status screen.
 
 ---
 
@@ -501,6 +506,11 @@ Important functions:
 | `party_set_healing_point(map, x, y, facing)` | sets `g_last_healing_point` |
 
 `HealingPoint` is the blackout/respawn location: map + tile coords + facing.
+
+The party status screen reads both displayed types from
+`g_pokemon_base_stats[species]`; type labels must never be maintained as a
+species-specific switch. This keeps UI, palette selection, STAB, and battle
+effectiveness on the same data source.
 Defaults to `MAP_PLAYERS_HOUSE_1F` (4, 3, DIR_RIGHT).
 
 ---
@@ -542,6 +552,12 @@ and initialize it in **both** prepare functions.
 ---
 
 ## 13. Item / Bag System (`src/engine/item.c`, `include/item.h`)
+
+The current item enum includes Poké Balls, healing items, key items, five
+evolution stones, HP UP, all 50 TMs, and all five HMs. TM/HM move mappings and
+compatibility are data-driven in `src/data/tmhm.c`. Field use supports regular
+item scrolling, party-member selection for stones and TMs/HMs, move
+replacement, TM consumption, and retained HMs.
 
 ```c
 typedef enum {
@@ -603,13 +619,13 @@ typedef enum {
     POKEDEX_SPEAROW,
     POKEDEX_NIDORAN_F,
     POKEDEX_NIDORAN_M,
-    POKEDEX_ENTRY_COUNT,   // 9 entries currently
+    POKEDEX_ENTRY_COUNT,   // NUM_POKEMON + 1; index 0 is MON_NONE
 } PokedexSpecies;
 ```
 
-`pokedex_species_to_entry(PokemonId, PokedexSpecies*)` maps a `MON_*` id to the
-corresponding enum value; returns FALSE if no entry exists (post-catch display is
-skipped for un-ported species).
+`PokedexSpecies` uses the same 1-indexed `PokemonId` domain. All 151 species
+have data-driven entries, so post-catch display and list navigation cover the
+complete Pokédex.
 
 Sprites displayed in the entry viewer are the same 40×40 / 200-u32 tile arrays
 used by the party status screen (`g_pokedex_*_tiles`), drawn to BG0 tile index
@@ -665,7 +681,7 @@ GBA SRAM at `0x0E000000`. 8-bit bus; each byte written/read individually. The
 emulator SRAM detection string `"SRAM_V113"` is embedded as a static volatile
 `const char[]` so it survives optimization.
 
-### SaveData layout (version 4, current)
+### SaveData layout (version 5, current)
 
 ```c
 typedef struct {
@@ -683,21 +699,27 @@ typedef struct {
     u8  option_battle_style;
     PartyState party;
     HealingPoint last_healing_point;
-    u32 money;              // added in v4
+    u32 money;              // persisted player money
     BagState bag;           // added in v4
     u8  pokedex_seen[20];   // added in v4
     u8  pokedex_owned[20];  // added in v4
+    PcState pc;             // added in v5: boxes and stored items
     u8  checksum;           // sum of all bytes from index 4 to checksum-1
 } SaveData;
 ```
 
 ### Version migration
 
+Version 5 is the current format. Version 4 saves are migrated by initializing
+the new PC state; older versions receive the documented defaults below.
+
 `save_read()` detects the version byte and upgrades legacy saves:
 - **v1** — no party, no healing point → party cleared, default healing point
 - **v2** — party without `experience` field → `experience` reconstructed from level
 - **v3** — party + healing point, no money/bag/pokédex → those zeroed/cleared
-- **v4** — current, read directly
+- **v4** — party/healing/money/bag/Pokédex, without PC storage → PC initialized
+- **v5** — current format; adds the serialized PC state while preserving all
+  earlier fields
 
 `save_write()` writes payload bytes (index 4 onward) first, then the magic
 bytes (0–3) last. A mid-write reset leaves the old file readable rather than
@@ -1059,12 +1081,13 @@ This section supersedes the early progress snapshot in Section 24.
 
 ### Patcher status
 
+Current committed artifact: `patcher/index.html` v0.0.58, embedding the
+1,087,500-byte ROM. The current scan reports 151/151 Pokémon, sprites,
+learnsets, and Pokédex entries; map, music, and item values remain progress
+counts for the currently ported content.
+
 - `make patcher` regenerates `patcher/index.html` from the current ROM and bumps
   `patcher/VERSION`.
-- The patcher was last rebuilt as v0.0.35 and embeds the current 1,062,048-byte
-  ROM. Its progress scanner now reports all 151 Pokemon, 165 moves, 151 sprite
-  sets, 151 learnsets, and the generated Pokédex data; map/music/item totals
-  remain based on the currently ported content rather than the full reference.
 
 ### Map event foundation
 

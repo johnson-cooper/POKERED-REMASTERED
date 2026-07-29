@@ -172,30 +172,34 @@ static u8 party_status_palette(u8 status) {
     return TEXT_PAL;
 }
 
-static const char *party_type1(PokemonId species) {
-    switch (species) {
-    case MON_CHARMANDER: return "FIRE";
-    case MON_CHARMELEON: return "FIRE";
-    case MON_SQUIRTLE:   return "WATER";
-    case MON_PIDGEY:
-    case MON_RATTATA:
-    case MON_SPEAROW:    return "NORMAL";
-    case MON_NIDORAN_F:
-    case MON_NIDORAN_M:
-    case MON_NIDORINO:   return "POISON";
-    case MON_WEEDLE:     return "BUG";
-    default:             return "GRASS";
+static const char *party_type_name(PokemonType type) {
+    switch (type) {
+    case TYPE_NORMAL:   return "NORMAL";
+    case TYPE_FIGHTING: return "FIGHTING";
+    case TYPE_FLYING:   return "FLYING";
+    case TYPE_POISON:   return "POISON";
+    case TYPE_GROUND:   return "GROUND";
+    case TYPE_ROCK:     return "ROCK";
+    case TYPE_BUG:      return "BUG";
+    case TYPE_GHOST:    return "GHOST";
+    case TYPE_FIRE:     return "FIRE";
+    case TYPE_WATER:    return "WATER";
+    case TYPE_GRASS:    return "GRASS";
+    case TYPE_ELECTRIC: return "ELECTRIC";
+    case TYPE_PSYCHIC:  return "PSYCHIC";
+    case TYPE_ICE:      return "ICE";
+    case TYPE_DRAGON:   return "DRAGON";
+    default:            return "NORMAL";
     }
 }
 
+static const char *party_type1(PokemonId species) {
+    return party_type_name(g_pokemon_base_stats[species].type1);
+}
+
 static const char *party_type2(PokemonId species) {
-    switch (species) {
-    case MON_BULBASAUR:  return "POISON";
-    case MON_PIDGEY:
-    case MON_SPEAROW:    return "FLYING";
-    case MON_WEEDLE:     return "POISON";
-    default:             return "";
-    }
+    const PokemonBaseStats *base = &g_pokemon_base_stats[species];
+    return base->type1 == base->type2 ? "" : party_type_name(base->type2);
 }
 
 static char *party_number(u32 value) {

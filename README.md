@@ -11,54 +11,47 @@ this source tree.
 
 ## Current playable slice
 
-The current build includes:
+The current build is a playable early-game slice covering Pallet Town, Route 1,
+Route 2, Route 22, Viridian City, Viridian Forest, Pewter City, their currently
+ported gates, and the implemented reference-linked interiors. It includes:
 
-- GBA boot, title screen, introduction flow, audio cues, and game-state flow.
-- Pallet Town, Oak's Lab, Route 1, Red's House 1F/2F, and Rival's House.
-- Player movement, walking animation, NPC movement, collision, camera
-  scrolling, map-edge warps, walkable step-on warps, collision warps, and
-  fade transitions.
-- Scripted Oak's Lab events: starter selection, Oak's dialogue, starter
-  nickname entry, persistent Pokeball removal, rival movement, rival starter
-  selection, and the rival battle.
-- Bulbasaur, Charmander, and Squirtle starter selection with the correct
-  opposite-starter rival mapping.
-- Persistent party data for species, nickname, level, DVs, stats, HP, status,
-  moves, PP, and experience.
-- Full-screen party list and status screens with animated party icons,
-  nickname/species fallback, level, HP, status, stats, types, total experience,
-  and experience remaining to the next level.
-- Species-specific experience growth curves and level-up stat/HP updates.
-- Wild and trainer battles with battle introductions, trainer and Pokemon
-  sprites, front/back sprites, send-out sequencing, cries, move selection,
-  PP, accuracy, critical hits, type effectiveness, stat stages, fainting,
-  experience, leveling, victory/defeat handling, and wild-battle escape
-  attempts.
-- Battle HUDs with Pokemon names or nicknames, levels, HP values, and HP bars.
-- Current starter moves and rival battle AI.
-- Pokedex species screens for the implemented starter entries, including
-  white backgrounds, sprite transparency, and species palettes.
-- Colorized overworld graphics, flowers, NPCs, player sprite, signs, fences,
-  houses, and Oak's House palette corrections.
-- Colorized indoor maps using per-tileset palettes for Red's House, Rival's
-  House, and Oak's Lab, with tile-specific palette assignments and
-  transition-safe tile loading.
-- SRAM save/load with checksum validation, player/map position, party data,
-  healing point, options, flags, hidden objects, completed scripts, and Oak's
-  Lab progression state.
+- The title, intro, naming, Oak's Lab starter selection, Pokédex delivery, and
+  scripted rival sequence.
+- Data-driven maps with compatible tilesets, collision, ledges, camera
+  scrolling, step-on and boundary warps, map connections, signs, item balls,
+  NPC dialogue, persistent flags, and fade transitions.
+- All 151 species' gameplay data, sprites, palettes, Pokédex entries, initial
+  moves, and level-up learnsets. The patcher reports the current species data
+  as 151/151.
+- Party and PC storage, party selection, party switching, nicknames, stats,
+  experience, status conditions, move lists, Pokédex seen/owned tracking, and
+  consistent species palettes across battle, party, and Pokédex screens.
+- Wild and trainer battles with data-driven encounter tables and trainer
+  parties, trainer line-of-sight approach/dialogue, move progression, status
+  effects, catching, Poké Ball animation, battle item pages, switching,
+  experience, level-up moves, post-battle evolution, and blackout recovery.
+- A data-driven item system with shops, map item balls, evolution stones,
+  party-member selection, TM/HM compatibility and teaching, move replacement,
+  regular-item scrolling, key items, and money handling. Trainer battles use
+  pokered-style blackout money loss and display the amount lost.
+- SRAM save/load with checksum validation, save-version migration, money,
+  bag contents, party, PC boxes, Pokédex state, healing points, map position,
+  flags, hidden objects, and completed scripts.
+- The single-file ownership-verification patcher, currently generated as
+  v0.0.58 in `patcher/index.html`, with progress counts for maps, Pokémon,
+  moves, music, items, sprites, learnsets, and Pokédex entries.
 
-## Current limitations
+## Current limitations and next work
 
-- The party model currently starts with one active starter. Additional party
-  acquisition, party switching, storage, and party-wide battle logic are not
-  implemented yet.
-- There is no inventory or item database. The Item screen reports "No items!".
-- Run is unavailable in trainer battles and available only in wild battles.
-- The Pokedex currently exposes the implemented starter species rather than a
-  complete Pokemon database flow.
-- Only the opening maps, species, moves, NPCs, and scripted sequence are
-  represented.
-- There is no automated unit-test suite or emulator-driven integration test.
+- The project is not yet a complete Red world port. Gym interiors and battles,
+  most towns/routes/buildings, the full story script, and many reference NPCs,
+  cutscenes, dialogues, encounters, and item events still need conversion.
+- The Trainer Card time and badge sections are placeholders.
+- The current implementation has no automated unit-test suite or emulator-
+  driven integration test; verification is currently build-based and manual in
+  an emulator.
+- Trade evolution requirements are intentionally replaced with level-up paths;
+  link trading is outside the project scope.
 
 ## Repository layout
 
@@ -80,8 +73,9 @@ The current build includes:
     |-- build/                           Object/dependency/map output; ignored
     `-- README.md
 
-The refs/ directory is deliberately not published. It is intended for a
-developer's local checkout of pokered. Generated assets needed by the GBA
+The local `refs/pokered/` checkout is deliberately ignored and is intended for
+developer reference only. Project documentation such as
+`refs/GAME_ARCHITECTURE.md` is tracked; generated assets needed by the GBA
 build are tracked in this repository.
 
 ## Development environment
