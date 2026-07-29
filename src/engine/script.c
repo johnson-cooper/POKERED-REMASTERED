@@ -39,13 +39,20 @@ static void start_active_trainer_battle(void) {
     if (!g_world.map || s_active_npc_index >= g_world.npc_count)
         return;
     NpcState *trainer = &g_world.npcs[s_active_npc_index];
-    // Lock the trainer immediately once its battle is actually launched.
-    // This prevents the overworld sight check from re-triggering the same
-    // encounter during the battle-to-overworld transition. The story flag is
-    // still committed by script_trainer_battle_complete after a win.
-    trainer->flags |= NPCF_TRAINER_DEFEATED;
-    if (trainer->trainer_flag != 0 && trainer->trainer_flag < FLAG_COUNT)
-        flags_set((GameFlag)trainer->trainer_flag);
+    bool8 gym_leader = g_world.map->map_id == MAP_PEWTER_GYM &&
+                       trainer->trainer_id == TRAINER_BROCK;
+    // Ordinary trainers are one-attempt encounters, so lock them as soon as
+    // their battle launches. Gym leaders are the exception: they remain
+    // available after a loss and are committed only after a win.
+    if (!gym_leader) {
+        trainer->flags |= NPCF_TRAINER_DEFEATED;
+        if (trainer->trainer_flag != 0 && trainer->trainer_flag < FLAG_COUNT)
+            flags_set((GameFlag)trainer->trainer_flag);
+    }
+    // The pre-battle dialogue is a one-shot script. Clear it before entering
+    // battle so it cannot resume and launch the same battle again afterward.
+    s_active_script_id = 0;
+    s_npc_script_state = 0;
     PartyPokemon *lead = party_get_lead();
     const char *nickname = lead && lead->nickname[0] ? lead->nickname : NULL;
     battle_setup_trainer_variant((TrainerId)trainer->trainer_id,
@@ -851,21 +858,23 @@ void script_trigger_npc(u16 script_id, u8 npc_index) {
 
 void script_trainer_battle_complete(bool8 won) {
     if (!s_active_trainer_battle) return;
-    if (won && g_world.map && s_active_npc_index < g_world.npc_count) {
+    if (g_world.map && s_active_npc_index < g_world.npc_count) {
         NpcState *trainer = &g_world.npcs[s_active_npc_index];
-        // The runtime defeated bit is required even for trainers that do not
-        // yet have a persistent story flag.  Without it, returning from the
-        // battle leaves the trainer eligible for line-of-sight detection on
-        // the next overworld frame, immediately starting the same battle
-        // again.  Story trainers additionally keep their pokered flag.
-        trainer->flags |= NPCF_TRAINER_DEFEATED;
-        if (trainer->trainer_flag != 0 && trainer->trainer_flag < FLAG_COUNT) {
-            flags_set((GameFlag)trainer->trainer_flag);
+        bool8 gym_leader = g_world.map->map_id == MAP_PEWTER_GYM &&
+                           trainer->trainer_id == TRAINER_BROCK;
+
+        // Ordinary trainers are single-attempt encounters: losing to one
+        // still consumes the encounter and prevents a rematch. Gym leaders
+        // are different; they remain available after a loss and are marked
+        // defeated only after the player wins.
+        if (won || !gym_leader) {
+            trainer->flags |= NPCF_TRAINER_DEFEATED;
+            if (trainer->trainer_flag != 0 && trainer->trainer_flag < FLAG_COUNT)
+                flags_set((GameFlag)trainer->trainer_flag);
         }
         // Pokered's Pewter Gym post-battle script runs after the battle has
         // ended, never during it: Brock awards the Boulder Badge and TM34.
-        if (g_world.map->map_id == MAP_PEWTER_GYM &&
-            trainer->trainer_id == TRAINER_BROCK &&
+        if (won && gym_leader &&
             !flags_get(FLAG_GOT_BOULDER_BADGE)) {
             flags_set(FLAG_GOT_BOULDER_BADGE);
             dialog_open();

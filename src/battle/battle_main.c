@@ -27,6 +27,7 @@
 #include "pokemon_palette.h"
 #include "pokemon_species_data.h"
 #include "gfx_pokeball.h"
+#include "script.h"
 
 typedef enum {
     BS_INIT = 0,
@@ -2621,6 +2622,11 @@ void battle_update(void) {
                     updated.nickname[i] = old->nickname[i];
             party_update_slot(s_active_party_slot, &updated);
         }
+        // Resolve trainer completion while the original map and active NPC
+        // are still available.  Blackout recovery rebuilds the Pokécenter
+        // map below, which would otherwise discard the trainer context before
+        // the overworld state transition can record the result.
+        script_trainer_battle_complete(!s_blackout);
         if (s_caught_pending) {
             s_caught_pending = FALSE;
             if (!party_add(&s_caught_mon)) {
