@@ -1,5 +1,6 @@
 #include "world.h"
 #include "gfx_npcs.h"
+#include "gfx_npcs_extra.h"
 #include "map_ids.h"
 #include "audio.h"
 
@@ -36,10 +37,10 @@ static const WarpEvent s_south_warps[] = {
 };
 
 static const NpcDef s_north_npcs[] = {
-    { .x=3, .y=2, .sprite_tile=GFX_YOUNGSTER_TILE_BASE,
+    { .x=3, .y=2, .sprite_tile=GFX_SUPER_NERD_TILE_BASE,
       .facing=DIR_DOWN, .movement=NPC_MOVE_STAY,
       .text="Many POKeMON live only in\\nforests and caves.\\fYou need to look\\neverywhere to get\\ndifferent kinds!" },
-    { .x=2, .y=5, .sprite_tile=GFX_YOUNGSTER_TILE_BASE,
+    { .x=2, .y=5, .sprite_tile=GFX_GRAMPS_TILE_BASE,
       .facing=DIR_DOWN, .movement=NPC_MOVE_STAY,
       .text="Bushes can be cut down\\nby a special POKeMON move." },
 };
@@ -48,7 +49,7 @@ static const NpcDef s_south_npcs[] = {
     { .x=8, .y=4, .sprite_tile=GFX_GIRL_TILE_BASE,
       .facing=DIR_LEFT, .movement=NPC_MOVE_STAY,
       .text="Are you going to VIRIDIAN\\nFOREST? Be careful, it's\\na natural maze!" },
-    { .x=2, .y=4, .sprite_tile=GFX_GIRL_TILE_BASE,
+    { .x=2, .y=4, .sprite_tile=GFX_LITTLE_GIRL_TILE_BASE,
       .facing=DIR_UP, .movement=NPC_MOVE_UP_DOWN,
       .text="RATTATA may be small,\\nbut its bite is wicked!" },
 };

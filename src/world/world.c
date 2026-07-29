@@ -392,7 +392,10 @@ void world_render(void) {
                 npc->sprite_tile == GFX_SCIENTIST_TILE_BASE ||
                 npc->sprite_tile == GFX_FISHER_TILE_BASE ||
                 npc->sprite_tile == GFX_DAISY_TILE_BASE ||
-                npc->sprite_tile == GFX_MOM_TILE_BASE) {
+                npc->sprite_tile == GFX_MOM_TILE_BASE ||
+                (npc->sprite_tile >= GFX_COOLTRAINER_F_TILE_BASE &&
+                 npc->sprite_tile <= GFX_LINK_RECEPTIONIST_TILE_BASE &&
+                 ((npc->sprite_tile - GFX_COOLTRAINER_F_TILE_BASE) % 24) == 0)) {
                 // Use the direction captured when the step began. Deriving
                 // the pose from pixel deltas allowed a scripted Oak step to
                 // reuse the previous left-facing animation during DOWN.

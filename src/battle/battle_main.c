@@ -102,6 +102,7 @@ typedef struct {
     PokemonId enemy_species;
     u8 enemy_level;
     bool8 is_wild;
+    TrainerId trainer_id;
     const char *trainer_name;
     bool8 run_ends_battle;
     bool8 ball_caught;
@@ -764,6 +765,16 @@ static u8 battle_usable_item_count(void) {
     return n;
 }
 
+static const u32 *trainer_battle_tiles(TrainerId trainer) {
+    switch (trainer) {
+    case TRAINER_YOUNGSTER: return g_trainer_youngster_tiles;
+    case TRAINER_BUG_CATCHER: return g_trainer_bugcatcher_tiles;
+    case TRAINER_JR_TRAINER_M: return g_trainer_jr_trainerm_tiles;
+    case TRAINER_BROCK: return g_trainer_brock_tiles;
+    default: return g_intro_rival_tiles;
+    }
+}
+
 static void draw_item_menu(void) {
     draw_box(0, 14, 30, 6);
     u8 total_items = battle_usable_item_count();
@@ -1097,6 +1108,7 @@ static void apply_stat_effect(MoveId move, BattlePokemon *target) {
 
 void battle_setup_rival(u16 chosen_ball, const char *player_nickname) {
     s_battle.is_wild = FALSE;
+    s_battle.trainer_id = TRAINER_NONE;
     s_battle.trainer_name = "[RIVAL]";
     s_oaks_lab_rival_battle = TRUE;
     s_route22_rival_battle = FALSE;
@@ -1125,6 +1137,7 @@ void battle_setup_rival(u16 chosen_ball, const char *player_nickname) {
 
 void battle_setup_route22_rival(const char *player_nickname) {
     s_battle.is_wild = FALSE;
+    s_battle.trainer_id = TRAINER_NONE;
     s_battle.trainer_name = "[RIVAL]";
     s_oaks_lab_rival_battle = FALSE;
     s_route22_rival_battle = TRUE;
@@ -1155,6 +1168,7 @@ void battle_setup_route22_rival(const char *player_nickname) {
 void battle_setup_wild(PokemonId species, u8 level, PokemonId player_species,
                        const char *player_nickname) {
     s_battle.is_wild = TRUE;
+    s_battle.trainer_id = TRAINER_NONE;
     s_battle.trainer_name = NULL;
     s_oaks_lab_rival_battle = FALSE;
     s_route22_rival_battle = FALSE;
@@ -1179,6 +1193,7 @@ void battle_setup_trainer_variant(TrainerId trainer, u8 variant,
     if (!party) return;
     if (!party->count) return;
     s_battle.is_wild = FALSE;
+    s_battle.trainer_id = trainer;
     s_oaks_lab_rival_battle = FALSE;
     s_route22_rival_battle = FALSE;
     s_battle.trainer_name = party->name;
@@ -1299,7 +1314,7 @@ void battle_init(void) {
             remap_sprite_nibbles(g_pokeball_tiles[i]);
     copy_red_battle_tiles(obj_vram, g_intro_red_battle_tiles);
     copy_intro_trainer_tiles(obj_vram + BATTLE_TRAINER_TILE * 8,
-                             g_intro_rival_tiles);
+                             trainer_battle_tiles(s_battle.trainer_id));
 
     setup_palettes();
     setup_hp_palettes();

@@ -388,6 +388,29 @@ void tilemap_load_player_sprite(void) {
     for (u32 i = 0; i < 4 * 8; i++)
         obj_vram[gambler_asleep_base + i] = remap_sprite_nibbles(g_gambler_asleep_tiles[i]);
 
+    u32 extra_base = gambler_asleep_base + 4 * 8;
+#define LOAD_NPC_EXTRA(offset, tiles) \
+    for (u32 i = 0; i < 24 * 8; i++) \
+        obj_vram[extra_base + (offset) + i] = remap_sprite_nibbles((tiles)[i])
+    LOAD_NPC_EXTRA(0 * 24 * 8, g_cooltrainer_f_tiles);
+    LOAD_NPC_EXTRA(1 * 24 * 8, g_cooltrainer_m_tiles);
+    LOAD_NPC_EXTRA(2 * 24 * 8, g_super_nerd_tiles);
+    LOAD_NPC_EXTRA(3 * 24 * 8, g_clerk_tiles);
+    LOAD_NPC_EXTRA(4 * 24 * 8, g_nurse_tiles);
+    LOAD_NPC_EXTRA(5 * 24 * 8, g_fairy_tiles);
+    LOAD_NPC_EXTRA(6 * 24 * 8, g_gentleman_tiles);
+    LOAD_NPC_EXTRA(7 * 24 * 8, g_gramps_tiles);
+    LOAD_NPC_EXTRA(8 * 24 * 8, g_brunette_girl_tiles);
+    LOAD_NPC_EXTRA(9 * 24 * 8, g_hiker_tiles);
+    LOAD_NPC_EXTRA(10 * 24 * 8, g_little_boy_tiles);
+    LOAD_NPC_EXTRA(11 * 24 * 8, g_little_girl_tiles);
+    LOAD_NPC_EXTRA(12 * 24 * 8, g_middle_aged_man_tiles);
+    LOAD_NPC_EXTRA(13 * 24 * 8, g_monster_tiles);
+    LOAD_NPC_EXTRA(14 * 24 * 8, g_old_amber_tiles);
+    LOAD_NPC_EXTRA(15 * 24 * 8, g_gym_guide_tiles);
+    LOAD_NPC_EXTRA(16 * 24 * 8, g_link_receptionist_tiles);
+#undef LOAD_NPC_EXTRA
+
 
 
 

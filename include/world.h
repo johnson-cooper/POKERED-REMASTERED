@@ -105,7 +105,7 @@ typedef struct {
 // ── NPC ───────────────────────────────────────────────────────────────────────
 typedef struct {
     u8  x, y;           // subtile position (16px units)
-    u8  sprite_tile;    // OBJ tile index (from NPC sprite sheet)
+    u16 sprite_tile;    // OBJ tile index (from NPC sprite sheet)
     u8  facing;         // Direction
     u8  flags;          // NPCF_* flags
     u16 script_id;
@@ -124,7 +124,7 @@ typedef struct {
 // without mutating the read-only map data.
 typedef struct {
     u8  x, y;
-    u8  sprite_tile;
+    u16 sprite_tile;
     u8  facing;
     u8  flags;
     u16 script_id;

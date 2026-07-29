@@ -156,13 +156,13 @@ static const BackgroundEvent s_pewter_bg_events[] = {
     { .x=25, .y=23, .text="PEWTER CITY\fA Stone Gray City" },
 };
 static const NpcDef s_pewter_npcs[] = {
-    { .x=8, .y=15, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_DOWN,
+    { .x=8, .y=15, .sprite_tile=GFX_COOLTRAINER_F_TILE_BASE, .facing=DIR_DOWN,
       .text="It's rumored that\nCLEFAIRYs came from\nthe moon!" },
-    { .x=17, .y=25, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_DOWN,
+    { .x=17, .y=25, .sprite_tile=GFX_COOLTRAINER_M_TILE_BASE, .facing=DIR_DOWN,
       .text="There aren't many\nserious POKeMON\ntrainers here!" },
-    { .x=27, .y=17, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_DOWN,
+    { .x=27, .y=17, .sprite_tile=GFX_SUPER_NERD_TILE_BASE, .facing=DIR_DOWN,
       .text="Psssst! Do you know\nwhat I'm doing?" },
-    { .x=26, .y=25, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_LEFT,
+    { .x=26, .y=25, .sprite_tile=GFX_SUPER_NERD_TILE_BASE, .facing=DIR_LEFT,
       .movement=NPC_MOVE_LEFT_RIGHT, .text="I'm spraying REPEL\nto keep POKeMON\nout of my garden!" },
     { .x=35, .y=16, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_DOWN,
       .text="If you have the right\nstuff, go take on BROCK!" },
@@ -202,28 +202,30 @@ static const WarpEvent s_pewter_speech_house_warps[] = {
 };
 
 static const NpcDef s_pewter_mart_npcs[] = {
-    { .x=0, .y=5, .sprite_tile=GFX_SCIENTIST_TILE_BASE, .facing=DIR_RIGHT, .script_id=22 },
+    { .x=0, .y=5, .sprite_tile=GFX_CLERK_TILE_BASE, .facing=DIR_RIGHT, .script_id=22 },
     { .x=3, .y=3, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_DOWN, .text="You can buy items\nfor your POKeMON." },
-    { .x=5, .y=5, .sprite_tile=GFX_SCIENTIST_TILE_BASE, .facing=DIR_DOWN,
+    { .x=5, .y=5, .sprite_tile=GFX_SUPER_NERD_TILE_BASE, .facing=DIR_DOWN,
       .text="Good things can happen\nif you raise POKeMON\ndiligently, even the\nweak ones!" },
 };
 static const NpcDef s_pewter_center_npcs[] = {
-    { .x=3, .y=1, .sprite_tile=GFX_GIRL_TILE_BASE, .facing=DIR_DOWN, .script_id=25 },
-    { .x=1, .y=3, .sprite_tile=GFX_GIRL_TILE_BASE, .facing=DIR_DOWN,
+    { .x=3, .y=1, .sprite_tile=GFX_NURSE_TILE_BASE, .facing=DIR_DOWN, .script_id=25 },
+    { .x=1, .y=3, .sprite_tile=GFX_FAIRY_TILE_BASE, .facing=DIR_DOWN,
       .text="JIGGLYPUFF: Puu\npupuu!" },
-    { .x=10, .y=5, .sprite_tile=GFX_FISHER_TILE_BASE, .facing=DIR_LEFT,
+    { .x=10, .y=5, .sprite_tile=GFX_GENTLEMAN_TILE_BASE, .facing=DIR_LEFT,
       .text="What!? TEAM ROCKET is\nat MT.MOON? Huh?\nI'm on the phone!" },
+    { .x=11, .y=2, .sprite_tile=GFX_LINK_RECEPTIONIST_TILE_BASE, .facing=DIR_DOWN,
+      .text="Please! Log in with your\nGAME BOY and link up!" },
 };
 static const NpcDef s_pewter_gym_npcs[] = {
-    { .x=4, .y=1, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_DOWN,
+    { .x=4, .y=1, .sprite_tile=GFX_SUPER_NERD_TILE_BASE, .facing=DIR_DOWN,
       .flags=NPCF_TRAINER, .trainer_id=TRAINER_BROCK, .trainer_sight=2,
       .trainer_flag=FLAG_BEAT_PEWTER_GYM,
       .trainer_text="I'm BROCK!\nI'm PEWTER's\nGYM LEADER!" },
-    { .x=3, .y=6, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_RIGHT,
+    { .x=3, .y=6, .sprite_tile=GFX_COOLTRAINER_M_TILE_BASE, .facing=DIR_RIGHT,
       .flags=NPCF_TRAINER, .trainer_id=TRAINER_JR_TRAINER_M, .trainer_sight=2,
       .trainer_flag=FLAG_PEWTER_GYM_TRAINER,
       .trainer_text="You'd better have\nstrong POKeMON!" },
-    { .x=7, .y=10, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_DOWN,
+    { .x=7, .y=10, .sprite_tile=GFX_GYM_GUIDE_TILE_BASE, .facing=DIR_DOWN,
       .text="Yo! Champ in making!" },
 };
 static const NpcDef s_museum_npcs[] = {
@@ -231,7 +233,7 @@ static const NpcDef s_museum_npcs[] = {
     { .x=1, .y=4, .sprite_tile=GFX_GAMBLER_TILE_BASE, .facing=DIR_DOWN, .text="These fossils are\nfrom MT.MOON." },
     { .x=15, .y=2, .sprite_tile=GFX_SCIENTIST_TILE_BASE, .facing=DIR_DOWN, .text="We have fossils from\nMT.MOON on display." },
     { .x=17, .y=4, .sprite_tile=GFX_SCIENTIST_TILE_BASE, .facing=DIR_DOWN, .text="Scientists are studying\nthese ancient fossils." },
-    { .x=16, .y=2, .sprite_tile=GFX_POKEBALL_TILE_BASE, .facing=DIR_DOWN,
+    { .x=16, .y=2, .sprite_tile=GFX_OLD_AMBER_TILE_BASE, .facing=DIR_DOWN,
       .flags=NPCF_ITEM, .item_id=ITEM_OLD_AMBER, .item_flag=FLAG_GOT_OLD_AMBER },
 };
 static const BackgroundEvent s_museum_2f_bg_events[] = {
@@ -241,18 +243,20 @@ static const BackgroundEvent s_museum_2f_bg_events[] = {
 static const NpcDef s_museum_2f_npcs[] = {
     { .x=1, .y=7, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_DOWN,
       .movement=NPC_MOVE_LEFT_RIGHT, .text="MOON STONE?\nWhat's so special\nabout it?" },
-    { .x=0, .y=5, .sprite_tile=GFX_GAMBLER_TILE_BASE, .facing=DIR_DOWN,
+    { .x=0, .y=5, .sprite_tile=GFX_GRAMPS_TILE_BASE, .facing=DIR_DOWN,
       .text="July 20, 1969!\nThe 1st lunar\nlanding!\nI bought a color TV\nto watch it!" },
     { .x=7, .y=5, .sprite_tile=GFX_SCIENTIST_TILE_BASE, .facing=DIR_DOWN,
       .text="We have a space\nexhibit now." },
-    { .x=11, .y=5, .sprite_tile=GFX_GIRL_TILE_BASE, .facing=DIR_DOWN,
+    { .x=11, .y=5, .sprite_tile=GFX_BRUNETTE_GIRL_TILE_BASE, .facing=DIR_DOWN,
       .text="I want a PIKACHU!\nIt's so cute!\nI asked my Daddy\nto catch me one!" },
-    { .x=12, .y=5, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_DOWN,
+    { .x=12, .y=5, .sprite_tile=GFX_HIKER_TILE_BASE, .facing=DIR_DOWN,
       .text="Yeah, a PIKACHU\nsoon, I promise!" },
 };
 static const NpcDef s_nidoran_npcs[] = {
-    { .x=4, .y=5, .sprite_tile=GFX_GIRL_TILE_BASE, .facing=DIR_LEFT, .text="NIDORAN!" },
-    { .x=3, .y=5, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_RIGHT, .text="I love my NIDORAN." },
+    { .x=4, .y=5, .sprite_tile=GFX_MONSTER_TILE_BASE, .facing=DIR_LEFT, .text="NIDORAN!" },
+    { .x=3, .y=5, .sprite_tile=GFX_LITTLE_BOY_TILE_BASE, .facing=DIR_RIGHT, .text="I love my NIDORAN." },
+    { .x=1, .y=2, .sprite_tile=GFX_MIDDLE_AGED_MAN_TILE_BASE, .facing=DIR_DOWN,
+      .text="NIDORAN are so cute!" },
 };
 static const NpcDef s_speech_npcs[] = {
     { .x=2, .y=3, .sprite_tile=GFX_GAMBLER_TILE_BASE, .facing=DIR_RIGHT, .text="Have you heard of\nCLEFAIRY?" },
