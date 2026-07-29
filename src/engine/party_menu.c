@@ -10,6 +10,7 @@
 #include "world.h"
 #include "pokemon_palette.h"
 #include "pokedex.h"
+#include "battle_pokemon.h"
 
 #define PARTY_ICON_TILE 148
 // Each of the 6 party slots gets 4 tiles (2×2 icon); sprite follows.
@@ -91,6 +92,19 @@ static void prepare_party_palettes(void) {
     spearow[4]  = RGB15(31, 22, 14);
     weedle[3]   = RGB15(20, 14, 4);
     weedle[4]   = RGB15(31, 28, 14);
+
+    // Reapply status palettes after the party artwork and HP palettes have
+    // been prepared, since those use some of the same BG palette slots.
+    vu16 *psn = (vu16 *)MEM_PAL + 1 * 16;
+    vu16 *brn = (vu16 *)MEM_PAL + 2 * 16;
+    vu16 *frz = (vu16 *)MEM_PAL + 6 * 16;
+    vu16 *par = (vu16 *)MEM_PAL + 7 * 16;
+    vu16 *slp = (vu16 *)MEM_PAL + 14 * 16;
+    psn[1] = RGB15(22, 5, 24);  psn[2] = RGB15(31, 31, 31);
+    brn[1] = RGB15(31, 5, 3);   brn[2] = RGB15(31, 31, 31);
+    frz[1] = RGB15(5, 15, 31);  frz[2] = RGB15(31, 31, 31);
+    par[1] = RGB15(28, 22, 2);  par[2] = RGB15(31, 31, 31);
+    slp[1] = RGB15(12, 12, 15); slp[2] = RGB15(31, 31, 31);
 }
 
 static const u32 *party_sprite_tiles(PokemonId species) {
@@ -141,14 +155,21 @@ static const char *party_species_name(PokemonId species) {
 }
 
 static const char *party_status_name(u8 status) {
-    switch (status) {
-    case 1: return "SLP";
-    case 2: return "PSN";
-    case 3: return "BRN";
-    case 4: return "FRZ";
-    case 5: return "PAR";
-    default: return "OK";
-    }
+    if (status & STATUS_POISON) return "PSN";
+    if (status & STATUS_BURN) return "BRN";
+    if (status & STATUS_FREEZE) return "FRZ";
+    if (status & STATUS_PARALYZE) return "PAR";
+    if (status & STATUS_SLEEP) return "SLP";
+    return "OK";
+}
+
+static u8 party_status_palette(u8 status) {
+    if (status & STATUS_POISON) return 1;
+    if (status & STATUS_BURN) return 2;
+    if (status & STATUS_FREEZE) return 6;
+    if (status & STATUS_PARALYZE) return 7;
+    if (status & STATUS_SLEEP) return 14;
+    return TEXT_PAL;
 }
 
 static const char *party_type1(PokemonId species) {
@@ -317,7 +338,8 @@ static void draw_status(void) {
     text_draw_str(21, 1, ":LV");
     text_draw_str(25, 1, party_number(mon->level));
     text_draw_str(14, 3, "STATUS");
-    text_draw_str(24, 3, party_status_name(mon->status));
+    text_draw_str_pal(24, 3, party_status_name(mon->status),
+                      party_status_palette(mon->status));
     draw_hp(mon, 14, 4);
 
     load_party_picture(mon, 1, 1);
@@ -340,7 +362,8 @@ static void draw_status(void) {
     text_draw_str(14, 10, "TYPE2/");
     text_draw_str(22, 10, party_type2(mon->species));
     text_draw_str(14, 12, "STATUS/");
-    text_draw_str(22, 12, party_status_name(mon->status));
+    text_draw_str_pal(22, 12, party_status_name(mon->status),
+                      party_status_palette(mon->status));
     text_draw_str(14, 14, "EXP");
     text_draw_str(22, 14, party_number(mon->experience));
     text_draw_str(14, 16, "NEXT");

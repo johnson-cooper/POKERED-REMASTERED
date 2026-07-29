@@ -67,6 +67,7 @@ typedef enum {
     BS_FORGET_CANCEL,
     BS_DEFEAT,
     BS_DEFEAT_WAIT,
+    BS_BLACKOUT_MONEY,
     BS_SWITCH_IN,
     BS_FLEE_FAIL,
     BS_BALL_THROW,
@@ -127,6 +128,7 @@ static BattleState s_after_msg_state;
 static BattleState s_after_exp_state;
 static PartyPokemon s_caught_mon;
 static bool8 s_caught_pending;
+static u32 s_blackout_money_lost;
 static MoveId s_pending_move;
 static u8     s_forget_cursor;
 
@@ -272,6 +274,22 @@ static char *str_append_num(char *dst, u16 val) {
     if (val == 0) { *dst++ = '0'; return dst; }
     while (val > 0) { tmp[len++] = (char)('0' + val % 10); val /= 10; }
     for (u8 i = len; i > 0; i--) *dst++ = tmp[i - 1];
+    return dst;
+}
+
+static char *str_append_money(char *dst, u32 val) {
+    char tmp[10];
+    u8 len = 0;
+    if (val == 0) {
+        *dst++ = '0';
+        return dst;
+    }
+    while (val > 0) {
+        tmp[len++] = (char)('0' + val % 10);
+        val /= 10;
+    }
+    for (u8 i = len; i > 0; i--)
+        *dst++ = tmp[i - 1];
     return dst;
 }
 
@@ -534,6 +552,8 @@ static void draw_box(u8 x, u8 y, u8 w, u8 h) {
 #define HP_YELLOW_PAL 8
 #define HP_RED_PAL    9
 
+static const char *battle_status_label(u8 status);
+
 static void setup_hp_palettes(void) {
     vu16 *base = PAL_BG;
 
@@ -556,6 +576,16 @@ static void setup_battle_ui_palette(void) {
     ui[0] = 0;
     ui[1] = RGB15(2, 2, 2);
     ui[2] = RGB15(29, 28, 31);
+    vu16 *psn = PAL_BG + 1 * 16;
+    vu16 *brn = PAL_BG + 2 * 16;
+    vu16 *frz = PAL_BG + 3 * 16;
+    vu16 *par = PAL_BG + 4 * 16;
+    vu16 *slp = PAL_BG + 5 * 16;
+    psn[1] = RGB15(22, 5, 24);  psn[2] = RGB15(31, 31, 31);
+    brn[1] = RGB15(31, 5, 3);   brn[2] = RGB15(31, 31, 31);
+    frz[1] = RGB15(5, 15, 31);  frz[2] = RGB15(31, 31, 31);
+    par[1] = RGB15(28, 22, 2);  par[2] = RGB15(31, 31, 31);
+    slp[1] = RGB15(12, 12, 15); slp[2] = RGB15(31, 31, 31);
 }
 
 static u8 hp_palette(u16 hp, u16 max_hp) {
@@ -591,13 +621,19 @@ static void draw_hp_bar(u8 col, u8 row, u16 hp, u16 max_hp) {
 
 static void draw_enemy_hud(void) {
     const BattlePokemon *e = &s_battle.enemy_mon;
-    draw_box(0, 0, 15, 4);
+    draw_box(0, 0, 15, 5);
     text_draw_str(1, 1, mon_display_name(e));
     text_draw_str(1, 2, "Lv");
     char lvl[4]; char *p = str_append_num(lvl, e->level); *p = '\0';
     text_draw_str(3, 2, lvl);
     text_draw_str(5, 2, "HP:");
     draw_hp_bar(8, 2, e->current_hp, e->max_hp);
+    const char *status = battle_status_label(e->status);
+    if (status) text_draw_str_pal(1, 3, status,
+                                  e->status & STATUS_POISON ? 1 :
+                                  e->status & STATUS_BURN ? 2 :
+                                  e->status & STATUS_FREEZE ? 3 :
+                                  e->status & STATUS_PARALYZE ? 4 : 5);
 }
 
 static void draw_player_hud(void) {
@@ -609,6 +645,12 @@ static void draw_player_hud(void) {
     text_draw_str(16, 10, lvl);
     text_draw_str(19, 10, "HP:");
     draw_hp_bar(22, 10, pl->current_hp, pl->max_hp);
+    const char *status = battle_status_label(pl->status);
+    if (status) text_draw_str_pal(14, 11, status,
+                                  pl->status & STATUS_POISON ? 1 :
+                                  pl->status & STATUS_BURN ? 2 :
+                                  pl->status & STATUS_FREEZE ? 3 :
+                                  pl->status & STATUS_PARALYZE ? 4 : 5);
 
     char hp_text[16];
     p = str_append_num(hp_text, pl->current_hp);
@@ -653,7 +695,7 @@ static void battle_write_back_player_mon(void) {
         updated.moves[i] = s_battle.player_mon.moves[i];
         updated.pp[i]    = s_battle.player_mon.pp[i];
     }
-    updated.status = s_battle.player_mon.status;
+    updated.status = s_battle.player_mon.status & (u8)~STATUS_CONFUSION;
     updated.experience = s_battle.player_experience;
     const PartyPokemon *old = party_get_slot(s_active_party_slot);
     if (old)
@@ -900,6 +942,101 @@ static bool8 is_player_attacking(void) {
     return cur_attacker() == &s_battle.player_mon;
 }
 
+static const char *battle_status_label(u8 status) {
+    if (status & STATUS_POISON) return "PSN";
+    if (status & STATUS_BURN) return "BRN";
+    if (status & STATUS_SLEEP) return "SLP";
+    if (status & STATUS_PARALYZE) return "PAR";
+    if (status & STATUS_FREEZE) return "FRZ";
+    if (status & STATUS_CONFUSION) return "CNF";
+    return NULL;
+}
+
+static bool8 battle_try_apply_status(MoveId move, BattlePokemon *target) {
+    const MoveData *md = &g_move_data[move];
+    u8 status = STATUS_NONE;
+    switch (md->effect) {
+    case EFFECT_BURN:     status = STATUS_BURN; break;
+    case EFFECT_FREEZE:   status = STATUS_FREEZE; break;
+    case EFFECT_PARALYZE: status = STATUS_PARALYZE; break;
+    case EFFECT_POISON:   status = STATUS_POISON; break;
+    case EFFECT_SLEEP:    status = STATUS_SLEEP; break;
+    case EFFECT_CONFUSION: status = STATUS_CONFUSION; break;
+    case EFFECT_PSYBEAM:  status = STATUS_CONFUSION; break;
+    case EFFECT_TWINEEDLE: status = STATUS_POISON; break;
+    default: return FALSE;
+    }
+    if (status == STATUS_CONFUSION) {
+        if (target->status & STATUS_CONFUSION) return FALSE;
+        if (md->power > 0 && md->status_chance > 0 &&
+            (battle_random() % 100) >= md->status_chance)
+            return FALSE;
+        target->status |= STATUS_CONFUSION;
+        return TRUE;
+    }
+    if (target->status & 0x1F) return FALSE;
+
+    const PokemonBaseStats *base = &g_pokemon_base_stats[target->species];
+    if (status == STATUS_POISON &&
+        (base->type1 == TYPE_POISON || base->type2 == TYPE_POISON))
+        return FALSE;
+    if (status == STATUS_PARALYZE && md->type == TYPE_ELECTRIC &&
+        (base->type1 == TYPE_GROUND || base->type2 == TYPE_GROUND))
+        return FALSE;
+
+    if (md->power > 0 && md->status_chance > 0 &&
+        (battle_random() % 100) >= md->status_chance)
+        return FALSE;
+    target->status = status;
+    return TRUE;
+}
+
+static bool8 battle_status_blocks_move(BattlePokemon *mon) {
+    if (mon->status & STATUS_CONFUSION)
+        return (battle_random() & 1) != 0;
+    if (mon->status & STATUS_PARALYZE)
+        return (battle_random() % 4) == 0;
+    if (mon->status & STATUS_SLEEP) {
+        if ((battle_random() % 3) == 0) {
+            mon->status = STATUS_NONE;
+            return FALSE;
+        }
+        return TRUE;
+    }
+    if (mon->status & STATUS_FREEZE) {
+        if ((battle_random() % 5) == 0) {
+            mon->status = STATUS_NONE;
+            return FALSE;
+        }
+        return TRUE;
+    }
+    return FALSE;
+}
+
+static void battle_status_message(const BattlePokemon *target) {
+    char *p = s_msg_buf;
+    if (target == &s_battle.enemy_mon) p = str_append(p, "FOE's ");
+    p = str_append(p, mon_display_name(target));
+    if (target->status & STATUS_POISON) p = str_append(p, " was poisoned!");
+    else if (target->status & STATUS_BURN) p = str_append(p, " was burned!");
+    else if (target->status & STATUS_SLEEP) p = str_append(p, " fell asleep!");
+    else if (target->status & STATUS_PARALYZE) p = str_append(p, " is paralyzed!");
+    else if (target->status & STATUS_FREEZE) p = str_append(p, " was frozen!");
+    else p = str_append(p, " became confused!");
+    *p = '\0';
+    battle_msg(s_msg_buf);
+}
+
+static bool8 battle_apply_residual(BattlePokemon *mon) {
+    if (!(mon->status & (STATUS_POISON | STATUS_BURN)) || mon->current_hp == 0)
+        return FALSE;
+    u16 damage = mon->max_hp / 16;
+    if (damage == 0) damage = 1;
+    if (damage >= mon->current_hp) mon->current_hp = 0;
+    else mon->current_hp -= damage;
+    return TRUE;
+}
+
 static void apply_stat_effect(MoveId move, BattlePokemon *target) {
     const MoveData *md = &g_move_data[move];
     s8 *stage = NULL;
@@ -1072,6 +1209,7 @@ void battle_init(void) {
     s_evolution_sprite_hidden = FALSE;
     s_evolution_anim_timer = 0;
     s_blackout = FALSE;
+    s_blackout_money_lost = 0;
     s_active_party_slot = 0;
     s_force_switch = FALSE;
     s_skip_player_turn = FALSE;
@@ -1681,6 +1819,29 @@ void battle_update(void) {
 
     case BS_EXECUTE_MOVE:
         if (dialog_update()) {
+            BattlePokemon *attacker = cur_attacker();
+            if (battle_status_blocks_move(attacker)) {
+                clear_lower_ui();
+                char *p = str_append(s_msg_buf, mon_display_name(attacker));
+                if (attacker->status & STATUS_CONFUSION) {
+                    p = str_append(p, " hurt itself\nin its confusion!");
+                    u16 damage = attacker->max_hp / 8;
+                    if (damage == 0) damage = 1;
+                    if (damage >= attacker->current_hp)
+                        attacker->current_hp = 0;
+                    else
+                        attacker->current_hp -= damage;
+                } else if (attacker->status & STATUS_PARALYZE)
+                    p = str_append(p, " is paralyzed!\nIt can't move!");
+                else if (attacker->status & STATUS_SLEEP)
+                    p = str_append(p, " is fast asleep!");
+                else
+                    p = str_append(p, " is frozen solid!");
+                *p = '\0';
+                battle_msg(s_msg_buf);
+                s_battle.state = BS_CHECK_FAINT;
+                break;
+            }
             if (!s_battle.last_hit) {
                 clear_lower_ui();
                 battle_msg("Attack missed!");
@@ -1759,6 +1920,12 @@ void battle_update(void) {
             break;
         default: break;
         }
+        BattlePokemon *status_target = cur_defender();
+        if (battle_try_apply_status(move, status_target)) {
+            redraw_huds();
+            battle_status_message(status_target);
+            has_stat_effect = TRUE;
+        }
         s_battle.state = has_stat_effect ? BS_EXECUTE_EFFECT_WAIT : BS_CHECK_FAINT;
         break;
     }
@@ -1806,6 +1973,9 @@ void battle_update(void) {
                 exp = exp * 3 / 2;
                 s_battle.exp_gained = (u16)(exp ? exp : 1);
                 s_battle.player_experience += s_battle.exp_gained;
+                // Trainer EXP and level-up processing happen after each
+                // defeated Pokémon. Evolution is the only progression event
+                // deferred until the complete trainer party is gone.
                 clear_lower_ui();
                 char *p = str_append(s_msg_buf, mon_display_name(&s_battle.player_mon));
                 p = str_append(p, " gained\n");
@@ -1902,7 +2072,17 @@ void battle_update(void) {
                 s_battle.last_effectiveness = TYPE_MUL_NEUTRAL;
             }
         } else {
-            s_battle.state = BS_TURN_START;
+            // Gen 1 applies poison and burn damage after both sides have
+            // acted. Keep the HUD updated so the player can see the status
+            // condition affecting the active Pokémon.
+            battle_apply_residual(&s_battle.player_mon);
+            battle_apply_residual(&s_battle.enemy_mon);
+            redraw_huds();
+            if (s_battle.player_mon.current_hp == 0 ||
+                s_battle.enemy_mon.current_hp == 0)
+                s_battle.state = BS_CHECK_FAINT;
+            else
+                s_battle.state = BS_TURN_START;
         }
         break;
 
@@ -1971,10 +2151,21 @@ void battle_update(void) {
                 p = str_append(p, "!");
                 *p = '\0';
                 battle_msg(s_msg_buf);
-                s_battle.state = battle_try_evolve_player()
+                // Level-ups and move learning may occur between trainer
+                // Pokémon, but evolution waits until the final one falls.
+                bool8 evolution_allowed = s_battle.is_wild ||
+                    s_enemy_party_index >= s_enemy_party_count;
+                s_battle.state = evolution_allowed && battle_try_evolve_player()
                     ? BS_EVOLUTION : BS_LEVEL_UP;
             } else {
-                s_battle.state = s_after_exp_state;
+                // A level threshold may have been reached while defeating an
+                // earlier trainer Pokémon. If no new level is reached from
+                // the final Pokémon's EXP, resolve that deferred evolution
+                // now before leaving the battle.
+                bool8 evolution_allowed = s_battle.is_wild ||
+                    s_enemy_party_index >= s_enemy_party_count;
+                s_battle.state = evolution_allowed &&
+                    battle_try_evolve_player() ? BS_EVOLUTION : s_after_exp_state;
             }
         }
         break;
@@ -2045,14 +2236,16 @@ void battle_update(void) {
                     s_battle.state = BS_FORGET_PROMPT;
                 }
             } else {
-                s_battle.state = s_after_exp_state;
+                // Continue through the accumulated EXP before ending the
+                // battle, so later levels can also learn moves or evolve.
+                s_battle.state = BS_EXP;
             }
         }
         break;
 
     case BS_LEARN_MOVE:
         if (dialog_update()) {
-            s_battle.state = s_after_exp_state;
+            s_battle.state = BS_EXP;
         }
         break;
 
@@ -2133,7 +2326,7 @@ void battle_update(void) {
 
     case BS_FORGET_CANCEL:
         if (dialog_update()) {
-            s_battle.state = s_after_exp_state;
+            s_battle.state = BS_EXP;
         }
         break;
 
@@ -2163,8 +2356,26 @@ void battle_update(void) {
     case BS_DEFEAT_WAIT:
         if (dialog_update()) {
             s_blackout = TRUE;
-            s_battle.state = BS_END;
+            if (!s_oaks_lab_rival_battle && g_player_money > 0) {
+                u32 old_money = g_player_money;
+                g_player_money /= 2;
+                s_blackout_money_lost = old_money - g_player_money;
+
+                char *p = str_append(s_msg_buf, "Lost $");
+                p = str_append_money(p, s_blackout_money_lost);
+                p = str_append(p, "!");
+                *p = '\0';
+                battle_msg(s_msg_buf);
+                s_battle.state = BS_BLACKOUT_MONEY;
+            } else {
+                s_battle.state = BS_END;
+            }
         }
+        break;
+
+    case BS_BLACKOUT_MONEY:
+        if (dialog_update())
+            s_battle.state = BS_END;
         break;
 
     case BS_SWITCH_IN:
@@ -2387,7 +2598,7 @@ void battle_update(void) {
                 updated.moves[i] = s_battle.player_mon.moves[i];
                 updated.pp[i] = s_battle.player_mon.pp[i];
             }
-            updated.status = s_battle.player_mon.status;
+            updated.status = s_battle.player_mon.status & (u8)~STATUS_CONFUSION;
             updated.experience = s_battle.player_experience;
             const PartyPokemon *old = party_get_slot(s_active_party_slot);
             if (old)
@@ -2404,7 +2615,11 @@ void battle_update(void) {
                     box->mons[box->count++] = s_caught_mon;
             }
         }
-        if (s_blackout && party_all_fainted() && !scripted_rival_battle) {
+        if (s_blackout && !scripted_rival_battle) {
+            // Apply the pokered blackout penalty at the single battle-end
+            // boundary. This avoids depending on which party slot was active
+            // when the last Pokémon fainted and guarantees one deduction per
+            // completed blackout.
             u8 recovery_map_id = g_last_healing_point.map_id;
             // Older saves stored Viridian Pokécenter healing at the outdoor
             // entrance. Normalize that legacy point to the new interior

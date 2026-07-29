@@ -75,6 +75,7 @@ typedef struct {
     PokemonType  type;
     u8           accuracy;   // out of 100
     u8           pp;
+    u8           status_chance; // damaging side-effect chance; 0 = move always applies
 } MoveData;
 
 #define NUM_MOVES 165

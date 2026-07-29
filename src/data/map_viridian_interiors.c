@@ -62,8 +62,10 @@ static const WarpEvent s_mart_warps[] = {
     { .x=4, .y=7, .dest_map=WARP_LAST_MAP, .dest_warp=3 },
 };
 static const WarpEvent s_center_warps[] = {
-    { .x=3, .y=7, .dest_map=WARP_LAST_MAP, .dest_warp=2 },
-    { .x=4, .y=7, .dest_map=WARP_LAST_MAP, .dest_warp=2 },
+    // A blackout recovery always returns to Viridian City, never to the map
+    // that happened to be active before the player entered the center.
+    { .x=3, .y=7, .dest_map=MAP_VIRIDIAN_CITY, .dest_warp=2 },
+    { .x=4, .y=7, .dest_map=MAP_VIRIDIAN_CITY, .dest_warp=2 },
 };
 static const WarpEvent s_school_warps[] = {
     { .x=2, .y=7, .dest_map=WARP_LAST_MAP, .dest_warp=4 },

@@ -10,7 +10,15 @@
 #define STAT_STAGE_ACC 4
 #define STAT_STAGE_EVA 5
 
-#define STATUS_NONE 0
+// Persistent Gen 1 status bits. Only one major status can be active at once;
+// confusion is tracked separately by the battle flow when implemented.
+#define STATUS_NONE      0x00
+#define STATUS_POISON    0x01
+#define STATUS_BURN      0x02
+#define STATUS_SLEEP     0x04
+#define STATUS_PARALYZE  0x08
+#define STATUS_FREEZE    0x10
+#define STATUS_CONFUSION 0x20
 
 typedef struct {
     PokemonId species;

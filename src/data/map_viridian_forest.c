@@ -54,7 +54,7 @@ static const MapLayout s_viridian_forest_layout = {
 };
 
 static const WarpEvent s_viridian_forest_warps[] = {
-    { .x=1, .y=0, .dest_map=MAP_VIRIDIAN_FOREST_NORTH_GATE, .dest_warp=2 },
+    { .x=1, .y=0, .dest_map=MAP_VIRIDIAN_FOREST_NORTH_GATE, .dest_warp=1 },
     { .x=2, .y=0, .dest_map=MAP_VIRIDIAN_FOREST_NORTH_GATE, .dest_warp=2 },
     { .x=15, .y=47, .dest_map=MAP_VIRIDIAN_FOREST_SOUTH_GATE, .dest_warp=0 },
     { .x=16, .y=47, .dest_map=MAP_VIRIDIAN_FOREST_SOUTH_GATE, .dest_warp=0 },

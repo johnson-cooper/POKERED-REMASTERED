@@ -23,16 +23,16 @@ static const MapLayout s_gate_layout = {
 };
 
 static const WarpEvent s_north_warps[] = {
-    { .x=4, .y=0, .dest_map=WARP_LAST_MAP, .dest_warp=3 },
-    { .x=5, .y=0, .dest_map=WARP_LAST_MAP, .dest_warp=3 },
+    // The west north-door warp was replaced by the east tile below.
+    { .x=5, .y=0, .dest_map=MAP_ROUTE_2, .dest_warp=3 },
     { .x=4, .y=7, .dest_map=MAP_VIRIDIAN_FOREST, .dest_warp=0 },
     { .x=5, .y=7, .dest_map=MAP_VIRIDIAN_FOREST, .dest_warp=0 },
 };
 
 static const WarpEvent s_south_warps[] = {
     { .x=5, .y=0, .dest_map=MAP_VIRIDIAN_FOREST, .dest_warp=2 },
-    { .x=4, .y=7, .dest_map=WARP_LAST_MAP, .dest_warp=4 },
-    { .x=5, .y=7, .dest_map=WARP_LAST_MAP, .dest_warp=4 },
+    { .x=4, .y=7, .dest_map=MAP_ROUTE_2, .dest_warp=4 },
+    { .x=5, .y=7, .dest_map=MAP_ROUTE_2, .dest_warp=4 },
 };
 
 static const NpcDef s_north_npcs[] = {

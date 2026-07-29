@@ -1147,3 +1147,13 @@ This section supersedes the early progress snapshot in Section 24.
   three trainers currently use a four-tile sight distance; other maps can set
   each `NpcDef.trainer_sight` independently while retaining pokered's distance
   of two where desired.
+- Pewter Mart and Pewter Pokécenter now use the shared shop and healing
+  systems. The Pewter shop exposes the reference early-game supplies that are
+  represented by the current item enum: POKe BALL, POTION, ANTIDOTE, BURN
+  HEAL, and PARLYZ HEAL. The center nurse records Pewter as the healing point
+  and heals the party through the same confirmation flow as Viridian.
+- Forest Gate exits use explicit Route 2 destinations instead of `WARP_LAST`.
+  This matters because `WARP_LAST` is appropriate for an interior whose last
+  map is its parent, but is ambiguous for a gate entered from Viridian Forest.
+  The resulting reference route is now Viridian Forest → Forest Gate → Route 2
+  → Pewter City, with the Forest-side warp indices aligned to both gate tiles.

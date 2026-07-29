@@ -64,6 +64,7 @@ static const WarpEvent s_warps[] = {
     { .x = 7, .y = 71, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 8 },
     { .x = 8, .y = 71, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 8 },
     { .x = 9, .y = 71, .dest_map = MAP_VIRIDIAN_CITY, .dest_warp = 8 },
+    // Enter the Forest gate on the east tile of its north doorway.
     { .x = 3, .y = 11, .dest_map = MAP_VIRIDIAN_FOREST_NORTH_GATE, .dest_warp = 0 },
     { .x = 3, .y = 43, .dest_map = MAP_VIRIDIAN_FOREST_SOUTH_GATE, .dest_warp = 2 },
 };

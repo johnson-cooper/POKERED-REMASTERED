@@ -39,6 +39,13 @@ static void start_active_trainer_battle(void) {
     if (!g_world.map || s_active_npc_index >= g_world.npc_count)
         return;
     NpcState *trainer = &g_world.npcs[s_active_npc_index];
+    // Lock the trainer immediately once its battle is actually launched.
+    // This prevents the overworld sight check from re-triggering the same
+    // encounter during the battle-to-overworld transition. The story flag is
+    // still committed by script_trainer_battle_complete after a win.
+    trainer->flags |= NPCF_TRAINER_DEFEATED;
+    if (trainer->trainer_flag != 0 && trainer->trainer_flag < FLAG_COUNT)
+        flags_set((GameFlag)trainer->trainer_flag);
     PartyPokemon *lead = party_get_lead();
     const char *nickname = lead && lead->nickname[0] ? lead->nickname : NULL;
     battle_setup_trainer_variant((TrainerId)trainer->trainer_id,
@@ -140,6 +147,16 @@ static const ShopItem s_viridian_shop[] = {
     { ITEM_BURN_HEAL,   250 },
 };
 #define VIRIDIAN_SHOP_COUNT 4
+static const ShopItem s_pewter_shop[] = {
+    { ITEM_POKE_BALL,   200 },
+    { ITEM_POTION,      300 },
+    { ITEM_ANTIDOTE,    100 },
+    { ITEM_BURN_HEAL,   250 },
+    { ITEM_PARLYZ_HEAL, 200 },
+};
+#define PEWTER_SHOP_COUNT 5
+static const ShopItem *s_active_shop = s_viridian_shop;
+static u8 s_active_shop_count = VIRIDIAN_SHOP_COUNT;
 
 static void shop_draw_box(u8 left, u8 top, u8 right, u8 bottom) {
     for (u8 y = top; y <= bottom; y++) {
@@ -186,7 +203,7 @@ static void shop_draw_items(void) {
     text_clear();
     shop_draw_money();
     shop_draw_box(0, 3, 29, 19);
-    for (u8 i = 0; i < VIRIDIAN_SHOP_COUNT; i++) {
+    for (u8 i = 0; i < s_active_shop_count; i++) {
         u8 row = (u8)(5 + i * 2);
         text_draw_str(3, row, item_get_name(s_viridian_shop[i].id));
         char price[8] = "$";
@@ -199,11 +216,11 @@ static void shop_draw_items(void) {
         *p = '\0';
         text_draw_str(20, row, price);
     }
-    u8 cancel_row = (u8)(5 + VIRIDIAN_SHOP_COUNT * 2);
+    u8 cancel_row = (u8)(5 + s_active_shop_count * 2);
     text_draw_str(3, cancel_row, "CANCEL");
 
     u8 cursor_row;
-    if (s_shop_cursor < VIRIDIAN_SHOP_COUNT)
+    if (s_shop_cursor < s_active_shop_count)
         cursor_row = (u8)(5 + s_shop_cursor * 2);
     else
         cursor_row = cancel_row;
@@ -252,7 +269,7 @@ static void shop_update(void) {
         break;
 
     case SHOP_BUY_SELECT: {
-        u8 total = (u8)(VIRIDIAN_SHOP_COUNT + 1);
+        u8 total = (u8)(s_active_shop_count + 1);
         if (input_pressed(KEY_UP)) {
             s_shop_cursor = s_shop_cursor == 0 ? (u8)(total - 1) : (u8)(s_shop_cursor - 1);
             shop_draw_items();
@@ -263,13 +280,13 @@ static void shop_update(void) {
             audio_sfx_play(AUDIO_SFX_SELECT);
         } else if (input_pressed(KEY_A)) {
             audio_sfx_play(AUDIO_SFX_CONFIRM);
-            if (s_shop_cursor >= VIRIDIAN_SHOP_COUNT) {
+            if (s_shop_cursor >= s_active_shop_count) {
                 s_shop_cursor = 0;
                 shop_draw_menu();
                 s_shop_state = SHOP_MENU;
             } else {
-                u16 price = s_viridian_shop[s_shop_cursor].price;
-                ItemId id = s_viridian_shop[s_shop_cursor].id;
+                u16 price = s_active_shop[s_shop_cursor].price;
+                ItemId id = s_active_shop[s_shop_cursor].id;
                 if (g_player_money < price) {
                     dialog_open();
                     dialog_set_text("You don't have\nenough money.");
@@ -440,8 +457,16 @@ void script_trigger_npc(u16 script_id, u8 npc_index) {
         return;
     }
 
-    if (script_id == 22 && flags_get(FLAG_GOT_POKEDEX) &&
-        g_world.map && g_world.map->map_id == MAP_VIRIDIAN_MART) {
+    if (script_id == 22 && flags_get(FLAG_GOT_POKEDEX) && g_world.map &&
+        (g_world.map->map_id == MAP_VIRIDIAN_MART ||
+         g_world.map->map_id == MAP_PEWTER_MART)) {
+        if (g_world.map->map_id == MAP_PEWTER_MART) {
+            s_active_shop = s_pewter_shop;
+            s_active_shop_count = PEWTER_SHOP_COUNT;
+        } else {
+            s_active_shop = s_viridian_shop;
+            s_active_shop_count = VIRIDIAN_SHOP_COUNT;
+        }
         s_active_script_id = script_id;
         s_active_npc_index = npc_index;
         s_blocks_input = TRUE;
@@ -455,7 +480,8 @@ void script_trigger_npc(u16 script_id, u8 npc_index) {
     // The reference sets the blackout/respawn point only after the player
     // accepts healing, so declining does not change the last center.
     if (script_id == 25 && g_world.map &&
-        g_world.map->map_id == MAP_VIRIDIAN_POKECENTER) {
+        (g_world.map->map_id == MAP_VIRIDIAN_POKECENTER ||
+         g_world.map->map_id == MAP_PEWTER_POKECENTER)) {
         s_active_script_id = script_id;
         s_active_npc_index = npc_index;
         s_pokecenter_state = POKECENTER_WELCOME;
@@ -626,9 +652,14 @@ void script_trainer_battle_complete(bool8 won) {
     if (!s_active_trainer_battle) return;
     if (won && g_world.map && s_active_npc_index < g_world.npc_count) {
         NpcState *trainer = &g_world.npcs[s_active_npc_index];
+        // The runtime defeated bit is required even for trainers that do not
+        // yet have a persistent story flag.  Without it, returning from the
+        // battle leaves the trainer eligible for line-of-sight detection on
+        // the next overworld frame, immediately starting the same battle
+        // again.  Story trainers additionally keep their pokered flag.
+        trainer->flags |= NPCF_TRAINER_DEFEATED;
         if (trainer->trainer_flag != 0 && trainer->trainer_flag < FLAG_COUNT) {
             flags_set((GameFlag)trainer->trainer_flag);
-            trainer->flags |= NPCF_TRAINER_DEFEATED;
         }
     }
     s_active_trainer_battle = FALSE;
@@ -689,8 +720,9 @@ static bool8 npc_script_tick(void) {
         return FALSE;
     }
 
-    if (s_active_script_id == 25 &&
-        g_world.map && g_world.map->map_id == MAP_VIRIDIAN_POKECENTER) {
+    if (s_active_script_id == 25 && g_world.map &&
+        (g_world.map->map_id == MAP_VIRIDIAN_POKECENTER ||
+         g_world.map->map_id == MAP_PEWTER_POKECENTER)) {
         if (s_pokecenter_state == POKECENTER_WELCOME) {
             if (dialog_update()) {
                 dialog_yesno_open();
@@ -705,7 +737,7 @@ static bool8 npc_script_tick(void) {
             if (choice) {
                 // Respawn inside the Pokécenter, two tiles north of the
                 // entrance, facing south toward the exit.
-                party_set_healing_point(MAP_VIRIDIAN_POKECENTER, 3, 5, DIR_DOWN);
+                party_set_healing_point(g_world.map->map_id, 3, 5, DIR_DOWN);
                 dialog_open();
                 dialog_set_text("OK. We'll need\nyour POKeMON.");
                 s_pokecenter_state = POKECENTER_NEED_PARTY;

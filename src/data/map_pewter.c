@@ -152,8 +152,10 @@ static const WarpEvent s_pewter_mart_warps[] = {
     { .x=4, .y=7, .dest_map=WARP_LAST_MAP, .dest_warp=4 },
 };
 static const WarpEvent s_pewter_pokecenter_warps[] = {
-    { .x=3, .y=7, .dest_map=WARP_LAST_MAP, .dest_warp=6 },
-    { .x=4, .y=7, .dest_map=WARP_LAST_MAP, .dest_warp=6 },
+    // Recovery can enter this center from any map, so leaving must always
+    // return to Pewter City rather than the map that preceded the blackout.
+    { .x=3, .y=7, .dest_map=MAP_PEWTER_CITY, .dest_warp=6 },
+    { .x=4, .y=7, .dest_map=MAP_PEWTER_CITY, .dest_warp=6 },
 };
 static const WarpEvent s_pewter_gym_warps[] = {
     { .x=4, .y=13, .dest_map=WARP_LAST_MAP, .dest_warp=2 },
@@ -175,12 +177,17 @@ static const WarpEvent s_pewter_speech_house_warps[] = {
 };
 
 static const NpcDef s_pewter_mart_npcs[] = {
-    { .x=0, .y=5, .sprite_tile=GFX_SCIENTIST_TILE_BASE, .facing=DIR_RIGHT, .text="Welcome to the\nPOKeMON MART!" },
+    { .x=0, .y=5, .sprite_tile=GFX_SCIENTIST_TILE_BASE, .facing=DIR_RIGHT, .script_id=22 },
     { .x=3, .y=3, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_DOWN, .text="You can buy items\nfor your POKeMON." },
+    { .x=5, .y=5, .sprite_tile=GFX_SCIENTIST_TILE_BASE, .facing=DIR_DOWN,
+      .text="Good things can happen\nif you raise POKeMON\ndiligently, even the\nweak ones!" },
 };
 static const NpcDef s_pewter_center_npcs[] = {
-    { .x=3, .y=1, .sprite_tile=GFX_GIRL_TILE_BASE, .facing=DIR_DOWN, .text="Welcome to the\nPOKeMON CENTER." },
-    { .x=1, .y=3, .sprite_tile=GFX_GIRL_TILE_BASE, .facing=DIR_DOWN, .text="We hope to see you\nagain!" },
+    { .x=3, .y=1, .sprite_tile=GFX_GIRL_TILE_BASE, .facing=DIR_DOWN, .script_id=25 },
+    { .x=1, .y=3, .sprite_tile=GFX_GIRL_TILE_BASE, .facing=DIR_DOWN,
+      .text="JIGGLYPUFF: Puu\npupuu!" },
+    { .x=10, .y=5, .sprite_tile=GFX_FISHER_TILE_BASE, .facing=DIR_LEFT,
+      .text="What!? TEAM ROCKET is\nat MT.MOON? Huh?\nI'm on the phone!" },
 };
 static const NpcDef s_pewter_gym_npcs[] = {
     { .x=4, .y=1, .sprite_tile=GFX_YOUNGSTER_TILE_BASE, .facing=DIR_DOWN, .text="I'm BROCK's first\nopponent!" },
