@@ -63,6 +63,7 @@ static void trainer_card_update(void);
 static void key_item_menu_draw(void);
 static void key_item_menu_update(void);
 static void item_target_update(void);
+static void tmhm_description_update(void);
 static void move_teach_update(void);
 
 typedef enum {
@@ -117,6 +118,8 @@ static u8 s_key_item_cursor;
 static bool8 s_item_target_active;
 static u8 s_item_target_cursor;
 static ItemId s_item_target_item;
+static bool8 s_tmhm_description_active;
+static ItemId s_tmhm_description_item;
 static bool8 s_move_teach_active;
 static ItemId s_move_teach_item;
 static u8 s_move_teach_slot;
@@ -889,6 +892,10 @@ static void state_menu_update(void) {
         item_menu_update();
         return;
     }
+    if (s_tmhm_description_active) {
+        tmhm_description_update();
+        return;
+    }
     if (s_item_target_active) {
         item_target_update();
         return;
@@ -1166,6 +1173,128 @@ static void move_teach_draw(void) {
     text_draw_char(1, s_move_teach_cursor < 4 ? (u8)(4 + s_move_teach_cursor * 2) : 17, '>');
 }
 
+static const char *tmhm_type_name(PokemonType type) {
+    switch (type) {
+    case TYPE_FIGHTING: return "FIGHTING";
+    case TYPE_FLYING:   return "FLYING";
+    case TYPE_POISON:   return "POISON";
+    case TYPE_GROUND:   return "GROUND";
+    case TYPE_ROCK:     return "ROCK";
+    case TYPE_BUG:      return "BUG";
+    case TYPE_GHOST:    return "GHOST";
+    case TYPE_FIRE:     return "FIRE";
+    case TYPE_WATER:    return "WATER";
+    case TYPE_GRASS:    return "GRASS";
+    case TYPE_ELECTRIC: return "ELECTRIC";
+    case TYPE_PSYCHIC:  return "PSYCHIC";
+    case TYPE_ICE:      return "ICE";
+    case TYPE_DRAGON:   return "DRAGON";
+    default:            return "NORMAL";
+    }
+}
+
+static const char *tmhm_effect_description(MoveEffect effect) {
+    switch (effect) {
+    case EFFECT_BURN:              return "May burn the foe.";
+    case EFFECT_FREEZE:            return "May freeze the foe.";
+    case EFFECT_PARALYZE:          return "May paralyze the foe.";
+    case EFFECT_POISON:            return "May poison the foe.";
+    case EFFECT_SLEEP:             return "May put the foe to sleep.";
+    case EFFECT_CONFUSION:         return "May confuse the foe.";
+    case EFFECT_FLINCH:            return "May cause the foe to flinch.";
+    case EFFECT_DRAIN_HP:          return "Restores HP from damage.";
+    case EFFECT_RECOIL:            return "Hurts the user after attacking.";
+    case EFFECT_CHARGE:            return "Charges before attacking.";
+    case EFFECT_MULTI_HIT:         return "Hits the foe several times.";
+    case EFFECT_TRAPPING:          return "Traps the foe for several turns.";
+    case EFFECT_STAT_ATK_UP1:
+    case EFFECT_STAT_ATK_UP2:      return "Raises the user's ATTACK.";
+    case EFFECT_STAT_DEF_UP1:
+    case EFFECT_STAT_DEF_UP2:      return "Raises the user's DEFENSE.";
+    case EFFECT_STAT_SPC_UP1:
+    case EFFECT_STAT_SPC_UP2:      return "Raises the user's SPECIAL.";
+    case EFFECT_STAT_ATK_DOWN1:    return "Lowers the foe's ATTACK.";
+    case EFFECT_STAT_DEF_DOWN1:
+    case EFFECT_STAT_DEF_DOWN2:    return "Lowers the foe's DEFENSE.";
+    case EFFECT_STAT_SPC_DOWN:     return "Lowers the foe's SPECIAL.";
+    case EFFECT_STAT_ACC_DOWN1:    return "Lowers the foe's ACCURACY.";
+    case EFFECT_STAT_EVA_UP1:      return "Raises the user's EVASION.";
+    case EFFECT_LEECH_SEED:        return "Drains the foe's HP each turn.";
+    case EFFECT_OHKO:              return "Knocks out the foe if it hits.";
+    case EFFECT_SPECIAL_DAMAGE:    return "Deals fixed damage.";
+    case EFFECT_BIDE:              return "Stores damage, then returns it.";
+    case EFFECT_HEAL:              return "Restores the user's HP.";
+    case EFFECT_REFLECT:           return "Raises the user's DEFENSE.";
+    case EFFECT_LIGHT_SCREEN:      return "Raises the user's SPECIAL.";
+    case EFFECT_FOCUS_ENERGY:      return "Raises the user's critical-hit rate.";
+    case EFFECT_METRONOME:         return "Uses a move at random.";
+    case EFFECT_TELEPORT:          return "Flees from wild battles.";
+    case EFFECT_RAGE:              return "Raises ATTACK when hit.";
+    case EFFECT_TRANSFORM:         return "Copies the foe's moves.";
+    case EFFECT_PAY_DAY:           return "Scatters coins after battle.";
+    case EFFECT_DISABLE:           return "Disables one of the foe's moves.";
+    case EFFECT_MIMIC:              return "Copies one of the foe's moves.";
+    case EFFECT_SUPER_FANG:        return "Cuts the foe's HP in half.";
+    case EFFECT_DREAM_EATER:       return "Damages a sleeping foe and heals.";
+    case EFFECT_SUBSTITUTE:        return "Creates a decoy using the user's HP.";
+    case EFFECT_SWIFT:              return "An attack that never misses.";
+    case EFFECT_JUMP_KICK:         return "The user is hurt if it misses.";
+    case EFFECT_THRASH:             return "Attacks, then confuses the user.";
+    case EFFECT_TWINEEDLE:          return "Hits twice and may poison the foe.";
+    case EFFECT_SONICBOOM:           return "Deals fixed damage.";
+    case EFFECT_KINESIS:             return "Lowers the foe's ACCURACY.";
+    default:                         return "A damaging or field move.";
+    }
+}
+
+static void tmhm_number_text(char *buffer, u8 value) {
+    buffer[0] = (char)('0' + value / 100);
+    buffer[1] = (char)('0' + (value / 10) % 10);
+    buffer[2] = (char)('0' + value % 10);
+    buffer[3] = '\0';
+}
+
+static void tmhm_description_draw(void) {
+    MoveId move = tmhm_move(item_tmhm_number(s_tmhm_description_item));
+    const MoveData *data = &g_move_data[move];
+    char power[4];
+    char accuracy[4];
+    char pp[4];
+    tmhm_number_text(power, data->power);
+    tmhm_number_text(accuracy, data->accuracy);
+    tmhm_number_text(pp, data->pp);
+
+    text_clear();
+    title_draw_menu_box(0, 0, 29, 19);
+    text_draw_str(2, 1, item_get_name(s_tmhm_description_item));
+    text_draw_str(2, 3, data->name);
+    text_draw_str(2, 5, "TYPE");
+    text_draw_str(9, 5, tmhm_type_name(data->type));
+    text_draw_str(2, 7, "POWER");
+    text_draw_str(10, 7, power);
+    text_draw_str(16, 7, "ACC");
+    text_draw_str(22, 7, accuracy);
+    text_draw_str(2, 9, "PP");
+    text_draw_str(6, 9, pp);
+    text_draw_str(2, 12, tmhm_effect_description(data->effect));
+    text_draw_str(2, 16, "A: USE   B: CANCEL");
+}
+
+static void tmhm_description_update(void) {
+    if (input_pressed(KEY_A)) {
+        s_tmhm_description_active = FALSE;
+        s_item_target_cursor = 0;
+        s_item_target_active = TRUE;
+        item_target_draw();
+        audio_sfx_play(AUDIO_SFX_CONFIRM);
+    } else if (input_pressed(KEY_B)) {
+        s_tmhm_description_active = FALSE;
+        s_pause_item_active = TRUE;
+        item_menu_draw();
+        audio_sfx_play(AUDIO_SFX_PAUSE_CLOSE);
+    }
+}
+
 static void item_use_tmhm(ItemId item, u8 slot) {
     PartyPokemon *mon = party_get_slot(slot);
     u8 number = item_tmhm_number(item);
@@ -1186,16 +1315,10 @@ static void item_use_tmhm(ItemId item, u8 slot) {
         if (mon->moves[i] == MOVE_NONE) {
             mon->moves[i] = move;
             mon->pp[i] = g_move_data[move].pp;
-            if (item < ITEM_HM01) bag_remove(item, 1);
             pause_menu_message("The move was learned!");
             s_pause_item_active = FALSE;
             return;
         }
-    }
-    if (item >= ITEM_HM01) {
-        pause_menu_message("HM moves cannot be forgotten.");
-        s_pause_item_active = FALSE;
-        return;
     }
     s_move_teach_item = item;
     s_move_teach_slot = slot;
@@ -1221,7 +1344,6 @@ static void move_teach_update(void) {
         MoveId move = tmhm_move(item_tmhm_number(s_move_teach_item));
         mon->moves[s_move_teach_cursor] = move;
         mon->pp[s_move_teach_cursor] = g_move_data[move].pp;
-        bag_remove(s_move_teach_item, 1);
         s_move_teach_active = FALSE;
         pause_menu_message("The move was learned!");
     }
@@ -1315,7 +1437,12 @@ static void item_menu_update(void) {
         }
         if (id == ITEM_POTION) {
             item_use_potion();
-        } else if ((id >= ITEM_FIRE_STONE && id <= ITEM_MOON_STONE) || item_is_tmhm(id)) {
+        } else if (item_is_tmhm(id)) {
+            s_tmhm_description_item = id;
+            s_pause_item_active = FALSE;
+            s_tmhm_description_active = TRUE;
+            tmhm_description_draw();
+        } else if (id >= ITEM_FIRE_STONE && id <= ITEM_MOON_STONE) {
             s_item_target_item = id;
             s_item_target_cursor = 0;
             s_pause_item_active = FALSE;

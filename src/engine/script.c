@@ -880,6 +880,13 @@ void script_trainer_battle_complete(bool8 won) {
                             "A POKeMON will absorb damage\n"
                             "and return it double.");
             bag_add(ITEM_TM34, 1);
+            // Battle return intentionally opens this post-victory dialogue
+            // after the battle state has ended. Register it with the normal
+            // NPC dialogue state machine so A advances each page instead of
+            // leaving the visible dialogue permanently frozen.
+            s_npc_script_state = 1;
+            s_active_script_id = 0;
+            s_blocks_input = TRUE;
         }
     }
     s_active_trainer_battle = FALSE;

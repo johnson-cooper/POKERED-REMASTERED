@@ -88,7 +88,11 @@ static const MapCell s_pewter_gym_cells[7 * 5] = {
     P(0x05), P(0x05), P(0x04), P(0x05), P(0x05),
 };
 static const MapLayout s_pewter_gym_layout = {
-    .width = 7, .height = 5, .tileset = &g_tileset_gym,
+    // pokered map_constants.asm defines PEWTER_GYM as 5 blocks wide by
+    // 7 blocks high. The 35-byte block stream must use that row stride;
+    // declaring it 7x5 transposes the room and invalidates the object Y
+    // coordinates, including the player entrance position.
+    .width = 5, .height = 7, .tileset = &g_tileset_gym,
     .cells = s_pewter_gym_cells,
 };
 
